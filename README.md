@@ -203,30 +203,30 @@ aliases:
 
 ## 🗺️ Sequentially Phased Implementation Roadmap
 
-### Phase 1: Scaffolding, Models & Config
+### Phase 1: Scaffolding, Models & Config (Completed)
 - Set up directory structure, `pyproject.toml`, and config parser.
 - Define shared interfaces (`BaseHandler`, `MatchResult`) and the pipeline builder (`Chain`).
 
-### Phase 2: Scanner & Core Handlers (H1 - H4)
+### Phase 2: Scanner & Core Handlers (H1 - H4) (Completed)
 - Implement `scanner.py` using Python's standard `os.walk` with high-efficiency traversal filtering (ignoring `.git`, `node_modules`, virtualenvs, and dotfiles) to search the filesystem.
 - Implement H1 (Exact), H2 (Case-Insensitive), H3 (Token-Normalized), and H4 (Fuzzy String with `rapidfuzz`).
 
-### Phase 3: Heuristics, Explicit Flags, Phonetic, Config Aliases & Memory (H5 - H6)
+### Phase 3: Heuristics, Explicit Flags, Phonetic, Config Aliases & Memory (H5 - H6) (Completed)
 - Implement lightweight Heuristic Intent Detector (Strategy A) for temporal and file attribute parsing.
 - Implement Explicit CLI options `--latest`, `--largest`, and `--ext` (Strategy D) to filter and sort matches.
 - Implement H5 (Phonetic matching using `jellyfish`'s Metaphone/Soundex algorithm).
 - Implement H6 (Alias parsing from `config.yaml` and dynamic memory from `learned_aliases.yaml` utilizing the rich memory model with sub-query routing).
 - Implement `export-memory` and `import-memory` commands.
 
-### Phase 4: Persistent Indexing
+### Phase 4: Persistent Indexing (Completed)
 - Create a high-efficiency persistent index store (using **SQLite or a highly compressed binary database** instead of massive slow monolithic JSON files) containing pre-tokenized directory contents and modification checks (`mtime`).
 - Implement CLI `index` subcommands.
 
-### Phase 5: Heavy Matchers (H7 - H8)
+### Phase 5: Heavy Matchers (H7 - H8) (Completed)
 - Implement H7 (Lazy-loaded `sentence-transformers` for semantic similarity scoring).
 - Implement H8 (LLM Query Rewriter via Ollama / OpenAI API compatible endpoints to translate natural language queries to canonical queries).
 
-### Phase 6: Interactive Fallback, Verification & Smoke Tests
+### Phase 6: Interactive Fallback, Verification & Smoke Tests (Completed)
 - Implement H9 (Interactive prompt utilizing `questionary` or `inquirer` to confirm options).
 - Add confirmation log appender to update the rich memory database (`query`, `path`, `timestamp`, `hits`, `decay_rank`).
 - Add mock filesystem tests under `tests/` checking the exact execution path of the chain.

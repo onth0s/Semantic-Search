@@ -320,11 +320,11 @@ aliases:
 ## Implementation Order
 
 1. **Phase 1: Scaffolding, Models & Config** — `pyproject.toml`, directory structure, configuration loader. (Completed)
-2. **Phase 2: Scanner & Core Handlers (H1 - H4)** — Standard directory walking with exclusions, exact, case-insensitive, token-normalized, and fuzzy (`rapidfuzz`).
-3. **Phase 3: Heuristics, Explicit Flags, Phonetic, Config Aliases & Memory (H5 - H6)** — Lightweight heuristics (Strategy A) for temporal/attribute parsing, explicit CLI flags `--latest`/`--largest`/`--ext` (Strategy D), tentative Metaphone/Soundex check, alias YAML matching, rich memory updates (`query`, `path`, `timestamp`, `hits`, `decay_rank`), export/import CLI commands.
-4. **Phase 4: Persistent Indexing** — Pre-tokenized SQLite indices, CLI `index` subcommands.
-5. **Phase 5: Heavy Matchers (H7 - H8)** — Lazy sentence-transformers, H8 LLM Query Rewriter (translating natural language to canonical queries).
-6. **Phase 6: Interactive Fallback, Verification & Smoke Tests** — H9 interactive prompts and rich memory logging, feedback loop test suite.
+2. **Phase 2: Scanner & Core Handlers (H1 - H4)** — Standard directory walking with exclusions, exact, case-insensitive, token-normalized, and fuzzy (`rapidfuzz`). (Completed)
+3. **Phase 3: Heuristics, Explicit Flags, Phonetic, Config Aliases & Memory (H5 - H6)** — Lightweight heuristics (Strategy A) for temporal/attribute parsing, explicit CLI flags `--latest`/`--largest`/`--ext` (Strategy D), tentative Metaphone/Soundex check, alias YAML matching, rich memory updates (`query`, `path`, `timestamp`, `hits`, `decay_rank`), export/import CLI commands. (Completed)
+4. **Phase 4: Persistent Indexing** — Pre-tokenized SQLite indices, CLI `index` subcommands. (Completed)
+5. **Phase 5: Heavy Matchers (H7 - H8)** — Lazy sentence-transformers, H8 LLM Query Rewriter (translating natural language to canonical queries). (Completed)
+6. **Phase 6: Interactive Fallback, Verification & Smoke Tests** — H9 interactive prompts and rich memory logging, feedback loop test suite. (Completed)
 7. **Phase 7: Post-MVP Optimizations (Optional)** — Windows NTFS Master File Table (MFT) low-level reader acceleration.
 
 ## Directory Structure
