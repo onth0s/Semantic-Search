@@ -1,4 +1,4 @@
-# semantic-search — PLAN
+# sempath — PLAN
 
 ## Vision
 
@@ -173,10 +173,10 @@ class BaseHandler(ABC):
 ### H9 – Interactive Fallback
 - Presents top N ambiguous candidates to user.
 - Accepts keyboard selection or typed response.
-- **Stateful Memory Loop:** Once the user confirms a path, the query-to-path association is learned and written to `learned_aliases.yaml` in the user's config directory (specifically `%APPDATA%\semantic-search\` on Windows).
-- **Chronological Undo Stack:** Learned aliases are stored with insertion order or timestamps. Running the command `semantic-search alias undo` pops the latest confirmed alias from `learned_aliases.yaml`.
+- **Stateful Memory Loop:** Once the user confirms a path, the query-to-path association is learned and written to `learned_aliases.yaml` in the user's config directory (specifically `%APPDATA%\sempath\` on Windows).
+- **Chronological Undo Stack:** Learned aliases are stored with insertion order or timestamps. Running the command `sempath alias undo` pops the latest confirmed alias from `learned_aliases.yaml`.
 - **Feedback Loop**: When a query matches a learned alias during H6 execution, a hint is printed (unless running in quiet/JSON/non-interactive mode):
-  `[i] Matched via learned alias: 'query' -> 'path' (run 'semantic-search alias undo' to revert)`
+  `[i] Matched via learned alias: 'query' -> 'path' (run 'sempath alias undo' to revert)`
 - Subsequent matching of the same or similar query is instantly resolved by the Alias handler (H6).
 - Can be suppressed (flag `--non-interactive`) for automated LLM use.
 - Confidence: `1.0` (user confirmed)
@@ -197,10 +197,10 @@ class BaseHandler(ABC):
 ### Persistent Index
 - Pre-built index stored using a **high-efficiency serialization format (SQLite or highly compressed binary format)** to enable sub-millisecond loading of hundreds of thousands of paths (bypassing slow parses of massive, monolithic JSON files). Includes optional embedding cache (`faiss` or numpy).
 - Commands:
-  - `semantic-search index create [path]` — build index
-  - `semantic-search index update [path]` — incremental update
-  - `semantic-search index list`
-  - `semantic-search index remove`
+  - `sempath index create [path]` — build index
+  - `sempath index update [path]` — incremental update
+  - `sempath index list`
+  - `sempath index remove`
 - Index stores for each path:
   - Full path, basename, parent dirs
   - Tokens (normalized)
@@ -214,11 +214,11 @@ class BaseHandler(ABC):
 ## CLI Interface
 
 ```
-semantic-search find [OPTIONS] <query> [path]
-semantic-search index (create|update|list|remove) [path]
-semantic-search alias (add|list|remove|clear|undo)
-semantic-search export-memory <path>
-semantic-search import-memory <path>
+sempath find [OPTIONS] <query> [path]
+sempath index (create|update|list|remove) [path]
+sempath alias (add|list|remove|clear|undo)
+sempath export-memory <path>
+sempath import-memory <path>
 ```
 
 ### Options (for `find`)
@@ -294,7 +294,7 @@ When no handler produces a match above `--min-confidence`:
 
 ---
 
-## Config File (`%APPDATA%\semantic-search\config.yaml`)
+## Config File (`%APPDATA%\sempath\config.yaml`)
 
 ```yaml
 handlers:
@@ -309,7 +309,7 @@ handlers:
 
 index:
   auto: true              # auto-create index if none exists
-  store: "%APPDATA%\\semantic-search\\cache"
+  store: "%APPDATA%\\sempath\\cache"
   exclude_patterns:
     - "node_modules"
     - ".git"
@@ -336,7 +336,7 @@ aliases:
 ## Directory Structure
 
 ```
-semantic-search/
+sempath/
 ├── pyproject.toml
 ├── README.md
 ├── PLAN.md

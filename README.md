@@ -1,4 +1,4 @@
-# semantic-search
+# sempath
 
 A Python CLI tool designed to help humans and LLM agents find filesystem paths using vague, colloquial, misspelled, or semantically fuzzy descriptions. It eliminates the need to remember exact casings, paths, or naming conventions.
 
@@ -76,25 +76,26 @@ User Query
 ┌─────────────────┐
 │ Handler 9       │  Interactive Fallback (Ask user & learn choice)
 └─────────────────┘
+└──────┬──────────┘
 ```
 
 ---
 
 ## 🧠 Stateful Memory & Robust User Ratified Aliases
 
-Unlike purely stateless CLI search engines, `semantic-search` remembers confirmations to build an intuitive, personalized interaction model, and treats alias matching as a robust semantic system:
+Unlike purely stateless CLI search engines, `sempath` remembers confirmations to build an intuitive, personalized interaction model, and treats alias matching as a robust semantic system:
 
-1. **Learning confirmations:** When a query resolves to an interactive selection (H9) and the user confirms, that query-to-path association is saved to a persistent storage (`%APPDATA%\semantic-search\learned_aliases.yaml`).
+1. **Learning confirmations:** When a query resolves to an interactive selection (H9) and the user confirms, that query-to-path association is saved to a persistent storage (`%APPDATA%\sempath\learned_aliases.yaml`).
 2. **Robust User Ratified Aliases (H6):** The Alias handler doesn't just check for exact string matches:
    - **Fuzzy / Phonetic Keys:** Alias keys (e.g., `DWL` -> `Downloads`) are checked via fuzzy matching, so `dwll` resolves directly with high confidence.
    - **Regex / Wildcard Mappings:** Confirmed/configured aliases can contain regex patterns.
    - **Context / Query Splitting:** If the query includes an alias and a sub-query (e.g., `"latest pic on MAIN"`), the system extracts the alias `MAIN`, resolves it to its directory (`C:\Users\Leonardo\Desktop\__MAIN`), and searches recursively within that directory for the remaining query (`"latest pic"`), resolving files matching image extensions sorted by creation/modification time.
-3. **Chronological Undo Stack:** Aliases are logged chronologically. If you make a mistake, run `semantic-search alias undo` to revert the last learned alias.
+3. **Chronological Undo Stack:** Aliases are logged chronologically. If you make a mistake, run `sempath alias undo` to revert the last learned alias.
 4. **Deterministic execution & Feedback Loop:** Next time a query is matched via a learned alias, it resolves instantly and displays a feedback hint:
-   `[i] Matched via learned alias: 'query' -> 'path' (run 'semantic-search alias undo' to revert)`
+   `[i] Matched via learned alias: 'query' -> 'path' (run 'sempath alias undo' to revert)`
 5. **Sharing/Attaching context:** LLM agents or remote deployment bots can export and import this state.
-   - `semantic-search export-memory <export_path.yaml>`
-   - `semantic-search import-memory <import_path.yaml>`
+   - `sempath export-memory <export_path.yaml>`
+   - `sempath import-memory <import_path.yaml>`
 
 > [!TIP]
 > **Embedding Latency Penalty Guard (H7 & H8):** 
@@ -110,17 +111,17 @@ Unlike purely stateless CLI search engines, `semantic-search` remembers confirma
 
 ```bash
 # Search for paths
-semantic-search find [OPTIONS] <QUERY> [ROOT_DIR]
+sempath find [OPTIONS] <QUERY> [ROOT_DIR]
 
 # Persistent Indexing
-semantic-search index (create | update | list | remove) [ROOT_DIR]
+sempath index (create | update | list | remove) [ROOT_DIR]
 
 # Managed Aliases / Custom Mappings
-semantic-search alias (add | list | remove | clear | undo)
+sempath alias (add | list | remove | clear | undo)
 
 # Memory Import & Export
-semantic-search export-memory <FILE_PATH>
-semantic-search import-memory <FILE_PATH>
+sempath export-memory <FILE_PATH>
+sempath import-memory <FILE_PATH>
 ```
 
 ### Search Options
@@ -205,7 +206,7 @@ handlers:
 
 index:
   auto: true
-  store: "%APPDATA%\\semantic-search\\cache"
+  store: "%APPDATA%\\sempath\\cache"
   exclude_patterns:
     - "node_modules"
     - ".git"
