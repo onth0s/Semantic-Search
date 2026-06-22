@@ -30,77 +30,26 @@ A Python CLI tool designed to help humans and LLM agents find filesystem paths u
 
 ---
 
-## 🏗️ Architecture: Intent Detection & Handler Chain
+## 🏗️ Architecture: Dual-Path Intent Detection & Handler Chain
 
-Before a query is passed to the matching chain, an upstream **Intent Detector** classifies the query type. Specialized resolvers preprocess temporal (e.g., "latest screenshot") or attribute (e.g., "largest file") constraints to refine the candidate pool. The remaining query is processed by a prioritized chain of decoupled **Handlers** with a uniform interface.
+To maintain sub-millisecond response times for quick matches, `sempath` uses a dual-path execution model that combines lightweight heuristics with a lazy-loaded deep intent classifier.
 
-```
-       User Query
-           │
-           ▼
-┌──────────────────────┐
-│   Intent Detector    │  ← Classifies: Referential, Temporal, Attribute, Semantic
-└──────────┬───────────┘
-           │
-           ├──────────────────────────┐
-           ▼ (Temporal / Attribute)   ▼ (Referential / Semantic)
-┌──────────────────────┐     ┌──────────────────────┐
-│     Specialized      │     │       Router         │  ← Extracts path segments
-│      Resolvers       │     └──────────┬───────────┘
-└──────────┬───────────┘                │
-           │                            │
-           └─────────────┬──────────────┘
-                         │
-                         ▼
-                 ┌───────────────┐
-                 │ Handler Chain │
-                 └───────┬───────┘
-                         │
-                         ▼
-┌──────────────────┐
-│ Handler 1        │  Exact Match
-│ (fast, cheap)    │  ──→ Match found ➔ Return result
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 2        │  Case-Insensitive Match
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 3        │  Token-Normalized Match
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 4        │  Fuzzy String / Edit Distance (rapidfuzz)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 5 (Tent.)│  Phonetic Match (Soundex/Metaphone via jellyfish)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 6        │  Alias & Synonym Expansion (config + learned)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 7        │  Embedding Semantic Match (sentence-transformers)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 8        │  LLM Query Rewriter (converts natural language to query)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 9        │  Interactive Fallback (Ask user & learn choice)
-└──────────────────┘
+```mermaid
+graph TD
+    UserQuery["User Query"] --> HeuristicID["Heuristic Intent Detector<br/>(Strategy A: Fast regex/keywords)"]
+    
+    HeuristicID -->|"Temporal / Attribute"| SpecResolvers["Specialized Resolvers (Fast)"]
+    HeuristicID -->|"Referential / Semantic"| FastChain["Fast Handler Chain (H1 - H6)<br/>(Strategy B: Sub-ms Path)"]
+    
+    FastChain --> MatchFound{"Match Found?"}
+    MatchFound -->|"Yes"| ReturnResult["Return Result"]
+    MatchFound -->|"No"| LoadHeavyDB["Load Heavy DB<br/>(Lazy-load libraries)"]
+    
+    LoadHeavyDB --> DeepID["Deep Intent Detector<br/>(LLM/Embeddings)"]
+    SpecResolvers --> QueryRewriter["Query Rewriter (QR)<br/>(Strategy C: Translate to Canonical)"]
+    DeepID --> QueryRewriter
+    
+    QueryRewriter --> SecondCycle["Second Cycle Match<br/>(Evaluate Canonical on H1 - H6)"]
 ```
 
 ---
