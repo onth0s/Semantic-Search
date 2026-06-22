@@ -187,14 +187,15 @@ class BaseHandler(ABC):
 
 ### On-the-Fly (default)
 - Recursively scans directory (from root or `cwd`) on every invocation.
-- **Sensible Directory Traversal Ignores:** Automatically bypasses potential blackholes to prevent hangs:
+- **⚡ Windows MFT Optimization**: If running on Windows as Administrator on an NTFS drive, the scanner uses a low-level Master File Table (MFT) reader (like parsing `$MFT` volume handles sequentially) to sweep the entire drive in seconds, completely bypassing standard high-overhead directory walker (`os.walk`) loops.
+- **Sensible Directory Traversal Ignores**: Automatically bypasses potential blackholes to prevent hangs:
   - Dot directories (e.g., `.git`, `.venv`, `.idea`, `.vscode`).
   - Common build, dependency, and cache artifacts (e.g., `node_modules`, `__pycache__`, `build`, `dist`, `.mypy_cache`, `.pytest_cache`).
-- **`.gitignore` Integration:** Parse and respect actual `.gitignore` files found in the traversed directories to prevent matching developer-ignored files.
+- **`.gitignore` Integration**: Parse and respect actual `.gitignore` files found in the traversed directories to prevent matching developer-ignored files.
 - Accepts `--depth` limit (default: 5) to constrain search radius.
 
 ### Persistent Index
-- Pre-built index stored as JSON + optional embedding cache (`faiss` or numpy).
+- Pre-built index stored using a **high-efficiency serialization format (SQLite or highly compressed binary format)** to enable sub-millisecond loading of hundreds of thousands of paths (bypassing slow parses of massive, monolithic JSON files). Includes optional embedding cache (`faiss` or numpy).
 - Commands:
   - `semantic-search index create [path]` — build index
   - `semantic-search index update [path]` — incremental update

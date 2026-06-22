@@ -175,7 +175,7 @@ aliases:
 - Define shared interfaces (`BaseHandler`, `MatchResult`) and the pipeline builder (`Chain`).
 
 ### Phase 2: Scanner & Core Handlers (H1 - H4)
-- Implement `scanner.py` with ignore-list filters for `node_modules`, dotfiles, and virtual environments.
+- Implement `scanner.py` featuring a hybrid strategy: a low-level sequential NTFS **Master File Table (MFT) reader** for Administrator runs on Windows to sweep millions of files in seconds, falling back to standard `os.walk` with ignore-list filters for `.git`, `node_modules`, dotfiles, and virtual environments.
 - Implement H1 (Exact), H2 (Case-Insensitive), H3 (Token-Normalized), and H4 (Fuzzy String with `rapidfuzz`).
 
 ### Phase 3: Phonetic, Config Aliases & Memory (H5 - H6)
@@ -184,7 +184,7 @@ aliases:
 - Implement `export-memory` and `import-memory` commands.
 
 ### Phase 4: Persistent Indexing
-- Create persistent index store (`index.json`) containing pre-tokenized directory contents and modification checks (`mtime`).
+- Create a high-efficiency persistent index store (using **SQLite or a highly compressed binary database** instead of massive slow monolithic JSON files) containing pre-tokenized directory contents and modification checks (`mtime`).
 - Implement CLI `index` subcommands.
 
 ### Phase 5: Heavy Matchers (H7 - H8)
