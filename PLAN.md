@@ -27,83 +27,43 @@ A Python CLI tool that lets LLMs (and humans) find filesystem paths by vague, co
 - **Linter / Formatter**: [Ruff](https://docs.astral.sh/ruff/) — fast Python linter and formatter
 - **Testing**: pytest
 - **Terminal UI**: [Rich](https://rich.readthedocs.io/) — styled and colored CLI output
+---
+
+## Architecture: Dual-Path Intent Detection & Handler Chain
+
+To maintain sub-millisecond response times for quick matches, `sempath` uses a dual-path execution model that combines lightweight heuristics with a lazy-loaded deep intent classifier.
+
+```mermaid
+graph TD
+    UserQuery["User Query"] --> HeuristicID["Heuristic Intent Detector<br/>(Strategy A: Fast regex/keywords)"]
+    
+    HeuristicID -->|"Temporal / Attribute"| SpecResolvers["Specialized Resolvers (Fast)"]
+    HeuristicID -->|"Referential / Semantic"| FastChain["Fast Handler Chain (H1 - H6)<br/>(Strategy B: Sub-ms Path)"]
+    
+    FastChain --> MatchFound{"Match Found?"}
+    MatchFound -->|"Yes"| ReturnResult["Return Result"]
+    MatchFound -->|"No"| LoadHeavyDB["Load Heavy DB<br/>(Lazy-load libraries)"]
+    
+    LoadHeavyDB --> DeepID["Deep Intent Detector<br/>(LLM/Embeddings)"]
+    SpecResolvers --> QueryRewriter["Query Rewriter (QR)<br/>(Strategy C: Translate to Canonical)"]
+    DeepID --> QueryRewriter
+    
+    QueryRewriter --> SecondCycle["Second Cycle Match<br/>(Evaluate Canonical on H1 - H6)"]
+```
+
+### Execution Pipeline
+
+1. **Lightweight Heuristic Parser (Strategy A):** Fast pattern matching (regex, suffix, size markers) checks if temporal or attribute filters can be extracted instantly without loading heavy ML dependencies.
+2. **Explicit Flags (Strategy D):** Explicit CLI options (like `--latest`, `--largest`, `--ext`) bypass intent classification entirely for programmatic usage and easy debugging.
+3. **Fast Handler Path (Strategy B):** The query immediately flows through the fast handlers (`H1`–`H6`). If a confident match is found, it returns immediately (sub-millisecond).
+4. **Lazy Deep Intent & Query Rewrite Fallback (Strategy C):** If no fast match succeeds:
+   - Heavy libraries (`sentence-transformers`, `torch`, etc.) are lazy-loaded.
+   - The query is analyzed by a **Deep Intent Detector**.
+   - If needed, the **Query Rewriter (QR)** translates the query into a canonical search query.
+   - The pipeline triggers a **second cycle** of the fast matchers (`H1`–`H6`) against the newly produced canonical query.
 
 ---
 
-## Architecture: Intent Detection & Handler Chain
-
-Before a query is passed to the matching chain, an upstream **Intent Detector** classifies the query type. Specialized resolvers preprocess temporal (e.g., "latest screenshot") or attribute (e.g., "largest file") constraints to refine the candidate pool. The remaining query is processed by a prioritized chain of decoupled **Handlers** with a uniform interface.
-
-```
-       User Query
-           │
-           ▼
-┌──────────────────────┐
-│   Intent Detector    │  ← Classifies: Referential, Temporal, Attribute, Semantic
-└──────────┬───────────┘
-           │
-           ├──────────────────────────┐
-           ▼ (Temporal / Attribute)   ▼ (Referential / Semantic)
-┌──────────────────────┐     ┌──────────────────────┐
-│     Specialized      │     │       Router         │  ← Extracts path segments
-│      Resolvers       │     └──────────┬───────────┘
-└──────────┬───────────┘                │
-           │                            │
-           └─────────────┬──────────────┘
-                         │
-                         ▼
-                 ┌───────────────┐
-                 │ Handler Chain │
-                 └───────┬───────┘
-                         │
-                         ▼
-┌──────────────────┐
-│ Handler 1        │  Exact Match
-│ (fast, cheap)    │  ──→ Match found ➔ Return result
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 2        │  Case-Insensitive Match
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 3        │  Token-Normalized Match (split, sort, compare)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 4        │  Fuzzy String / Edit Distance
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 5 (Tent.)│  Phonetic Match (Soundex, Metaphone)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 6        │  Alias / Synonym Expansion
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 7        │  Embedding Semantic Match (sentence-transformers)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 8        │  LLM Query Rewriter (converts natural language to query)
-└──────┬───────────┘
-       │ no match
-       ▼
-┌──────────────────┐
-│ Handler 9        │  Interactive Fallback (Ask user & learn choice)
-└──────────────────┘
-```
-
----
 
 ## Handler Interface
 
