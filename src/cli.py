@@ -15,7 +15,10 @@ import click
 from rich.console import Console
 
 from src import __version__
+from src.chain import build_chain
 from src.config import load_config
+from src.models import SearchResult
+from src.scanner import scan_directory
 
 # ---------------------------------------------------------------------------
 # Rich console — shared across all commands
@@ -128,21 +131,83 @@ def find(
         console.print(f"[dim]Depth:[/]  {depth}")
         console.print()
 
-    # Phase 1 placeholder — chain execution will be wired in Phase 2
-    if json_output:
-        placeholder = {
-            "status": "failed",
-            "query": query,
-            "message": "Handler chain not yet implemented (Phase 1 scaffold).",
-            "near_misses": [],
-        }
-        click.echo(json.dumps(placeholder, indent=2))
-    else:
-        console.print(
-            "[yellow]⚠[/]  Handler chain not yet implemented (Phase 1 scaffold).\n"
-            f"   Query: [bold cyan]{query}[/]\n"
-            f"   Root:  [bold]{search_root}[/]"
+    # Scan directory
+    exclude_patterns = config.get("index", {}).get("exclude_patterns", [])
+    candidates = scan_directory(search_root, depth=depth, exclude_patterns=exclude_patterns)
+
+    # Build and execute chain
+    try:
+        chain = build_chain(config)
+    except ValueError as exc:
+        err_console.print(f"[bold red]Error building handler chain:[/] {exc}")
+        sys.exit(1)
+
+    match_result = chain.handle(query, candidates)
+
+    if match_result is not None and match_result.confidence >= min_confidence:
+        search_result = SearchResult(
+            status="success",
+            query=query,
+            match=match_result,
         )
+    else:
+        # Collect near-misses from all enabled handlers
+        near_misses = []
+        seen_paths = set()
+        current = chain
+        while current is not None:
+            try:
+                res = current.match(query, candidates)
+                if res is not None and res.path not in seen_paths:
+                    near_misses.append(res)
+                    seen_paths.add(res.path)
+            except Exception:
+                pass
+            current = getattr(current, "next_handler", None)
+
+        # Filter near-misses above a minimum relevance threshold (e.g. 0.2)
+        near_misses = [m for m in near_misses if m.confidence >= 0.2]
+        # Rank by confidence descending
+        near_misses.sort(key=lambda m: m.confidence, reverse=True)
+
+        if near_misses:
+            search_result = SearchResult(
+                status="ambiguous",
+                query=query,
+                near_misses=near_misses,
+                message="No match found above confidence threshold.",
+            )
+        else:
+            search_result = SearchResult(
+                status="failed",
+                query=query,
+                message="No candidate paths or near-misses matched the query.",
+            )
+
+    # Output results
+    if json_output:
+        click.echo(json.dumps(search_result.to_dict(), indent=2))
+        sys.exit(0 if search_result.status == "success" else 1)
+    else:
+        if search_result.status == "success":
+            res = search_result.match
+            console.print(
+                f"[bold green]✔ Success:[/] Found match: [bold cyan]{res.path}[/]"
+                f" [dim]({res.handler}, confidence: {res.confidence:.2f})[/]"
+            )
+            sys.exit(0)
+        elif search_result.status == "ambiguous":
+            console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
+            console.print("[bold]Near misses:[/]")
+            for nm in search_result.near_misses[:top_n]:
+                console.print(
+                    f"  - [cyan]{nm.path}[/] "
+                    f"[dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
+                )
+            sys.exit(1)
+        else:
+            console.print(f"[bold red]❌ Failed:[/] {search_result.message}")
+            sys.exit(1)
 
 
 # ---------------------------------------------------------------------------

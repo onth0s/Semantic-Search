@@ -24,6 +24,8 @@ A Python CLI tool designed to help humans and LLM agents find filesystem paths u
 - **Python**: 3.11+
 - **CLI Framework**: [Click](https://click.palletsprojects.com/) — subcommand-based CLI routing
 - **Config**: PyYAML — YAML config and alias loading
+- **Fuzzy Matching**: [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz) — fast edit distance scoring
+- **Gitignore Parsing**: [pathspec](https://github.com/cpburnz/python-pathspec) — Git-compliant file pattern matching
 - **Linter / Formatter**: [Ruff](https://docs.astral.sh/ruff/) — fast Python linter and formatter
 - **Testing**: pytest
 - **Terminal UI**: [Rich](https://rich.readthedocs.io/) — styled and colored CLI output
