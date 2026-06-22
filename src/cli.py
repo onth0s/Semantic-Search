@@ -3,9 +3,23 @@
 Uses Click for subcommand routing and Rich for styled terminal output.
 All user-facing messages are rendered through Rich's console for
 consistent colored output.
+
+Rich Click configuration
+-----------------------
+``rich_click`` patches Click's help formatter so ``--help`` output is
+colored and styled to match the rest of the CLI.
 """
 
 from __future__ import annotations
+
+import rich_click
+
+rich_click.STYLE_OPTION = "bold cyan"
+rich_click.STYLE_ARGUMENT = "cyan"
+rich_click.STYLE_COMMAND = "bold green"
+rich_click.STYLE_ERRORS_OPTION = "bold red"
+rich_click.STYLE_METAVAR = "dim"
+rich_click.STYLE_HELPTEXT = ""
 
 import json
 import shutil
@@ -19,16 +33,9 @@ from src.config import load_config
 from src.utils.console import console, err_console
 
 # ---------------------------------------------------------------------------
-# Rich console — shared across all commands
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # CLI group
-# ---------------------------------------------------------------------------
-
-
-@click.group()
-@click.version_option(__version__, prog_name="sempath")
+@rich_click.group()
+@rich_click.version_option(__version__, prog_name="sempath")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """sempath — find filesystem paths by vague, colloquial, or fuzzy descriptions."""
