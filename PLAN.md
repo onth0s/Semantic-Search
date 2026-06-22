@@ -153,6 +153,10 @@ class BaseHandler(ABC):
 
 ### H7 – Embedding Semantic Match
 - Uses `sentence-transformers` (lightweight model like `all-MiniLM-L6-v2`) to embed query and each candidate basename.
+- **Embedding Latency Penalty Guard**:
+  - **Lazy Imports**: Heavy libraries (`sentence-transformers`, `torch`) are strictly lazy-imported inside H7. This keeps H1-H6 execution sub-millisecond.
+  - **User Notification / Confirmation**: Before loading the model, the CLI prompts the user or prints a status message (unless bypassed by `--non-interactive` or config):
+    `[!] No quick match found. Fallback to Deep Semantic Search (sentence-transformers)? This may take 1-2 seconds. (Y/n):`
 - Cosine similarity scoring.
 - Matches `"important folder"` → `__MAIN`.
 - First invocation loads model; subsequent use is cached.
@@ -161,6 +165,7 @@ class BaseHandler(ABC):
 
 ### H8 – LLM Match
 - Sends query + candidate list to a local or external LLM (Ollama, OpenAI, etc.).
+- **Latency Alert**: Displays an execution warning while calling the local LLM.
 - LLM decides which path best fits the semantic intent.
 - Configurable provider (e.g., `ollama` or `openai`), endpoint URL, model, and API key.
 - Confidence: `LLM-provided score or 0.6`

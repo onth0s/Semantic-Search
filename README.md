@@ -96,6 +96,14 @@ Unlike purely stateless CLI search engines, `semantic-search` remembers confirma
    - `semantic-search export-memory <export_path.yaml>`
    - `semantic-search import-memory <import_path.yaml>`
 
+> [!TIP]
+> **Embedding Latency Penalty Guard (H7 & H8):** 
+> Loading heavy machine-learning libraries (`torch`, `sentence-transformers`) introduces a cold-start import lag of 1–2 seconds. To keep the fast matchers (H1–H6) operating at sub-millisecond speeds:
+> 1. All heavy libraries are **lazy-imported** inside H7.
+> 2. The CLI prompts the user with a confirmation request before running deep matchers: 
+>    `[!] No quick match found. Fallback to Deep Semantic Search (sentence-transformers)? This may take 1-2 seconds. (Y/n):`
+> This prompt can be bypassed via configuration file defaults or by passing the `--non-interactive` flag.
+
 ---
 
 ## 💻 CLI Interface
