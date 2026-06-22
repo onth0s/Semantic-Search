@@ -16,3 +16,8 @@ venv/
 # Databases and Local Caches
 %APPDATA%/
 *.db
+
+# PyInstaller builds
+build/
+dist/
+*.spec

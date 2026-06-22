@@ -339,6 +339,8 @@ sempath/
 │   ├── __main__.py
 │   ├── cli.py                  # CLI entry point
 │   ├── config.py               # Config loading (YAML)
+│   ├── engine.py               # Core search orchestration engine
+│   ├── heuristics.py           # Heuristic intent parser
 │   ├── scanner.py              # Directory walker
 │   ├── index.py                # Persistent index logic
 │   ├── models.py               # MatchResult, HandlerConfig, etc.
@@ -357,14 +359,26 @@ sempath/
 │   │   └── h9_interactive.py
 │   └── utils/
 │       ├── __init__.py
+│       ├── memory.py           # Learned memory & decay ranking logic
 │       ├── tokenize.py         # Token splitting/normalisation
-│       └── scoring.py          # Confidence normalisation
+│       └── scoring.py          # Confidence normalisation & size formatting
 ├── tests/
 │   ├── conftest.py
-│   ├── test_scanner.py
-│   ├── test_handlers.py
+│   ├── test_alias_handler.py
 │   ├── test_chain.py
 │   ├── test_cli.py
+│   ├── test_cli_alias.py
+│   ├── test_cli_flags.py
+│   ├── test_config.py
+│   ├── test_engine_and_handlers.py
+│   ├── test_handlers.py
+│   ├── test_heuristics.py
+│   ├── test_index.py
+│   ├── test_memory.py
+│   ├── test_models.py
+│   ├── test_phonetic.py
+│   ├── test_scanner.py
+│   ├── test_utils.py
 │   └── fixtures/
 │       └── mock_fs/            # Fake directory tree for tests
 └── config.yaml                 # Default config

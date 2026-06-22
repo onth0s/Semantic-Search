@@ -217,9 +217,7 @@ def index_create(path: Path, depth: int) -> None:
 
         manager = IndexManager(Path(store))
         console.print(f"[yellow]Scanning and indexing:[/] {path} (depth: {depth})...")
-        added, deleted = manager.create_or_update_index(
-            path, depth=depth, exclude_patterns=exclude
-        )
+        added, deleted = manager.create_or_update_index(path, depth=depth, exclude_patterns=exclude)
         console.print(
             f"[bold green]✔ Success:[/] Indexed root: [bold]{path}[/] "
             f"([cyan]+{added}[/] added, [magenta]-{deleted}[/] deleted)."
@@ -242,9 +240,7 @@ def index_update(path: Path, depth: int) -> None:
 
         manager = IndexManager(Path(store))
         console.print(f"[yellow]Updating index for:[/] {path}...")
-        added, deleted = manager.create_or_update_index(
-            path, depth=depth, exclude_patterns=exclude
-        )
+        added, deleted = manager.create_or_update_index(path, depth=depth, exclude_patterns=exclude)
         console.print(
             f"[bold green]✔ Success:[/] Updated root: [bold]{path}[/] "
             f"([cyan]+{added}[/] updated, [magenta]-{deleted}[/] removed)."

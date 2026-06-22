@@ -37,13 +37,115 @@ def scan_directory(
     if not root_dir.exists() or not root_dir.is_dir():
         return []
 
+    import sys
+
+    from src.utils.mft_reader import is_admin, scan_volume_files
+
+    # Try MFT sweep on Windows when run as Admin
+    if sys.platform == "win32" and is_admin():
+        drive = root_dir.drive
+        if drive and drive.endswith(":"):
+            vol_letter = drive[0]
+            mft_candidates = scan_volume_files(vol_letter, root_dir)
+            if mft_candidates is not None:
+                gitignore_cache: dict[Path, pathspec.PathSpec | None] = {}
+
+                def is_ignored_by_gitignore_mft(path: Path) -> bool:
+                    curr = path
+                    try:
+                        if not path.is_dir():
+                            curr = path.parent
+                    except Exception:
+                        pass
+
+                    while True:
+                        if curr not in gitignore_cache:
+                            gi_file = curr / ".gitignore"
+                            if gi_file.is_file():
+                                try:
+                                    with open(gi_file, encoding="utf-8") as f:
+                                        gitignore_cache[curr] = pathspec.PathSpec.from_lines(
+                                            "gitignore", f
+                                        )
+                                except Exception:
+                                    gitignore_cache[curr] = None
+                            else:
+                                gitignore_cache[curr] = None
+
+                        spec = gitignore_cache[curr]
+                        if spec is not None:
+                            try:
+                                rel_path = path.relative_to(curr)
+                                rel_path_str = str(rel_path).replace("\\", "/")
+                                try:
+                                    if path.is_dir():
+                                        rel_path_str += "/"
+                                except Exception:
+                                    pass
+                                if spec.match_file(rel_path_str):
+                                    return True
+                            except ValueError:
+                                pass
+
+                        if curr == root_dir or curr == curr.parent:
+                            break
+                        curr = curr.parent
+                    return False
+
+                filtered: list[Path] = []
+                skipped_rel_dirs: set[str] = set()
+
+                # Process candidates sorted by depth (number of path components)
+                # to prune hidden or excluded subtrees before visiting their children
+                sorted_candidates = sorted(mft_candidates, key=lambda p: len(p.parts))
+
+                for p in sorted_candidates:
+                    try:
+                        rel_path = p.relative_to(root_dir)
+                    except ValueError:
+                        continue
+
+                    parts = rel_path.parts
+                    if len(parts) > depth:
+                        continue
+
+                    # Check if any ancestor or the path itself is hidden or excluded
+                    ignored = False
+                    for i in range(1, len(parts) + 1):
+                        ancestor_rel = "\\".join(parts[:i])
+                        if ancestor_rel in skipped_rel_dirs:
+                            ignored = True
+                            break
+
+                        part = parts[i - 1]
+                        if part.startswith(".") or part in exclude_patterns:
+                            skipped_rel_dirs.add(ancestor_rel)
+                            ignored = True
+                            break
+
+                    if ignored:
+                        continue
+
+                    # Check gitignore
+                    if respect_gitignore and is_ignored_by_gitignore_mft(p):
+                        try:
+                            if p.is_dir():
+                                skipped_rel_dirs.add(str(rel_path))
+                        except Exception:
+                            pass
+                        continue
+
+                    filtered.append(p)
+
+                return filtered
+
+    # Fallback to standard os.walk recursive sweep
     candidates: list[Path] = []
     gitignore_cache: dict[Path, pathspec.PathSpec | None] = {}
 
     def is_ignored_by_gitignore(path: Path) -> bool:
         """Check if the given path is ignored by any ancestor .gitignore spec."""
         curr = path
-        # Walk up from the path's parent to the root_dir (inclusive)
         if not path.is_dir():
             curr = path.parent
 
