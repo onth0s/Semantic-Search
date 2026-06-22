@@ -211,9 +211,11 @@ aliases:
 - Implement `scanner.py` using Python's standard `os.walk` with high-efficiency traversal filtering (ignoring `.git`, `node_modules`, virtualenvs, and dotfiles) to search the filesystem.
 - Implement H1 (Exact), H2 (Case-Insensitive), H3 (Token-Normalized), and H4 (Fuzzy String with `rapidfuzz`).
 
-### Phase 3: Phonetic, Config Aliases & Memory (H5 - H6)
-- Implement H5 (Tentative: Phonetic matching using `jellyfish`'s Metaphone/Soundex algorithm, to be evaluated and potentially skipped if H4 fuzzy matching is sufficient).
-- Implement H6 (Alias parsing from `config.yaml` and dynamic memory from `learned_aliases.yaml` utilizing the rich memory model).
+### Phase 3: Heuristics, Explicit Flags, Phonetic, Config Aliases & Memory (H5 - H6)
+- Implement lightweight Heuristic Intent Detector (Strategy A) for temporal and file attribute parsing.
+- Implement Explicit CLI options `--latest`, `--largest`, and `--ext` (Strategy D) to filter and sort matches.
+- Implement H5 (Phonetic matching using `jellyfish`'s Metaphone/Soundex algorithm).
+- Implement H6 (Alias parsing from `config.yaml` and dynamic memory from `learned_aliases.yaml` utilizing the rich memory model with sub-query routing).
 - Implement `export-memory` and `import-memory` commands.
 
 ### Phase 4: Persistent Indexing

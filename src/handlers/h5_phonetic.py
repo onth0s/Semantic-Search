@@ -1,10 +1,9 @@
 """Phonetic match handler — sound-based encoding comparison.
 
-Uses Soundex and/or Metaphone encoding via the ``jellyfish`` library
+Uses Metaphone encoding via the ``jellyfish`` library
 to generate phonetic representations of the query and candidate
-basenames. Catches homophones and phonetically similar names (e.g.
-"colour" vs "color"). Returns a MatchResult with confidence 0.75
-on match.
+basenames. Catches homophones and phonetically similar names.
+Returns a MatchResult with confidence 0.75 on match.
 """
 
 from __future__ import annotations
@@ -20,6 +19,59 @@ class PhoneticMatchHandler(BaseHandler):
 
     name: str = "h5_phonetic"
 
+    def _get_phonetic_codes(self, text: str) -> set[str]:
+        """Convert a string into a set of phonetic codes."""
+        import jellyfish
+
+        from src.utils.tokenize import normalize_tokens
+
+        codes = set()
+        for token in normalize_tokens(text):
+            if token.isalpha():
+                try:
+                    code = jellyfish.metaphone(token)
+                    if code:
+                        codes.add(code)
+                except Exception:
+                    pass
+            else:
+                # Keep numeric/alphanumeric mixtures as-is for comparison
+                codes.add(token)
+        return codes
+
     def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
         """Attempt a phonetic match against candidate basenames."""
-        return None
+        if not query or not candidates:
+            return None
+
+        query_codes = self._get_phonetic_codes(query)
+        if not query_codes:
+            return None
+
+        # Split query by path separators to check subpath suffixes
+        query_parts = [p for p in query.replace("\\", "/").split("/") if p]
+        k = len(query_parts)
+
+        matches = []
+        for p in candidates:
+            # 1. Base phonetic code matching name or stem
+            if self._get_phonetic_codes(p.name) == query_codes:
+                matches.append(p)
+                continue
+            if self._get_phonetic_codes(p.stem) == query_codes:
+                matches.append(p)
+                continue
+
+            # 2. Path suffix phonetic code matching (for multi-part queries)
+            if k > 1 and len(p.parts) >= k:
+                suffix_parts = p.parts[-k:]
+                suffix_str = "/".join(suffix_parts)
+                if self._get_phonetic_codes(suffix_str) == query_codes:
+                    matches.append(p)
+
+        if not matches:
+            return None
+
+        # Tie-breaker: shortest path depth first
+        best = min(matches, key=lambda p: len(p.parts))
+        return MatchResult(best, 0.75, self.name)

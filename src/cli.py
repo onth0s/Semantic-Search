@@ -8,6 +8,7 @@ consistent colored output.
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from rich.console import Console
 from src import __version__
 from src.chain import build_chain
 from src.config import load_config
-from src.models import SearchResult
+from src.models import MatchResult, SearchResult
 from src.scanner import scan_directory
 
 # ---------------------------------------------------------------------------
@@ -81,6 +82,18 @@ def cli(ctx: click.Context) -> None:
 @click.option(
     "--verbose", is_flag=True, default=False, help="Enable handler-by-handler execution logs."
 )
+@click.option(
+    "--latest", is_flag=True, default=False, help="Sort matches to return the newest path."
+)
+@click.option(
+    "--largest", is_flag=True, default=False, help="Sort matches to return the largest file."
+)
+@click.option(
+    "--ext",
+    type=str,
+    default=None,
+    help="Filter candidates to keep only those with specified extension.",
+)
 @click.pass_context
 def find(
     ctx: click.Context,
@@ -94,6 +107,9 @@ def find(
     no_index: bool,
     json_output: bool,
     verbose: bool,
+    latest: bool,
+    largest: bool,
+    ext: str | None,
 ) -> None:
     """Search for filesystem paths matching QUERY.
 
@@ -122,6 +138,9 @@ def find(
             "json_output": json_output,
             "verbose": verbose,
             "config": config,
+            "latest": latest,
+            "largest": largest,
+            "ext": ext,
         }
     )
 
@@ -135,14 +154,44 @@ def find(
     exclude_patterns = config.get("index", {}).get("exclude_patterns", [])
     candidates = scan_directory(search_root, depth=depth, exclude_patterns=exclude_patterns)
 
-    # Build and execute chain
-    try:
-        chain = build_chain(config)
-    except ValueError as exc:
-        err_console.print(f"[bold red]Error building handler chain:[/] {exc}")
-        sys.exit(1)
+    # Apply extension filter if provided
+    if ext:
+        ext_clean = ext.lower().lstrip(".")
+        candidates = [p for p in candidates if p.suffix.lower().lstrip(".") == ext_clean]
 
-    match_result = chain.handle(query, candidates)
+    # Sort by time or size if requested
+    if latest:
+
+        def get_mtime(p: Path) -> float:
+            try:
+                return p.stat().st_mtime
+            except Exception:
+                return 0.0
+
+        candidates.sort(key=get_mtime, reverse=True)
+
+    if largest:
+
+        def get_size(p: Path) -> int:
+            try:
+                return p.stat().st_size if p.is_file() else 0
+            except Exception:
+                return 0
+
+        candidates.sort(key=get_size, reverse=True)
+
+    # Check for direct bypass when query is a placeholder and sorting/filtering is active
+    if query in ("", ".", "*") and (latest or largest or ext) and candidates:
+        match_result = MatchResult(candidates[0], 1.0, "explicit_flags")
+    else:
+        # Build and execute chain
+        try:
+            chain = build_chain(config)
+        except ValueError as exc:
+            err_console.print(f"[bold red]Error building handler chain:[/] {exc}")
+            sys.exit(1)
+
+        match_result = chain.handle(query, candidates)
 
     if match_result is not None and match_result.confidence >= min_confidence:
         search_result = SearchResult(
@@ -261,35 +310,107 @@ def alias() -> None:
 @click.argument("path", type=click.Path(path_type=Path))
 def alias_add(name: str, path: Path) -> None:
     """Add a new alias NAME pointing to PATH."""
-    console.print(
-        f"[yellow]⚠[/]  Alias add not yet implemented. "
-        f"Name: [bold cyan]{name}[/] → Path: [bold]{path}[/]"
-    )
+    from src.utils.memory import add_or_update_memory
+
+    try:
+        add_or_update_memory(name, path)
+        console.print(
+            f"[bold green]✔ Success:[/] Added alias [bold cyan]{name}[/] → [bold]{path}[/]"
+        )
+    except Exception as exc:
+        err_console.print(f"[bold red]Error adding alias:[/] {exc}")
+        sys.exit(1)
 
 
 @alias.command("list")
 def alias_list() -> None:
     """List all configured and learned aliases."""
-    console.print("[yellow]⚠[/]  Alias listing not yet implemented.")
+    from rich.table import Table
+
+    from src.utils.memory import load_memory
+
+    table = Table(title="sempath Path Aliases")
+    table.add_column("Type", style="bold magenta")
+    table.add_column("Alias / Query", style="cyan")
+    table.add_column("Target / Path", style="green")
+    table.add_column("Hits", justify="right")
+    table.add_column("Decay Rank", justify="right")
+
+    # Load config aliases
+    try:
+        cfg = load_config()
+        config_aliases = cfg.get("aliases", {})
+        for name, targets in config_aliases.items():
+            table.add_row("Config", name, ", ".join(targets), "-", "-")
+    except Exception as exc:
+        err_console.print(f"[dim red]Warning: could not load config aliases: {exc}[/]")
+
+    # Load learned aliases
+    try:
+        learned = load_memory()
+        for entry in learned:
+            table.add_row(
+                "Learned",
+                entry.get("query", ""),
+                entry.get("path", ""),
+                str(entry.get("hits", 1)),
+                f"{entry.get('decay_rank', 0.0):.2f}",
+            )
+    except Exception as exc:
+        err_console.print(f"[dim red]Warning: could not load learned memory: {exc}[/]")
+
+    console.print(table)
 
 
 @alias.command("remove")
 @click.argument("name")
 def alias_remove(name: str) -> None:
     """Remove alias NAME."""
-    console.print(f"[yellow]⚠[/]  Alias removal not yet implemented. Name: [bold cyan]{name}[/]")
+    from src.utils.memory import load_memory, save_memory
+
+    try:
+        entries = load_memory()
+        filtered = [e for e in entries if e.get("query", "").lower() != name.lower()]
+        if len(filtered) == len(entries):
+            console.print(f"[yellow]⚠[/] No learned alias found for [bold cyan]{name}[/].")
+            return
+        save_memory(filtered)
+        console.print(f"[bold green]✔ Success:[/] Removed alias [bold cyan]{name}[/]")
+    except Exception as exc:
+        err_console.print(f"[bold red]Error removing alias:[/] {exc}")
+        sys.exit(1)
 
 
 @alias.command("clear")
 def alias_clear() -> None:
     """Clear all learned aliases."""
-    console.print("[yellow]⚠[/]  Alias clear not yet implemented.")
+    from src.utils.memory import save_memory
+
+    try:
+        save_memory([])
+        console.print("[bold green]✔ Success:[/] All learned aliases cleared.")
+    except Exception as exc:
+        err_console.print(f"[bold red]Error clearing aliases:[/] {exc}")
+        sys.exit(1)
 
 
 @alias.command("undo")
 def alias_undo() -> None:
     """Undo the last learned alias (chronological undo stack)."""
-    console.print("[yellow]⚠[/]  Alias undo not yet implemented.")
+    from src.utils.memory import undo_last_memory
+
+    try:
+        popped = undo_last_memory()
+        if popped is None:
+            console.print("[yellow]⚠[/] No learned aliases to undo.")
+        else:
+            console.print(
+                f"[bold green]✔ Success:[/] Reverted last alias: "
+                f"[bold cyan]{popped.get('query')}[/] → [bold]{popped.get('path')}[/]"
+            )
+    except Exception as exc:
+        err_console.print(f"[bold red]Error undoing alias:[/] {exc}")
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -301,11 +422,31 @@ def alias_undo() -> None:
 @click.argument("file_path", type=click.Path(path_type=Path))
 def export_memory(file_path: Path) -> None:
     """Export learned aliases and memory to FILE_PATH."""
-    console.print(f"[yellow]⚠[/]  Memory export not yet implemented. Target: [bold]{file_path}[/]")
+    from src.utils.memory import get_memory_file_path
+
+    src = get_memory_file_path()
+    if not src.exists():
+        console.print("[yellow]⚠[/] No learned aliases exist to export.")
+        return
+
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, file_path)
+        console.print(f"[bold green]✔ Success:[/] Exported memory to [bold]{file_path}[/]")
+    except Exception as exc:
+        err_console.print(f"[bold red]Error exporting memory:[/] {exc}")
+        sys.exit(1)
 
 
 @cli.command("import-memory")
 @click.argument("file_path", type=click.Path(exists=True, path_type=Path))
 def import_memory(file_path: Path) -> None:
     """Import learned aliases and memory from FILE_PATH."""
-    console.print(f"[yellow]⚠[/]  Memory import not yet implemented. Source: [bold]{file_path}[/]")
+    from src.utils.memory import merge_memory_files
+
+    try:
+        merge_memory_files(file_path)
+        console.print(f"[bold green]✔ Success:[/] Imported memory from [bold]{file_path}[/]")
+    except Exception as exc:
+        err_console.print(f"[bold red]Error importing memory:[/] {exc}")
+        sys.exit(1)
