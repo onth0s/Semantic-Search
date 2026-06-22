@@ -30,64 +30,77 @@ A Python CLI tool designed to help humans and LLM agents find filesystem paths u
 
 ---
 
-## 🏗️ Architecture: Handler Pattern (Chain of Responsibility)
+## 🏗️ Architecture: Intent Detection & Handler Chain
 
-Matching strategies are decoupled into individual **Handlers** with a uniform interface. Handlers are structured as a prioritized chain, executing from fastest/cheapest to slowest/deepest.
+Before a query is passed to the matching chain, an upstream **Intent Detector** classifies the query type. Specialized resolvers preprocess temporal (e.g., "latest screenshot") or attribute (e.g., "largest file") constraints to refine the candidate pool. The remaining query is processed by a prioritized chain of decoupled **Handlers** with a uniform interface.
 
 ```
-User Query
-   │
-   ▼
-┌─────────────────┐
-│  Router         │  ← Parses query & extracts candidate paths
-└──────┬──────────┘
-       │
-       ▼
-┌─────────────────┐
-│ Handler 1       │  Exact Match
-│ (fast, cheap)   │  ──→ Match found ➔ Return result
-└──────┬──────────┘
+       User Query
+           │
+           ▼
+┌──────────────────────┐
+│   Intent Detector    │  ← Classifies: Referential, Temporal, Attribute, Semantic
+└──────────┬───────────┘
+           │
+           ├──────────────────────────┐
+           ▼ (Temporal / Attribute)   ▼ (Referential / Semantic)
+┌──────────────────────┐     ┌──────────────────────┐
+│     Specialized      │     │       Router         │  ← Extracts path segments
+│      Resolvers       │     └──────────┬───────────┘
+└──────────┬───────────┘                │
+           │                            │
+           └─────────────┬──────────────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │ Handler Chain │
+                 └───────┬───────┘
+                         │
+                         ▼
+┌──────────────────┐
+│ Handler 1        │  Exact Match
+│ (fast, cheap)    │  ──→ Match found ➔ Return result
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 2       │  Case-Insensitive Match
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 2        │  Case-Insensitive Match
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 3       │  Token-Normalized Match
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 3        │  Token-Normalized Match
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 4       │  Fuzzy String / Edit Distance (rapidfuzz)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 4        │  Fuzzy String / Edit Distance (rapidfuzz)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 5       │  Phonetic Match (Soundex/Metaphone via jellyfish)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 5 (Tent.)│  Phonetic Match (Soundex/Metaphone via jellyfish)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 6       │  Alias & Synonym Expansion (config + learned)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 6        │  Alias & Synonym Expansion (config + learned)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 7       │  Embedding Semantic Match (sentence-transformers)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 7        │  Embedding Semantic Match (sentence-transformers)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 8       │  LLM Match (Ollama, OpenAI, or local APIs)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 8        │  LLM Query Rewriter (converts natural language to query)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 9       │  Interactive Fallback (Ask user & learn choice)
-└─────────────────┘
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 9        │  Interactive Fallback (Ask user & learn choice)
+└──────────────────┘
 ```
 
 ---
@@ -96,7 +109,12 @@ User Query
 
 Unlike purely stateless CLI search engines, `sempath` remembers confirmations to build an intuitive, personalized interaction model, and treats alias matching as a robust semantic system:
 
-1. **Learning confirmations:** When a query resolves to an interactive selection (H9) and the user confirms, that query-to-path association is saved to a persistent storage (`%APPDATA%\sempath\learned_aliases.yaml`).
+1. **Learning confirmations (H9 Rich Memory):** When a query resolves to an interactive selection (H9) and the user confirms, the choice is saved to a persistent store (`%APPDATA%\sempath\learned_aliases.yaml`). To enable robust decay and prevent sub-query routing conflicts, each memory record tracks:
+   - `query`: The original search query.
+   - `path`: The confirmed target path.
+   - `timestamp`: UTC timestamp of the confirmation.
+   - `hits`: Usage frequency counter.
+   - `decay_rank`: A ranking score calculated from hits and recency.
 2. **Robust User Ratified Aliases (H6):** The Alias handler doesn't just check for exact string matches:
    - **Fuzzy / Phonetic Keys:** Alias keys (e.g., `DWL` -> `Downloads`) are checked via fuzzy matching, so `dwll` resolves directly with high confidence.
    - **Regex / Wildcard Mappings:** Confirmed/configured aliases can contain regex patterns.
@@ -239,12 +257,12 @@ aliases:
 - Define shared interfaces (`BaseHandler`, `MatchResult`) and the pipeline builder (`Chain`).
 
 ### Phase 2: Scanner & Core Handlers (H1 - H4)
-- Implement `scanner.py` featuring a hybrid strategy: a low-level sequential NTFS **Master File Table (MFT) reader** for Administrator runs on Windows to sweep millions of files in seconds, falling back to standard `os.walk` with ignore-list filters for `.git`, `node_modules`, dotfiles, and virtual environments.
+- Implement `scanner.py` using Python's standard `os.walk` with high-efficiency traversal filtering (ignoring `.git`, `node_modules`, virtualenvs, and dotfiles) to search the filesystem.
 - Implement H1 (Exact), H2 (Case-Insensitive), H3 (Token-Normalized), and H4 (Fuzzy String with `rapidfuzz`).
 
 ### Phase 3: Phonetic, Config Aliases & Memory (H5 - H6)
-- Implement H5 (Phonetic matching using `jellyfish`'s Metaphone/Soundex algorithm).
-- Implement H6 (Alias parsing from `config.yaml` and dynamic memory from `learned_aliases.yaml`).
+- Implement H5 (Tentative: Phonetic matching using `jellyfish`'s Metaphone/Soundex algorithm, to be evaluated and potentially skipped if H4 fuzzy matching is sufficient).
+- Implement H6 (Alias parsing from `config.yaml` and dynamic memory from `learned_aliases.yaml` utilizing the rich memory model).
 - Implement `export-memory` and `import-memory` commands.
 
 ### Phase 4: Persistent Indexing
@@ -253,9 +271,12 @@ aliases:
 
 ### Phase 5: Heavy Matchers (H7 - H8)
 - Implement H7 (Lazy-loaded `sentence-transformers` for semantic similarity scoring).
-- Implement H8 (LLM inference via Ollama / OpenAI API compatible endpoints).
+- Implement H8 (LLM Query Rewriter via Ollama / OpenAI API compatible endpoints to translate natural language queries to canonical queries).
 
 ### Phase 6: Interactive Fallback, Verification & Smoke Tests
 - Implement H9 (Interactive prompt utilizing `questionary` or `inquirer` to confirm options).
-- Add confirmation log appender to update the memory.
+- Add confirmation log appender to update the rich memory database (`query`, `path`, `timestamp`, `hits`, `decay_rank`).
 - Add mock filesystem tests under `tests/` checking the exact execution path of the chain.
+
+### Phase 7: Post-MVP Optimizations (Optional)
+- Implement a low-level sequential NTFS **Master File Table (MFT) reader** for Administrator runs on Windows to sweep millions of files in seconds, serving as an optional acceleration layer.

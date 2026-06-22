@@ -30,65 +30,77 @@ A Python CLI tool that lets LLMs (and humans) find filesystem paths by vague, co
 
 ---
 
-## Architecture: Handler Pattern (Chain of Responsibility)
+## Architecture: Intent Detection & Handler Chain
 
-Each matching strategy is an independent **Handler** with a uniform interface. Handlers are composed into an ordered chain. An LLM (or CLI user) invokes the chain: each handler either returns a match with confidence, or passes to the next.
+Before a query is passed to the matching chain, an upstream **Intent Detector** classifies the query type. Specialized resolvers preprocess temporal (e.g., "latest screenshot") or attribute (e.g., "largest file") constraints to refine the candidate pool. The remaining query is processed by a prioritized chain of decoupled **Handlers** with a uniform interface.
 
 ```
-User Query
-   │
-   ▼
-┌─────────────────┐
-│  Router         │  ← parses query, extracts path segments & keywords
-└──────┬──────────┘
-       │
-       ▼
-┌─────────────────┐
-│ Handler 1       │  Exact Match
-│ (fast, cheap)   │  ──→ match? → return
-└──────┬──────────┘
+       User Query
+           │
+           ▼
+┌──────────────────────┐
+│   Intent Detector    │  ← Classifies: Referential, Temporal, Attribute, Semantic
+└──────────┬───────────┘
+           │
+           ├──────────────────────────┐
+           ▼ (Temporal / Attribute)   ▼ (Referential / Semantic)
+┌──────────────────────┐     ┌──────────────────────┐
+│     Specialized      │     │       Router         │  ← Extracts path segments
+│      Resolvers       │     └──────────┬───────────┘
+└──────────┬───────────┘                │
+           │                            │
+           └─────────────┬──────────────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │ Handler Chain │
+                 └───────┬───────┘
+                         │
+                         ▼
+┌──────────────────┐
+│ Handler 1        │  Exact Match
+│ (fast, cheap)    │  ──→ Match found ➔ Return result
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 2       │  Case-Insensitive Match
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 2        │  Case-Insensitive Match
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 3       │  Token-Normalized Match (split, sort, compare)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 3        │  Token-Normalized Match (split, sort, compare)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 4       │  Fuzzy String / Edit Distance
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 4        │  Fuzzy String / Edit Distance
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 5       │  Phonetic Match (Soundex, Metaphone)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 5 (Tent.)│  Phonetic Match (Soundex, Metaphone)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 6       │  Alias / Synonym Expansion
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 6        │  Alias / Synonym Expansion
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 7       │  Embedding Semantic Match
-│ (slow, heavy)   │  (sentence-transformers, cosine similarity)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 7        │  Embedding Semantic Match (sentence-transformers)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 8       │  LLM Match (ask external LLM to interpret)
-└──────┬──────────┘
+┌──────────────────┐
+│ Handler 8        │  LLM Query Rewriter (converts natural language to query)
+└──────┬───────────┘
        │ no match
        ▼
-┌─────────────────┐
-│ Handler 9       │  Interactive Fallback (ask user)
-│                  │  "Did you mean __MAIN?"
-└─────────────────┘
+┌──────────────────┐
+│ Handler 9        │  Interactive Fallback (Ask user & learn choice)
+└──────────────────┘
 ```
 
 ---
@@ -147,7 +159,8 @@ class BaseHandler(ABC):
 - `"principl"` → `Principal` (but ideally catches `__MAIN` too via synonym expansion).
 - Confidence: `ratio * 1.0`
 
-### H5 – Phonetic Match
+### H5 – Phonetic Match (Tentative)
+- **Status:** Tentative, to be evaluated during Phase 3. If fuzzy matching (H4) already covers phonetic-like similarity edge cases with sufficient accuracy, H5 may be skipped or replaced to keep dependencies low.
 - Encode tokens with Soundex/Metaphone (via `phonetics` or custom).
 - Compare phonetic codes of query vs candidate.
 - Catches homophones: `"main"` vs `"mane"`, `"there"` vs `"their"`.
@@ -174,17 +187,24 @@ class BaseHandler(ABC):
 - Confidence: `cosine_sim * 1.0`
 - Can be disabled for resource-constrained environments.
 
-### H8 – LLM Match
-- Sends query + candidate list to a local or external LLM (Ollama, OpenAI, etc.).
-- **Latency Alert**: Displays an execution warning while calling the local LLM.
-- LLM decides which path best fits the semantic intent.
-- Configurable provider (e.g., `ollama` or `openai`), endpoint URL, model, and API key.
-- Confidence: `LLM-provided score or 0.6`
+### H8 – LLM Query Rewriter
+- Sends the user's natural language query to a local or external LLM (Ollama, OpenAI, etc.).
+- **Query Translation Logic**: Instead of choosing a file path directly (which is non-deterministic and prone to hallucinating non-existent paths), the LLM acts as a parser/translator. It rewrites complex natural language into a canonical, structured search query.
+  - *Example Input:* `"that image I downloaded yesterday from discord"`
+  - *LLM Rewrite:* `"Downloads/ *.png *.jpg *.jpeg modified_within:24h"`
+- **Deterministic Processing**: The rewritten canonical query is fed back into the deterministic handler chain (H1–H7) for resolution.
+- **Auditable Logs & Caching**: Rewriting yields clear mappings (e.g., `{ "input": "...", "canonical": "..." }`) that are logged, testable, and cacheable.
+- Confidence: Inherited from the H1–H7 resolver that resolves the canonical query.
 
 ### H9 – Interactive Fallback
 - Presents top N ambiguous candidates to user.
 - Accepts keyboard selection or typed response.
-- **Stateful Memory Loop:** Once the user confirms a path, the query-to-path association is learned and written to `learned_aliases.yaml` in the user's config directory (specifically `%APPDATA%\sempath\` on Windows).
+- **Stateful Memory Loop (Rich Memory Model):** Once the user confirms a path, the confirmation is written to `learned_aliases.yaml` in the user's config directory (specifically `%APPDATA%\sempath\` on Windows). To enable decay ranking and avoid incorrect routing of sub-queries, each entry tracks:
+  - `query`: The original search query.
+  - `path`: The user-confirmed target path.
+  - `timestamp`: UTC timestamp when the confirmation was made.
+  - `hits`: Usage frequency counter.
+  - `decay_rank`: A priority ranking score calculated using hits and recency decay.
 - **Chronological Undo Stack:** Learned aliases are stored with insertion order or timestamps. Running the command `sempath alias undo` pops the latest confirmed alias from `learned_aliases.yaml`.
 - **Feedback Loop**: When a query matches a learned alias during H6 execution, a hint is printed (unless running in quiet/JSON/non-interactive mode):
   `[i] Matched via learned alias: 'query' -> 'path' (run 'sempath alias undo' to revert)`
@@ -198,7 +218,7 @@ class BaseHandler(ABC):
 
 ### On-the-Fly (default)
 - Recursively scans directory (from root or `cwd`) on every invocation.
-- **⚡ Windows MFT Optimization**: If running on Windows as Administrator on an NTFS drive, the scanner uses a low-level Master File Table (MFT) reader (like parsing `$MFT` volume handles sequentially) to sweep the entire drive in seconds, completely bypassing standard high-overhead directory walker (`os.walk`) loops.
+- **⚡ Windows MFT Optimization (Optional/Deferred)**: Future post-MVP acceleration layer using low-level sequential NTFS Master File Table (MFT) reads for Windows Administrator runs. For the MVP, standard directory walking (`os.walk`) with pre-filtering is the primary traversal engine.
 - **Sensible Directory Traversal Ignores**: Automatically bypasses potential blackholes to prevent hangs:
   - Dot directories (e.g., `.git`, `.venv`, `.idea`, `.vscode`).
   - Common build, dependency, and cache artifacts (e.g., `node_modules`, `__pycache__`, `build`, `dist`, `.mypy_cache`, `.pytest_cache`).
@@ -337,12 +357,13 @@ aliases:
 
 ## Implementation Order
 
-1. **Phase 1: Scaffolding, Models & Config** — `pyproject.toml`, directory structure, configuration loader.
-2. **Phase 2: Scanner & Core Handlers (H1 - H4)** — Ignore list, exact, case-insensitive, token-normalized, and fuzzy (`rapidfuzz`).
-3. **Phase 3: Phonetic, Config Aliases & Memory (H5 - H6)** — `jellyfish` Soundex/Metaphone, alias YAML matching, memory updates, export/import CLI commands.
-4. **Phase 4: Persistent Indexing** — Pre-tokenized indices, CLI `index` subcommands.
-5. **Phase 5: Heavy Matchers (H7 - H8)** — Lazy sentence-transformers, Ollama/OpenAI API LLM matching.
-6. **Phase 6: Interactive Fallback, Verification & Smoke Tests** — H9 interactive prompts, feedback loop test suite.
+1. **Phase 1: Scaffolding, Models & Config** — `pyproject.toml`, directory structure, configuration loader. (Completed)
+2. **Phase 2: Scanner & Core Handlers (H1 - H4)** — Standard directory walking with exclusions, exact, case-insensitive, token-normalized, and fuzzy (`rapidfuzz`).
+3. **Phase 3: Phonetic, Config Aliases & Memory (H5 - H6)** — Tentative Metaphone/Soundex check, alias YAML matching, rich memory updates (`query`, `path`, `timestamp`, `hits`, `decay_rank`), export/import CLI commands.
+4. **Phase 4: Persistent Indexing** — Pre-tokenized SQLite indices, CLI `index` subcommands.
+5. **Phase 5: Heavy Matchers (H7 - H8)** — Lazy sentence-transformers, H8 LLM Query Rewriter (translating natural language to canonical queries).
+6. **Phase 6: Interactive Fallback, Verification & Smoke Tests** — H9 interactive prompts and rich memory logging, feedback loop test suite.
+7. **Phase 7: Post-MVP Optimizations (Optional)** — Windows NTFS Master File Table (MFT) low-level reader acceleration.
 
 ## Directory Structure
 
