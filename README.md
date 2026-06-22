@@ -138,6 +138,58 @@ semantic-search import-memory <FILE_PATH>
 
 ---
 
+## 🤖 LLM Agent Output Schema
+
+When `--json` is enabled or in `--non-interactive` mode upon failure, the tool outputs structured JSON objects to ensure programmatic reliability for LLM agents.
+
+### 1. Success Match Schema
+```json
+{
+  "status": "success",
+  "query": "desktop/main",
+  "match": {
+    "path": "C:\\Users\\Leonardo\\Desktop\\__MAIN",
+    "confidence": 1.0,
+    "handler": "h1_exact"
+  }
+}
+```
+
+### 2. Near-Misses Schema (Ambiguous Match)
+Returned when no path matches above `--min-confidence`, but candidate paths exist within the near-miss threshold (e.g. `0.2`):
+```json
+{
+  "status": "ambiguous",
+  "query": "dsktp/maine",
+  "message": "No match found above confidence threshold.",
+  "near_misses": [
+    {
+      "path": "C:\\Users\\Leonardo\\Desktop\\__MAIN",
+      "confidence": 0.85,
+      "handler": "h4_fuzzy"
+    },
+    {
+      "path": "C:\\Users\\Leonardo\\Downloads",
+      "confidence": 0.35,
+      "handler": "h7_embedding"
+    }
+  ]
+}
+```
+
+### 3. Failure Schema
+Returned when no paths match the query or fall within near-miss limits:
+```json
+{
+  "status": "failed",
+  "query": "unknown_path",
+  "message": "No candidate paths or near-misses matched the query.",
+  "near_misses": []
+}
+```
+
+---
+
 ## 🛠️ Configuration (`config.yaml`)
 
 ```yaml

@@ -236,15 +236,61 @@ semantic-search import-memory <path>
 
 ---
 
-## Robust Fallback System
+## Robust Fallback System & LLM Agent JSON Schema
 
 When no handler produces a match above `--min-confidence`:
 
 1. Collect **near-misses** from all handlers (configurable threshold, e.g. `0.2`).
 2. Rank by confidence.
-3. If interactive: present top 3 and ask `"Did you mean X, Y, or Z?"`.
-4. If non-interactive / LLM mode: return JSON with `near_misses` array and `status: "ambiguous"`.
-5. The LLM can then re-query with a refined query or ask the user.
+3. If interactive: present top N ambiguous candidates and ask `"Did you mean X, Y, or Z?"`.
+4. If non-interactive / LLM mode: return a clean structured JSON schema detailing status and near misses instead of throwing a generic CLI error string.
+5. The LLM can then parse this schema to re-query with a refined parameter or prompt the user.
+
+### JSON Output Schemas
+
+#### Successful Match (`--json`):
+```json
+{
+  "status": "success",
+  "query": "desktop/main",
+  "match": {
+    "path": "C:\\Users\\Leonardo\\Desktop\\__MAIN",
+    "confidence": 1.0,
+    "handler": "h1_exact"
+  }
+}
+```
+
+#### Ambiguous / Near-Misses Scenario (No match above threshold, but matches exist):
+```json
+{
+  "status": "ambiguous",
+  "query": "dsktp/maine",
+  "message": "No match found above confidence threshold.",
+  "near_misses": [
+    {
+      "path": "C:\\Users\\Leonardo\\Desktop\\__MAIN",
+      "confidence": 0.85,
+      "handler": "h4_fuzzy"
+    },
+    {
+      "path": "C:\\Users\\Leonardo\\Downloads",
+      "confidence": 0.35,
+      "handler": "h7_embedding"
+    }
+  ]
+}
+```
+
+#### Complete Failure (No candidate paths matched):
+```json
+{
+  "status": "failed",
+  "query": "unknown_file_query",
+  "message": "No candidate paths or near-misses matched the query.",
+  "near_misses": []
+}
+```
 
 ---
 
