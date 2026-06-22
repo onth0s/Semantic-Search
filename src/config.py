@@ -27,7 +27,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "h8_model": "llama3",
         "h8_url": "http://localhost:11434/v1",
         "h8_api_key": "",
-        "h9_timeout": 30,
     },
     "index": {
         "auto": True,
@@ -115,12 +114,6 @@ def _validate_config(config: dict) -> None:
     threshold = handlers.get("h4_threshold", 75)
     if not (0 <= threshold <= 100):
         raise ValueError(f"handlers.h4_threshold must be between 0 and 100, got {threshold}")
-
-    # Validate h9_timeout
-    timeout = handlers.get("h9_timeout", 30)
-    if timeout <= 0:
-        raise ValueError(f"handlers.h9_timeout must be positive, got {timeout}")
-
 
 # ---------------------------------------------------------------------------
 # Public API

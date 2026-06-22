@@ -15,6 +15,7 @@ import click
 
 from src.handlers.base import BaseHandler
 from src.models import MatchResult
+from src.utils.console import err_console
 
 
 class EmbeddingHandler(BaseHandler):
@@ -36,12 +37,12 @@ class EmbeddingHandler(BaseHandler):
 
         # Show prompt before running heavy ML matching (if interactive)
         if not non_interactive:
-            confirm = click.confirm(
-                "\n[!] No quick match found. Fallback to Deep Semantic Search "
-                "(sentence-transformers)?\nThis may take 1-2 seconds.",
-                default=True,
-                err=True,
+            err_console.print(
+                "\n[bold yellow]No quick match found.[/] "
+                "Fallback to Deep Semantic Search ([cyan]sentence-transformers[/])?"
             )
+            err_console.print("[dim]This may take 1-2 seconds.[/]")
+            confirm = click.confirm("Continue", default=True, err=True)
             if not confirm:
                 return None
 
@@ -49,10 +50,13 @@ class EmbeddingHandler(BaseHandler):
         try:
             from sentence_transformers import SentenceTransformer, util
         except ImportError:
-            click.echo(
-                "[bold yellow]Warning:[/] 'sentence-transformers' is not installed.\n"
-                "To enable semantic matches, please run: pip install sentence-transformers",
-                err=True,
+            err_console.print(
+                "[bold yellow]Warning:[/] [cyan]sentence-transformers[/] is not installed."
+            )
+            err_console.print(
+                "To enable semantic matches, run "
+                "[bold]pip install -e .[semantic][/bold] from this checkout or "
+                "[bold]pip install sempath[semantic][/bold] for an installed package."
             )
             return None
 
@@ -61,10 +65,10 @@ class EmbeddingHandler(BaseHandler):
         if self._model is None:
             try:
                 if ctx and ctx.obj.get("verbose"):
-                    click.echo(f"[dim]Loading embedding model '{model_name}'...[/]")
+                    err_console.print(f"[dim]Loading embedding model '{model_name}'...[/]")
                 self._model = SentenceTransformer(model_name)
             except Exception as exc:
-                click.echo(f"[bold red]Error loading embedding model:[/] {exc}", err=True)
+                err_console.print(f"[bold red]Error loading embedding model:[/] {exc}")
                 return None
 
         # Embed query and candidate basenames (or stems)
@@ -84,5 +88,5 @@ class EmbeddingHandler(BaseHandler):
             return MatchResult(candidates[best_idx], best_score, self.name)
         except Exception as exc:
             if ctx and ctx.obj.get("verbose"):
-                click.echo(f"[dim]Embedding match failed: {exc}[/]", err=True)
+                err_console.print(f"[dim]Embedding match failed: {exc}[/]")
             return None

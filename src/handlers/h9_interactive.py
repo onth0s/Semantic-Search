@@ -1,4 +1,4 @@
-"""Interactive handler — user selection fallback.
+"""Interactive handler - user selection fallback.
 
 Presents top ambiguous near-miss candidates to the user for selection.
 Learned confirmations are written back to memory (learned_aliases.yaml)
@@ -14,6 +14,7 @@ from rapidfuzz import fuzz
 
 from src.handlers.base import BaseHandler
 from src.models import MatchResult
+from src.utils.console import err_console
 from src.utils.memory import add_or_update_memory
 
 
@@ -27,12 +28,10 @@ class InteractiveHandler(BaseHandler):
         if not query or not candidates:
             return None
 
-        # Check Click context for non-interactive flag
         ctx = click.get_current_context(silent=True)
         if ctx and ctx.obj.get("non_interactive", False):
             return None
 
-        # Compute fuzzy match scores to rank candidates (similar to H4 fuzzy logic)
         query_lower = query.lower()
         query_parts = [part for part in query_lower.replace("\\", "/").split("/") if part]
         k = len(query_parts)
@@ -50,20 +49,17 @@ class InteractiveHandler(BaseHandler):
 
             scored.append((p, r_max / 100.0))
 
-        # Sort by score descending
         scored.sort(key=lambda x: x[1], reverse=True)
-        # Keep candidates with confidence >= 0.2 (20% similarity)
         top_candidates = [item for item in scored if item[1] >= 0.2][:5]
 
         if not top_candidates:
             return None
 
-        # Print prompt to user
-        click.echo("\n[?] No exact match found. Did you mean one of these?", err=True)
+        err_console.print("\n[bold yellow]?[/] No exact match found. Did you mean one of these?")
         for i, (path, score) in enumerate(top_candidates, start=1):
-            click.echo(f"  {i}) {path} [dim](confidence: {score:.2f})[/]", err=True)
-        click.echo(f"  {len(top_candidates) + 1}) [None of the above]", err=True)
-        # Prompt selection
+            err_console.print(f"  {i}. [cyan]{path}[/] [dim](confidence: {score:.2f})[/]")
+        err_console.print(f"  {len(top_candidates) + 1}. [dim]None of the above[/]")
+
         try:
             selection = click.prompt(
                 f"Select an option (1-{len(top_candidates) + 1})",
@@ -77,17 +73,16 @@ class InteractiveHandler(BaseHandler):
 
         if 1 <= selection <= len(top_candidates):
             selected_path = top_candidates[selection - 1][0]
-            # Learn this alias
             try:
                 add_or_update_memory(query, selected_path)
-                click.echo(
-                    f"[bold green]✔ Confirmed:[/] Learned alias '{query}' -> '{selected_path}'\n"
-                    f"[dim](run 'sempath alias undo' to revert)[/]",
-                    err=True,
+                err_console.print(
+                    f"[bold green]Confirmed:[/] Learned alias "
+                    f"[cyan]{query}[/] -> [bold]{selected_path}[/]"
                 )
+                err_console.print("[dim](run 'sempath alias undo' to revert)[/]")
             except Exception as exc:
                 if ctx and ctx.obj.get("verbose"):
-                    click.echo(f"[dim]Failed to save learned memory: {exc}[/]", err=True)
+                    err_console.print(f"[dim]Failed to save learned memory: {exc}[/]")
 
             return MatchResult(selected_path, 1.0, self.name)
 

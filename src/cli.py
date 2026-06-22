@@ -13,17 +13,14 @@ import sys
 from pathlib import Path
 
 import click
-from rich.console import Console
 
 from src import __version__
 from src.config import load_config
+from src.utils.console import console, err_console
 
 # ---------------------------------------------------------------------------
 # Rich console — shared across all commands
 # ---------------------------------------------------------------------------
-
-console = Console(highlight=False)
-err_console = Console(stderr=True, highlight=False)
 
 # ---------------------------------------------------------------------------
 # CLI group

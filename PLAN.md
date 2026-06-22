@@ -1,82 +1,95 @@
-# sempath — PLAN
+# sempath - PLAN
+
+This plan describes the current implementation rather than a speculative design.
+It should stay aligned with `README.md`, `config.yaml`, `.agents/AGENTS.md`, and
+the code under `src/`.
 
 ## Vision
 
-A Python CLI tool that lets LLMs (and humans) find filesystem paths by vague, colloquial, or semantically fuzzy descriptions — without needing to know the exact name, casing, or spelling.
+Build a Windows-first Python CLI that lets humans and LLM agents resolve
+filesystem paths from fuzzy descriptions without knowing exact spelling, casing,
+or directory layout.
 
-**Examples:**
-- `"desktop/main"` → `C:\Users\Leonardo\Desktop\__MAIN`
-- `"the main dir on dsktp"` → `C:\Users\Leonardo\Desktop\__MAIN`
-- `"Principal"` → `C:\Users\Leonardo\Desktop\__MAIN`
-- `"important folder"` → `C:\Users\Leonardo\Desktop\__MAIN`
-- `"dl"` → `C:\Users\Leonardo\Downloads`
+Examples:
 
-**Platform Target:**
-- Cross-platform support is deferred for now. The MVP is built specifically for the host machine (Windows OS).
+- `"desktop/main"` -> `C:\Users\Leonardo\Desktop\__MAIN`
+- `"the main dir on dsktp"` -> `C:\Users\Leonardo\Desktop\__MAIN`
+- `"Principal"` -> `C:\Users\Leonardo\Desktop\__MAIN`
+- `"important folder"` -> `C:\Users\Leonardo\Desktop\__MAIN`
+- `"dl"` -> `C:\Users\Leonardo\Downloads`
 
-**File/Directory Size Output:**
-- If outputting file or directory sizes, always format them in a human-readable format (e.g. KB, MB, GB) with exactly 2 decimal places.
+Project constraints from `.agents/AGENTS.md`:
 
----
+- Windows is the MVP target; cross-platform support is deferred.
+- Sizes must be formatted in human-readable units with exactly two decimal
+  places.
+- User-facing CLI output should use Rich styling where relevant.
+- When reporting a fully passing test run, append a cute ASCII `BANZAI~!`
+  message.
 
-## Tech Stack
+## Implemented Tech Stack
 
-- **Python**: 3.11+
-- **CLI Framework**: [Click](https://click.palletsprojects.com/) — subcommand-based CLI routing
-- **Config**: PyYAML — YAML config and alias loading
-- **Fuzzy Matching**: [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz) — fast edit distance scoring
-- **Gitignore Parsing**: [pathspec](https://github.com/cpburnz/python-pathspec) — Git-compliant file pattern matching
-- **Linter / Formatter**: [Ruff](https://docs.astral.sh/ruff/) — fast Python linter and formatter
-- **Testing**: pytest
-- **Terminal UI**: [Rich](https://rich.readthedocs.io/) — styled and colored CLI output
----
+- Python 3.11+
+- Click for the command tree and interactive prompts
+- Rich for styled console output in the CLI layer
+- PyYAML for config and learned-memory files
+- RapidFuzz for fuzzy scoring
+- pathspec for `.gitignore` parsing
+- jellyfish for Metaphone phonetic matching
+- SQLite for persistent path indexing
+- pytest and Ruff for validation
 
-## Architecture: Dual-Path Intent Detection & Handler Chain
+Runtime-dependent integrations:
 
-To maintain sub-millisecond response times for quick matches, `sempath` uses a dual-path execution model that combines lightweight heuristics with a lazy-loaded deep intent classifier.
+- H7 imports `sentence-transformers` lazily when semantic matching is attempted.
+  It is intentionally not installed as a default dependency; use the `semantic`
+  extra to install it.
+- H8 calls a configured OpenAI-compatible chat-completions endpoint. Defaults are
+  set for Ollama at `http://localhost:11434/v1`.
+
+## Execution Pipeline
+
+1. `src.cli.find` loads merged config and passes flags to `SearchEngine`.
+2. `SearchEngine.find_path` resolves the search root.
+3. Candidate paths are gathered:
+   - if indexing is enabled, `IndexManager` auto-creates or updates the SQLite
+     index for an unindexed root;
+   - otherwise, `scan_directory` performs an on-the-fly scan.
+4. `extract_heuristics` parses temporal, type, latest/newest, and largest/biggest
+   clues.
+5. CLI flags and heuristics are merged.
+6. Candidates are filtered by extension and modification age, then sorted by
+   latest or largest when requested.
+7. Empty, `"."`, or `"*"` queries can return the top filtered candidate directly
+   through the `explicit_flags` handler label.
+8. The configured H1-H9 chain runs.
+9. The engine returns a `SearchResult` with status `success`, `ambiguous`, or
+   `failed`.
 
 ```mermaid
 graph TD
-    UserQuery["User Query"] --> HeuristicID["Heuristic Intent Detector<br/>(Strategy A: Fast regex/keywords)"]
-    
-    HeuristicID -->|"Temporal / Attribute"| SpecResolvers["Specialized Resolvers (Fast)"]
-    HeuristicID -->|"Referential / Semantic"| FastChain["Fast Handler Chain (H1 - H6)<br/>(Strategy B: Sub-ms Path)"]
-    
-    FastChain --> MatchFound{"Match Found?"}
-    MatchFound -->|"Yes"| ReturnResult["Return Result"]
-    MatchFound -->|"No"| LoadHeavyDB["Load Heavy DB<br/>(Lazy-load libraries)"]
-    
-    LoadHeavyDB --> DeepID["Deep Intent Detector<br/>(LLM/Embeddings)"]
-    SpecResolvers --> QueryRewriter["Query Rewriter (QR)<br/>(Strategy C: Translate to Canonical)"]
-    DeepID --> QueryRewriter
-    
-    QueryRewriter --> SecondCycle["Second Cycle Match<br/>(Evaluate Canonical on H1 - H6)"]
+    CLI["Click CLI"] --> Engine["SearchEngine.find_path"]
+    Engine --> Candidates["Candidate source"]
+    Candidates --> SQLite["SQLite index"]
+    Candidates --> Scan["scan_directory"]
+    Scan --> USN["Windows admin USN Journal scan"]
+    Scan --> Walk["os.walk fallback"]
+    SQLite --> Heuristics["Heuristic filters and sorting"]
+    USN --> Heuristics
+    Walk --> Heuristics
+    Heuristics --> Chain["Configured H1-H9 chain"]
+    Chain --> Result["SearchResult"]
 ```
-
-### Execution Pipeline
-
-1. **Lightweight Heuristic Parser (Strategy A):** Fast pattern matching (regex, suffix, size markers) checks if temporal or attribute filters can be extracted instantly without loading heavy ML dependencies.
-2. **Explicit Flags (Strategy D):** Explicit CLI options (like `--latest`, `--largest`, `--ext`) bypass intent classification entirely for programmatic usage and easy debugging.
-3. **Fast Handler Path (Strategy B):** The query immediately flows through the fast handlers (`H1`–`H6`). If a confident match is found, it returns immediately (sub-millisecond).
-4. **Lazy Deep Intent & Query Rewrite Fallback (Strategy C):** If no fast match succeeds:
-   - Heavy libraries (`sentence-transformers`, `torch`, etc.) are lazy-loaded.
-   - The query is analyzed by a **Deep Intent Detector**.
-   - If needed, the **Query Rewriter (QR)** translates the query into a canonical search query.
-   - The pipeline triggers a **second cycle** of the fast matchers (`H1`–`H6`) against the newly produced canonical query.
-
----
-
 
 ## Handler Interface
 
-```python
-class MatchResult(NamedTuple):
-    path: Path
-    confidence: float   # 0.0–1.0
-    handler: str        # name of handler that matched
+Implemented in `src.handlers.base`:
 
+```python
 class BaseHandler(ABC):
-    def __init__(self, config: dict):
+    name: str = "base"
+
+    def __init__(self, config: dict) -> None:
         self.config = config
         self.next_handler: BaseHandler | None = None
 
@@ -97,151 +110,209 @@ class BaseHandler(ABC):
         return None
 ```
 
----
+`build_chain` reads `handlers.enabled`, validates handler names through
+`HANDLER_REGISTRY`, instantiates each handler, and links them in order.
 
-## Handlers (in priority order)
+## Handlers
 
-### H1 – Exact Match
-- Direct `==` comparison of query token → candidate basename.
-- Confidence: `1.0`
+### H1 - Exact
 
-### H2 – Case-Insensitive Match
-- `lower()` comparison.
-- Confidence: `0.95`
+- File/folder name match.
+- Stem match for files.
+- Multi-part suffix match for path-like queries.
+- Tie-breaker: shortest path depth.
+- Confidence: `1.0`.
 
-### H3 – Token-Normalized Match
-- Strip non-alphanumeric chars, split into tokens, sort, compare unordered sets.
-- `"desktop/main"` → tokens `{desktop, main}` → matches dir named `__MAIN` inside `Desktop`.
-- Confidence: `0.9` (penalised slightly for normalization)
+### H2 - Case-insensitive
 
-### H4 – Fuzzy String / Edit Distance
-- Levenshtein / Damerau-Levenshtein ratio (via `rapidfuzz` or `thefuzz`).
-- Accept matches above configurable threshold (e.g. `≥75`).
-- `"dsktp"` → `Desktop` (similarity ~80%).
-- `"principl"` → `Principal` (but ideally catches `__MAIN` too via synonym expansion).
-- Confidence: `ratio * 1.0`
+- Same matching surface as H1, but lowercase-normalized.
+- Tie-breaker: shortest path depth.
+- Confidence: `0.95`.
 
-### H5 – Phonetic Match (Tentative)
-- **Status:** Tentative, to be evaluated during Phase 3. If fuzzy matching (H4) already covers phonetic-like similarity edge cases with sufficient accuracy, H5 may be skipped or replaced to keep dependencies low.
-- Encode tokens with Soundex/Metaphone (via `phonetics` or custom).
-- Compare phonetic codes of query vs candidate.
-- Catches homophones: `"main"` vs `"mane"`, `"there"` vs `"their"`.
-- Confidence: `0.75`
+### H3 - Token-normalized
 
-### H6 – Alias / Synonym Expansion (User Ratified & Config Aliases)
-- **Robust Deterministic Mapping**: Upgraded to handle more than simple static strings:
-  - **Fuzzy & Phonetic Alias Matching**: Alias keys (e.g., `DWL` mapped to `C:\Users\Leonardo\Downloads`) can be matched via fuzzy edit distance or phonetic codes on the key names themselves (e.g., query `dwll` -> alias key `DWL`).
-  - **Regular Expressions**: Configured aliases can define regex patterns (e.g., `^dwl(oads)?$` -> `C:\Users\Leonardo\Downloads`).
-  - **Context & Query Splitting (Structured Routing)**: If the query references an alias (e.g., "latest pic on MAIN" or "find doc on MAIN"), the Router extracts the alias part (`MAIN`), resolves it to its target path (`C:\Users\Leonardo\Desktop\__MAIN`), and then applies the remaining sub-query filters (e.g., "latest pic" or "doc") recursively within that resolved path.
-- Configurable dictionary + automated synonym generation.
-- User-customisable via config file and dynamic learned memory (`learned_aliases.yaml`).
-- Confidence: `0.95` (high weight for ratified aliases and their close variations).
+- Uses `src.utils.tokenize.normalize_tokens`.
+- Compares unordered token sets for names, stems, and multi-part suffixes.
+- Tie-breaker: shortest path depth.
+- Confidence: `0.9`.
 
-### H7 – Embedding Semantic Match
-- Uses `sentence-transformers` (lightweight model like `all-MiniLM-L6-v2`) to embed query and each candidate basename.
-- **Embedding Latency Penalty Guard**:
-  - **Lazy Imports**: Heavy libraries (`sentence-transformers`, `torch`) are strictly lazy-imported inside H7. This keeps H1-H6 execution sub-millisecond.
-  - **User Notification / Confirmation**: Before loading the model, the CLI prompts the user or prints a status message (unless bypassed by `--non-interactive` or config):
-    `[!] No quick match found. Fallback to Deep Semantic Search (sentence-transformers)? This may take 1-2 seconds. (Y/n):`
-- Cosine similarity scoring.
-- Matches `"important folder"` → `__MAIN`.
-- First invocation loads model; subsequent use is cached.
-- Confidence: `cosine_sim * 1.0`
-- Can be disabled for resource-constrained environments.
+### H4 - Fuzzy
 
-### H8 – LLM Query Rewriter
-- Sends the user's natural language query to a local or external LLM (Ollama, OpenAI, etc.).
-- **Query Translation Logic**: Instead of choosing a file path directly (which is non-deterministic and prone to hallucinating non-existent paths), the LLM acts as a parser/translator. It rewrites complex natural language into a canonical, structured search query.
-  - *Example Input:* `"that image I downloaded yesterday from discord"`
-  - *LLM Rewrite:* `"Downloads/ *.png *.jpg *.jpeg modified_within:24h"`
-- **Deterministic Processing**: The rewritten canonical query is fed back into the deterministic handler chain (H1–H7) for resolution.
-- **Auditable Logs & Caching**: Rewriting yields clear mappings (e.g., `{ "input": "...", "canonical": "..." }`) that are logged, testable, and cacheable.
-- Confidence: Inherited from the H1–H7 resolver that resolves the canonical query.
+- Uses RapidFuzz.
+- Scores against name, stem, and multi-part suffixes.
+- Threshold comes from `handlers.h4_threshold`, default `75`.
+- Confidence: ratio divided by `100`.
 
-### H9 – Interactive Fallback
-- Presents top N ambiguous candidates to user.
-- Accepts keyboard selection or typed response.
-- **Stateful Memory Loop (Rich Memory Model):** Once the user confirms a path, the confirmation is written to `learned_aliases.yaml` in the user's config directory (specifically `%APPDATA%\sempath\` on Windows). To enable decay ranking and avoid incorrect routing of sub-queries, each entry tracks:
-  - `query`: The original search query.
-  - `path`: The user-confirmed target path.
-  - `timestamp`: UTC timestamp when the confirmation was made.
-  - `hits`: Usage frequency counter.
-  - `decay_rank`: A priority ranking score calculated using hits and recency decay.
-- **Chronological Undo Stack:** Learned aliases are stored with insertion order or timestamps. Running the command `sempath alias undo` pops the latest confirmed alias from `learned_aliases.yaml`.
-- **Feedback Loop**: When a query matches a learned alias during H6 execution, a hint is printed (unless running in quiet/JSON/non-interactive mode):
-  `[i] Matched via learned alias: 'query' -> 'path' (run 'sempath alias undo' to revert)`
-- Subsequent matching of the same or similar query is instantly resolved by the Alias handler (H6).
-- Can be suppressed (flag `--non-interactive`) for automated LLM use.
-- Confidence: `1.0` (user confirmed)
+### H5 - Phonetic
 
----
+- Implemented with jellyfish Metaphone.
+- Compares phonetic code sets for names, stems, and multi-part suffixes.
+- Tie-breaker: shortest path depth.
+- Confidence: `0.75`.
 
-## Indexing
+### H6 - Alias
 
-### On-the-Fly (default)
-- Recursively scans directory (from root or `cwd`) on every invocation.
-- **⚡ Windows MFT Optimization (Optional/Deferred)**: Future post-MVP acceleration layer using low-level sequential NTFS Master File Table (MFT) reads for Windows Administrator runs. For the MVP, standard directory walking (`os.walk`) with pre-filtering is the primary traversal engine.
-- **Sensible Directory Traversal Ignores**: Automatically bypasses potential blackholes to prevent hangs:
-  - Dot directories (e.g., `.git`, `.venv`, `.idea`, `.vscode`).
-  - Common build, dependency, and cache artifacts (e.g., `node_modules`, `__pycache__`, `build`, `dist`, `.mypy_cache`, `.pytest_cache`).
-- **`.gitignore` Integration**: Parse and respect actual `.gitignore` files found in the traversed directories to prevent matching developer-ignored files.
-- Accepts `--depth` limit (default: 5) to constrain search radius.
+- Loads learned aliases from `learned_aliases.yaml`.
+- Loads configured aliases from config.
+- Alias keys support:
+  - exact case-insensitive match;
+  - regex keys when regex markers are present;
+  - RapidFuzz key matching at ratio `>= 80`;
+  - jellyfish Metaphone key matching.
+- Direct aliases resolve to learned paths or configured target names/stems.
+- Compound routing supports `"<sub query> on <alias>"` and
+  `"<sub query> in <alias>"`.
+- Routed subqueries can apply heuristic extension, age, and latest filters before
+  exact/case-insensitive/fuzzy matching within the resolved alias directory.
+- Confidence: `0.95`.
 
-### Persistent Index
-- Pre-built index stored using a **high-efficiency serialization format (SQLite or highly compressed binary format)** to enable sub-millisecond loading of hundreds of thousands of paths (bypassing slow parses of massive, monolithic JSON files). Includes optional embedding cache (`faiss` or numpy).
-- Commands:
-  - `sempath index create [path]` — build index
-  - `sempath index update [path]` — incremental update
-  - `sempath index list`
-  - `sempath index remove`
-- Index stores for each path:
-  - Full path, basename, parent dirs
-  - Tokens (normalized)
-  - Soundex/Metaphone codes
-  - Embedding vector (if H7 enabled)
-  - Custom aliases
-- Auto-detects staleness via mtime checks.
+### H7 - Embedding
 
----
+- Optional semantic fallback through lazy `sentence-transformers` import.
+- In interactive mode, asks for confirmation before loading the model.
+- In non-interactive mode, skips the confirmation prompt and attempts the import.
+- Uses `handlers.h7_model`, default `all-MiniLM-L6-v2`.
+- Returns the highest cosine-similarity candidate.
+- Confidence: cosine similarity score.
 
-## CLI Interface
+### H8 - LLM rewrite
 
+- Sends the query to `h8_url.rstrip("/") + "/chat/completions"`.
+- Uses `h8_provider`, `h8_model`, and optional `h8_api_key` from config.
+- Requests a canonical keyword/marker rewrite.
+- Runs a second-cycle fast chain containing only H1-H6.
+- Returns the second-cycle match with handler label like
+  `h8_llm(h1_exact)`.
+- No persistent cache is currently implemented.
+
+### H9 - Interactive
+
+- Disabled by `--non-interactive`.
+- Uses RapidFuzz to rank up to five candidates with confidence `>= 0.2`.
+- Uses Click prompt selection.
+- Confirmed selections are saved through `add_or_update_memory`.
+- Returns confidence `1.0`.
+
+## Heuristics And Explicit Flags
+
+Implemented in `src.heuristics` and merged in `SearchEngine`:
+
+- Type words:
+  - `pic`, `photo`, `image` -> image extensions
+  - `doc`, `document` -> document extensions
+  - `pdf` -> `pdf`
+- Temporal words:
+  - `today` and `yesterday` -> last 24 hours
+  - `last week` -> last 7 days
+  - `last month` -> last 30 days
+- Ordering:
+  - `latest`, `newest`
+  - `largest`, `biggest`
+- Explicit CLI flags:
+  - `--latest`
+  - `--largest`
+  - `--ext`
+
+## Indexing And Scanner
+
+`IndexManager` stores `index.db` under `index.store`.
+
+Tables:
+
+- `indexed_roots(path, indexed_at)`
+- `paths(path, basename, parent_dir, mtime, size, is_dir, tokens, phonetic)`
+
+Index lifecycle:
+
+- `sempath index create [PATH]`
+- `sempath index update [PATH]`
+- `sempath index list`
+- `sempath index remove [PATH]`
+- `sempath index remove --all`
+
+Scanner behavior:
+
+- Standard fallback uses `os.walk`.
+- Hidden names and configured exclusions are skipped.
+- Nested `.gitignore` files are respected through `pathspec`.
+- On Windows as Administrator, the scanner first tries a read-only USN Journal
+  enumeration through `src.utils.mft_reader.scan_volume_files`.
+- USN results are filtered by root, depth, hidden/excluded names, and
+  `.gitignore`.
+
+## Learned Memory
+
+Implemented in `src.utils.memory`.
+
+Default path:
+
+- `%APPDATA%\sempath\learned_aliases.yaml`
+- fallback: `~/.config/sempath/learned_aliases.yaml`
+
+Entry shape:
+
+```yaml
+- query: desktop main
+  path: C:\Users\Leonardo\Desktop\__MAIN
+  timestamp: "2026-06-22T10:00:00Z"
+  hits: 1
+  decay_rank: 1.0
 ```
-sempath find [OPTIONS] <query> [path]
-sempath index (create|update|list|remove) [path]
-sempath alias (add|list|remove|clear|undo)
-sempath export-memory <path>
-sempath import-memory <path>
+
+Implemented operations:
+
+- `load_memory`
+- `save_memory`
+- `add_or_update_memory`
+- `undo_last_memory`
+- `merge_memory_files`
+- `sempath alias add/list/remove/clear/undo`
+- `sempath export-memory`
+- `sempath import-memory`
+
+Decay rank uses a 7-day half-life formula:
+
+```text
+hits * 0.5 ^ (days_elapsed / 7)
 ```
 
-### Options (for `find`)
+## CLI Contract
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--root` | `cwd` | Root directory to search |
-| `--depth` | `5` | Max directory depth |
-| `--min-confidence` | `0.3` | Minimum score to consider |
-| `--top-n` | `1` | Number of results to return |
-| `--non-interactive` | false | Skip interactive fallback |
-| `--no-index` | false | Force on-the-fly even if index exists |
-| `--json` | false | JSON output (for LLM consumption) |
-| `--verbose` | false | Show handler-by-handler trace |
+```text
+sempath find [OPTIONS] QUERY [ROOT_DIR]
+sempath index create [OPTIONS] [PATH]
+sempath index update [OPTIONS] [PATH]
+sempath index list
+sempath index remove [OPTIONS] [PATH]
+sempath alias add NAME PATH
+sempath alias list
+sempath alias remove NAME
+sempath alias clear
+sempath alias undo
+sempath export-memory FILE_PATH
+sempath import-memory FILE_PATH
+```
 
----
+`find` options:
 
-## Robust Fallback System & LLM Agent JSON Schema
+| Flag | Default | Implementation |
+|---|---:|---|
+| `--root` | `None` | Overrides positional `ROOT_DIR`. |
+| `--depth` | `5` | Limits scan and index creation depth. |
+| `--min-confidence` | `0.3` | Required confidence for success. |
+| `--top-n` | `1` | Limits printed near misses in text output. |
+| `--non-interactive` | `false` | Disables H9 and skips H7 confirmation. |
+| `--no-index` | `false` | Forces direct scan. |
+| `--json` | `false` | Prints `SearchResult.to_dict()` as JSON. |
+| `--verbose` | `false` | Enables extra diagnostic output. |
+| `--latest` | `false` | Sorts filtered candidates by modification time. |
+| `--largest` | `false` | Sorts filtered candidates by file size. |
+| `--ext` | `None` | Filters by extension. |
 
-When no handler produces a match above `--min-confidence`:
+## JSON Schemas
 
-1. Collect **near-misses** from all handlers (configurable threshold, e.g. `0.2`).
-2. Rank by confidence.
-3. If interactive: present top N ambiguous candidates and ask `"Did you mean X, Y, or Z?"`.
-4. If non-interactive / LLM mode: return a clean structured JSON schema detailing status and near misses instead of throwing a generic CLI error string.
-5. The LLM can then parse this schema to re-query with a refined parameter or prompt the user.
+Success:
 
-### JSON Output Schemas
-
-#### Successful Match (`--json`):
 ```json
 {
   "status": "success",
@@ -254,7 +325,8 @@ When no handler produces a match above `--min-confidence`:
 }
 ```
 
-#### Ambiguous / Near-Misses Scenario (No match above threshold, but matches exist):
+Ambiguous:
+
 ```json
 {
   "status": "ambiguous",
@@ -265,49 +337,58 @@ When no handler produces a match above `--min-confidence`:
       "path": "C:\\Users\\Leonardo\\Desktop\\__MAIN",
       "confidence": 0.85,
       "handler": "h4_fuzzy"
-    },
-    {
-      "path": "C:\\Users\\Leonardo\\Downloads",
-      "confidence": 0.35,
-      "handler": "h7_embedding"
     }
   ]
 }
 ```
 
-#### Complete Failure (No candidate paths matched):
+Failure:
+
 ```json
 {
   "status": "failed",
-  "query": "unknown_file_query",
+  "query": "unknown_path",
   "message": "No candidate paths or near-misses matched the query.",
   "near_misses": []
 }
 ```
 
----
+## Configuration
 
-## Config File (`%APPDATA%\sempath\config.yaml`)
+`load_config` resolution order:
+
+1. explicit path passed to `load_config`;
+2. `%APPDATA%\sempath\config.yaml`;
+3. bundled `config.yaml`;
+4. `DEFAULT_CONFIG` in `src.config`.
+
+Loaded config is deep-merged over defaults. Windows-style `%VAR%` segments are
+expanded in `index.store`.
+
+Current default shape:
 
 ```yaml
 handlers:
   enabled: [h1, h2, h3, h4, h5, h6, h7, h8, h9]
-  h4_threshold: 75        # fuzzy match min similarity
+  h4_threshold: 75
   h7_model: all-MiniLM-L6-v2
   h8_provider: ollama
   h8_model: llama3
   h8_url: http://localhost:11434/v1
   h8_api_key: ""
-  h9_timeout: 30          # seconds to wait for user input
 
 index:
-  auto: true              # auto-create index if none exists
+  auto: true
   store: "%APPDATA%\\sempath\\cache"
   exclude_patterns:
     - "node_modules"
     - ".git"
     - "venv"
     - "__pycache__"
+    - ".mypy_cache"
+    - ".pytest_cache"
+    - "build"
+    - "dist"
 
 aliases:
   main: [__MAIN, principal, important, primary, master]
@@ -315,71 +396,79 @@ aliases:
   docs: [Documents, documentation, docs]
 ```
 
----
-
-## Implementation Order
-
-1. **Phase 1: Scaffolding, Models & Config** — `pyproject.toml`, directory structure, configuration loader. (Completed)
-2. **Phase 2: Scanner & Core Handlers (H1 - H4)** — Standard directory walking with exclusions, exact, case-insensitive, token-normalized, and fuzzy (`rapidfuzz`). (Completed)
-3. **Phase 3: Heuristics, Explicit Flags, Phonetic, Config Aliases & Memory (H5 - H6)** — Lightweight heuristics (Strategy A) for temporal/attribute parsing, explicit CLI flags `--latest`/`--largest`/`--ext` (Strategy D), tentative Metaphone/Soundex check, alias YAML matching, rich memory updates (`query`, `path`, `timestamp`, `hits`, `decay_rank`), export/import CLI commands. (Completed)
-4. **Phase 4: Persistent Indexing** — Pre-tokenized SQLite indices, CLI `index` subcommands. (Completed)
-5. **Phase 5: Heavy Matchers (H7 - H8)** — Lazy sentence-transformers, H8 LLM Query Rewriter (translating natural language to canonical queries). (Completed)
-6. **Phase 6: Interactive Fallback, Verification & Smoke Tests** — H9 interactive prompts and rich memory logging, feedback loop test suite. (Completed)
-7. **Phase 7: Post-MVP Optimizations (Optional)** — Windows NTFS Master File Table (MFT) low-level reader acceleration.
-
 ## Directory Structure
 
-```
+```text
 sempath/
-├── pyproject.toml
-├── README.md
-├── PLAN.md
-├── src/
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── cli.py                  # CLI entry point
-│   ├── config.py               # Config loading (YAML)
-│   ├── engine.py               # Core search orchestration engine
-│   ├── heuristics.py           # Heuristic intent parser
-│   ├── scanner.py              # Directory walker
-│   ├── index.py                # Persistent index logic
-│   ├── models.py               # MatchResult, HandlerConfig, etc.
-│   ├── chain.py                # Handler chain builder
-│   ├── handlers/
-│   │   ├── __init__.py
-│   │   ├── base.py             # BaseHandler ABC
-│   │   ├── h1_exact.py
-│   │   ├── h2_case_insensitive.py
-│   │   ├── h3_token_normalized.py
-│   │   ├── h4_fuzzy.py
-│   │   ├── h5_phonetic.py
-│   │   ├── h6_alias.py
-│   │   ├── h7_embedding.py
-│   │   ├── h8_llm.py
-│   │   └── h9_interactive.py
-│   └── utils/
-│       ├── __init__.py
-│       ├── memory.py           # Learned memory & decay ranking logic
-│       ├── tokenize.py         # Token splitting/normalisation
-│       └── scoring.py          # Confidence normalisation & size formatting
-├── tests/
-│   ├── conftest.py
-│   ├── test_alias_handler.py
-│   ├── test_chain.py
-│   ├── test_cli.py
-│   ├── test_cli_alias.py
-│   ├── test_cli_flags.py
-│   ├── test_config.py
-│   ├── test_engine_and_handlers.py
-│   ├── test_handlers.py
-│   ├── test_heuristics.py
-│   ├── test_index.py
-│   ├── test_memory.py
-│   ├── test_models.py
-│   ├── test_phonetic.py
-│   ├── test_scanner.py
-│   ├── test_utils.py
-│   └── fixtures/
-│       └── mock_fs/            # Fake directory tree for tests
-└── config.yaml                 # Default config
+|-- pyproject.toml
+|-- README.md
+|-- PLAN.md
+|-- config.yaml
+|-- src/
+|   |-- __init__.py
+|   |-- __main__.py
+|   |-- cli.py
+|   |-- config.py
+|   |-- engine.py
+|   |-- heuristics.py
+|   |-- scanner.py
+|   |-- index.py
+|   |-- models.py
+|   |-- chain.py
+|   |-- handlers/
+|   |   |-- __init__.py
+|   |   |-- base.py
+|   |   |-- h1_exact.py
+|   |   |-- h2_case_insensitive.py
+|   |   |-- h3_token_normalized.py
+|   |   |-- h4_fuzzy.py
+|   |   |-- h5_phonetic.py
+|   |   |-- h6_alias.py
+|   |   |-- h7_embedding.py
+|   |   |-- h8_llm.py
+|   |   `-- h9_interactive.py
+|   `-- utils/
+|       |-- __init__.py
+|       |-- memory.py
+|       |-- tokenize.py
+|       |-- scoring.py
+|       `-- mft_reader.py
+`-- tests/
+    |-- conftest.py
+    |-- test_alias_handler.py
+    |-- test_chain.py
+    |-- test_cli.py
+    |-- test_cli_alias.py
+    |-- test_cli_flags.py
+    |-- test_config.py
+    |-- test_engine_and_handlers.py
+    |-- test_handlers.py
+    |-- test_heuristics.py
+    |-- test_index.py
+    |-- test_memory.py
+    |-- test_mft.py
+    |-- test_models.py
+    |-- test_phonetic.py
+    |-- test_scanner.py
+    `-- test_utils.py
 ```
+
+## Implementation Status
+
+Completed:
+
+- project scaffolding and packaging;
+- config loading and validation;
+- scanner with exclusions, `.gitignore`, and Windows admin USN path;
+- H1-H9 handlers;
+- heuristic parsing and explicit find flags;
+- learned memory, alias CLI, and memory import/export;
+- SQLite indexing commands and auto-index integration;
+- JSON result schemas;
+- tests for handlers, CLI, scanner, index, memory, MFT integration, models, and
+  utilities.
+
+Known follow-ups:
+
+- Broaden platform-specific behavior once Windows MVP requirements settle.
+- Add more performance hardening for very large trees.

@@ -18,7 +18,6 @@ def sample_config() -> dict:
             "h8_model": "llama3",
             "h8_url": "http://localhost:11434/v1",
             "h8_api_key": "",
-            "h9_timeout": 30,
         },
         "index": {
             "auto": True,

@@ -27,7 +27,7 @@ class TestLoadConfigDefaults:
         assert "h8_provider" in handlers
         assert "h8_model" in handlers
         assert "h8_url" in handlers
-        assert "h9_timeout" in handlers
+        assert "h9_timeout" not in handlers
 
     def test_default_config_has_all_9_handlers_enabled(self):
         """Default config has all 9 handlers enabled (h1 through h9)."""
@@ -66,6 +66,17 @@ class TestLoadConfigFromFile:
         assert config["handlers"]["h4_threshold"] == 90
         # Other default values should still be present
         assert "enabled" in config["handlers"]
+
+    def test_legacy_h9_timeout_is_not_validated(self, tmp_path: Path):
+        """Legacy h9_timeout config does not fail validation."""
+        import yaml
+
+        user_config = {"handlers": {"h9_timeout": -1}}
+        config_path = tmp_path / "legacy_config.yaml"
+        config_path.write_text(yaml.dump(user_config, default_flow_style=False), encoding="utf-8")
+
+        config = load_config(config_path)
+        assert config["handlers"]["h9_timeout"] == -1
 
 
 class TestExpandEnvVars:

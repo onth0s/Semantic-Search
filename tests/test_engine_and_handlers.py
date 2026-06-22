@@ -47,9 +47,15 @@ class TestEmbeddingHandler:
             handler = EmbeddingHandler(sample_config)
             ctx = MagicMock()
             ctx.obj = {"non_interactive": True}
-            with patch("click.get_current_context", return_value=ctx):
+            with (
+                patch("click.get_current_context", return_value=ctx),
+                patch("src.handlers.h7_embedding.err_console.print") as mock_print,
+            ):
                 res = handler.match("test query", [Path("some_file.txt")])
                 assert res is None
+                output = "\n".join(str(call.args[0]) for call in mock_print.call_args_list)
+                assert "pip install -e .[semantic]" in output
+                assert "pip install sempath[semantic]" in output
 
     def test_embedding_match_success(self, sample_config: dict):
         # Mock sentence_transformers library
@@ -106,6 +112,18 @@ class TestLLMHandler:
 
 class TestInteractiveHandler:
     """Tests for H9 InteractiveHandler."""
+
+    @patch("click.prompt")
+    def test_non_interactive_skips_prompt(self, mock_prompt, sample_config: dict):
+        handler = InteractiveHandler(sample_config)
+        ctx = MagicMock()
+        ctx.obj = {"non_interactive": True}
+
+        with patch("click.get_current_context", return_value=ctx):
+            res = handler.match("desktop main", [Path("C:/User/Desktop/__MAIN")])
+
+        assert res is None
+        mock_prompt.assert_not_called()
 
     @patch("click.prompt")
     def test_interactive_selection_and_learning(
