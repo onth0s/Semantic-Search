@@ -142,11 +142,14 @@ class BaseHandler(ABC):
 - Catches homophones: `"main"` vs `"mane"`, `"there"` vs `"their"`.
 - Confidence: `0.75`
 
-### H6 – Alias / Synonym Expansion
+### H6 – Alias / Synonym Expansion (User Ratified & Config Aliases)
+- **Robust Deterministic Mapping**: Upgraded to handle more than simple static strings:
+  - **Fuzzy & Phonetic Alias Matching**: Alias keys (e.g., `DWL` mapped to `C:\Users\Leonardo\Downloads`) can be matched via fuzzy edit distance or phonetic codes on the key names themselves (e.g., query `dwll` -> alias key `DWL`).
+  - **Regular Expressions**: Configured aliases can define regex patterns (e.g., `^dwl(oads)?$` -> `C:\Users\Leonardo\Downloads`).
+  - **Context & Query Splitting (Structured Routing)**: If the query references an alias (e.g., "latest pic on MAIN" or "find doc on MAIN"), the Router extracts the alias part (`MAIN`), resolves it to its target path (`C:\Users\Leonardo\Desktop\__MAIN`), and then applies the remaining sub-query filters (e.g., "latest pic" or "doc") recursively within that resolved path.
 - Configurable dictionary + automated synonym generation.
-- Built-in defaults: `"main" → ["__MAIN", "principal", "important", "primary", "master"]`
-- User-customisable via config file.
-- Confidence: `0.7` (broadening reduces precision)
+- User-customisable via config file and dynamic learned memory (`learned_aliases.yaml`).
+- Confidence: `0.95` (high weight for ratified aliases and their close variations).
 
 ### H7 – Embedding Semantic Match
 - Uses `sentence-transformers` (lightweight model like `all-MiniLM-L6-v2`) to embed query and each candidate basename.
@@ -165,7 +168,10 @@ class BaseHandler(ABC):
 ### H9 – Interactive Fallback
 - Presents top N ambiguous candidates to user.
 - Accepts keyboard selection or typed response.
-- **Stateful Memory Loop:** Once the user confirms a path, the query-to-path association is learned and written to `learned_aliases.yaml` in the user's config directory (e.g. `~/.config/semantic-search/` or `.semantic-search/`).
+- **Stateful Memory Loop:** Once the user confirms a path, the query-to-path association is learned and written to `learned_aliases.yaml` in the user's config directory (specifically `%APPDATA%\semantic-search\` on Windows).
+- **Chronological Undo Stack:** Learned aliases are stored with insertion order or timestamps. Running the command `semantic-search alias undo` pops the latest confirmed alias from `learned_aliases.yaml`.
+- **Feedback Loop**: When a query matches a learned alias during H6 execution, a hint is printed (unless running in quiet/JSON/non-interactive mode):
+  `[i] Matched via learned alias: 'query' -> 'path' (run 'semantic-search alias undo' to revert)`
 - Subsequent matching of the same or similar query is instantly resolved by the Alias handler (H6).
 - Can be suppressed (flag `--non-interactive`) for automated LLM use.
 - Confidence: `1.0` (user confirmed)
@@ -204,7 +210,7 @@ class BaseHandler(ABC):
 ```
 semantic-search find [OPTIONS] <query> [path]
 semantic-search index (create|update|list|remove) [path]
-semantic-search alias (add|list|remove|clear)
+semantic-search alias (add|list|remove|clear|undo)
 semantic-search export-memory <path>
 semantic-search import-memory <path>
 ```
@@ -236,7 +242,7 @@ When no handler produces a match above `--min-confidence`:
 
 ---
 
-## Config File (`~/.config/semantic-search/config.yaml`)
+## Config File (`%APPDATA%\semantic-search\config.yaml`)
 
 ```yaml
 handlers:
@@ -251,7 +257,7 @@ handlers:
 
 index:
   auto: true              # auto-create index if none exists
-  store: ~/.cache/semantic-search/
+  store: "%APPDATA%\\semantic-search\\cache"
   exclude_patterns:
     - "node_modules"
     - ".git"

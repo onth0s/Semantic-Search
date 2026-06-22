@@ -80,13 +80,19 @@ User Query
 
 ---
 
-## 🧠 Stateful Memory & Interactive Feedback Loop
+## 🧠 Stateful Memory & Robust User Ratified Aliases
 
-Unlike purely stateless CLI search engines, `semantic-search` remembers confirmations to build an intuitive, personalized interaction model.
+Unlike purely stateless CLI search engines, `semantic-search` remembers confirmations to build an intuitive, personalized interaction model, and treats alias matching as a robust semantic system:
 
-1. **Learning confirmations:** When a query resolves to an interactive selection (H9) and the user confirms, that query-to-path association is saved to a persistent storage (`~/.config/semantic-search/learned_aliases.yaml` or `.semantic-search/learned_aliases.yaml`).
-2. **Deterministic execution:** Next time a similar or identical query is made, it is resolved instantly via the Alias Handler (H6), bypassing heavier computation.
-3. **Sharing/Attaching context:** LLM agents or remote deployment bots can export and import this state.
+1. **Learning confirmations:** When a query resolves to an interactive selection (H9) and the user confirms, that query-to-path association is saved to a persistent storage (`%APPDATA%\semantic-search\learned_aliases.yaml`).
+2. **Robust User Ratified Aliases (H6):** The Alias handler doesn't just check for exact string matches:
+   - **Fuzzy / Phonetic Keys:** Alias keys (e.g., `DWL` -> `Downloads`) are checked via fuzzy matching, so `dwll` resolves directly with high confidence.
+   - **Regex / Wildcard Mappings:** Confirmed/configured aliases can contain regex patterns.
+   - **Context / Query Splitting:** If the query includes an alias and a sub-query (e.g., `"latest pic on MAIN"`), the system extracts the alias `MAIN`, resolves it to its directory (`C:\Users\Leonardo\Desktop\__MAIN`), and searches recursively within that directory for the remaining query (`"latest pic"`), resolving files matching image extensions sorted by creation/modification time.
+3. **Chronological Undo Stack:** Aliases are logged chronologically. If you make a mistake, run `semantic-search alias undo` to revert the last learned alias.
+4. **Deterministic execution & Feedback Loop:** Next time a query is matched via a learned alias, it resolves instantly and displays a feedback hint:
+   `[i] Matched via learned alias: 'query' -> 'path' (run 'semantic-search alias undo' to revert)`
+5. **Sharing/Attaching context:** LLM agents or remote deployment bots can export and import this state.
    - `semantic-search export-memory <export_path.yaml>`
    - `semantic-search import-memory <import_path.yaml>`
 
@@ -102,7 +108,7 @@ semantic-search find [OPTIONS] <QUERY> [ROOT_DIR]
 semantic-search index (create | update | list | remove) [ROOT_DIR]
 
 # Managed Aliases / Custom Mappings
-semantic-search alias (add | list | remove | clear)
+semantic-search alias (add | list | remove | clear | undo)
 
 # Memory Import & Export
 semantic-search export-memory <FILE_PATH>
@@ -139,7 +145,7 @@ handlers:
 
 index:
   auto: true
-  store: ~/.cache/semantic-search/
+  store: "%APPDATA%\\semantic-search\\cache"
   exclude_patterns:
     - "node_modules"
     - ".git"
