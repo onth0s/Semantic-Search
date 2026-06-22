@@ -11,6 +11,12 @@ A Python CLI tool that lets LLMs (and humans) find filesystem paths by vague, co
 - `"important folder"` → `C:\Users\Leonardo\Desktop\__MAIN`
 - `"dl"` → `C:\Users\Leonardo\Downloads`
 
+**Platform Target:**
+- Cross-platform support is deferred for now. The MVP is built specifically for the host machine (Windows OS).
+
+**File/Directory Size Output:**
+- If outputting file or directory sizes, always format them in a human-readable format (e.g. KB, MB, GB) with exactly 2 decimal places.
+
 ---
 
 ## Architecture: Handler Pattern (Chain of Responsibility)
@@ -151,18 +157,18 @@ class BaseHandler(ABC):
 - Can be disabled for resource-constrained environments.
 
 ### H8 – LLM Match
-- Sends query + candidate list (or directory structure) to an external LLM (OpenAI, Claude, etc.).
+- Sends query + candidate list to a local or external LLM (Ollama, OpenAI, etc.).
 - LLM decides which path best fits the semantic intent.
-- Useful for complex relational queries: `"the folder where I keep my downloads from work"`.
-- Requires API key configuration.
-- Confidence: `LLM-provided score or 0.6` (depends on model quality)
+- Configurable provider (e.g., `ollama` or `openai`), endpoint URL, model, and API key.
+- Confidence: `LLM-provided score or 0.6`
 
 ### H9 – Interactive Fallback
 - Presents top N ambiguous candidates to user.
-- `"Did you mean '__MAIN' (score 0.85) or 'Main' (score 0.80)?"`
 - Accepts keyboard selection or typed response.
-- Confidence: `1.0` (user confirmed)
+- **Stateful Memory Loop:** Once the user confirms a path, the query-to-path association is learned and written to `learned_aliases.yaml` in the user's config directory (e.g. `~/.config/semantic-search/` or `.semantic-search/`).
+- Subsequent matching of the same or similar query is instantly resolved by the Alias handler (H6).
 - Can be suppressed (flag `--non-interactive`) for automated LLM use.
+- Confidence: `1.0` (user confirmed)
 
 ---
 
@@ -170,16 +176,19 @@ class BaseHandler(ABC):
 
 ### On-the-Fly (default)
 - Recursively scans directory (from root or `cwd`) on every invocation.
-- Respects `.gitignore`, hidden dirs (configurable).
-- Good for one-off queries or small directory trees.
-- Accepts `--depth` limit.
+- **Sensible Directory Traversal Ignores:** Automatically bypasses potential blackholes to prevent hangs:
+  - Dot directories (e.g., `.git`, `.venv`, `.idea`, `.vscode`).
+  - Common build, dependency, and cache artifacts (e.g., `node_modules`, `__pycache__`, `build`, `dist`, `.mypy_cache`, `.pytest_cache`).
+- **`.gitignore` Integration:** Parse and respect actual `.gitignore` files found in the traversed directories to prevent matching developer-ignored files.
+- Accepts `--depth` limit (default: 5) to constrain search radius.
 
 ### Persistent Index
 - Pre-built index stored as JSON + optional embedding cache (`faiss` or numpy).
 - Commands:
-  - `semantic-search index create <path>` — build index
-  - `semantic-search index update <path>` — incremental update
+  - `semantic-search index create [path]` — build index
+  - `semantic-search index update [path]` — incremental update
   - `semantic-search index list`
+  - `semantic-search index remove`
 - Index stores for each path:
   - Full path, basename, parent dirs
   - Tokens (normalized)
@@ -193,12 +202,14 @@ class BaseHandler(ABC):
 ## CLI Interface
 
 ```
-semantic search [OPTIONS] <query> [path]
-semantic index  (create|update|list|remove) [path]
-semantic alias  (add|list|remove) <alias> <target>
+semantic-search find [OPTIONS] <query> [path]
+semantic-search index (create|update|list|remove) [path]
+semantic-search alias (add|list|remove|clear)
+semantic-search export-memory <path>
+semantic-search import-memory <path>
 ```
 
-### Options (for `search`)
+### Options (for `find`)
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -206,29 +217,10 @@ semantic alias  (add|list|remove) <alias> <target>
 | `--depth` | `5` | Max directory depth |
 | `--min-confidence` | `0.3` | Minimum score to consider |
 | `--top-n` | `1` | Number of results to return |
-| `--handler` | all | Run only specific handler(s) |
 | `--non-interactive` | false | Skip interactive fallback |
 | `--no-index` | false | Force on-the-fly even if index exists |
 | `--json` | false | JSON output (for LLM consumption) |
 | `--verbose` | false | Show handler-by-handler trace |
-
-### Output (JSON mode)
-
-```json
-{
-  "query": "desktop/main",
-  "results": [
-    {
-      "path": "C:\\Users\\Leonardo\\Desktop\\__MAIN",
-      "confidence": 1.0,
-      "handler": "exact_match",
-      "matched_on": "desktop → Desktop, main → __MAIN"
-    }
-  ],
-  "total_candidates": 340,
-  "handlers_tried": ["exact", "case_insensitive", "token_normalized"]
-}
-```
 
 ---
 
@@ -242,15 +234,6 @@ When no handler produces a match above `--min-confidence`:
 4. If non-interactive / LLM mode: return JSON with `near_misses` array and `status: "ambiguous"`.
 5. The LLM can then re-query with a refined query or ask the user.
 
-```
-Status: ambiguous
-Near misses:
-  - C:\Users\Leonardo\Desktop\__MAIN  (0.45 — fuzzy matched "main")
-  - C:\Users\Leonardo\Documents\main.py (0.4 — exact file match)
-  - C:\Users\Leonardo\Desktop\Principal (0.35 — synonym "principal" → "main")
-Suggestion: try "desktop/__MAIN" or "the __MAIN folder on desktop"
-```
-
 ---
 
 ## Config File (`~/.config/semantic-search/config.yaml`)
@@ -260,43 +243,37 @@ handlers:
   enabled: [h1, h2, h3, h4, h5, h6, h7, h8, h9]
   h4_threshold: 75        # fuzzy match min similarity
   h7_model: all-MiniLM-L6-v2
-  h8_api_key: <env:LLM_API_KEY>
-  h8_model: gpt-4o-mini
+  h8_provider: ollama
+  h8_model: llama3
+  h8_url: http://localhost:11434/v1
+  h8_api_key: ""
   h9_timeout: 30          # seconds to wait for user input
 
 index:
   auto: true              # auto-create index if none exists
   store: ~/.cache/semantic-search/
-  embedding_dim: 384
+  exclude_patterns:
+    - "node_modules"
+    - ".git"
+    - "venv"
+    - "__pycache__"
 
 aliases:
   main: [__MAIN, principal, important, primary, master]
   dl: [Downloads, download]
   docs: [Documents, documentation, docs]
-  tmp: [Temp, temporary, tempfiles]
-  pic: [Pictures, Photos, Images, img]
 ```
-
-Aliases are user-extensible. The `alias` subcommand manages them.
 
 ---
 
 ## Implementation Order
 
-1. **CLI scaffolding** — `click` or `argparse`, project structure, `pyproject.toml`.
-2. **Scanner** — on-the-fly directory walker with depth control, gitignore support.
-3. **Handler base class + chain builder** — the core pattern.
-4. **H1–H4** (exact, case, token-normalized, fuzzy) — fast matchers, no deps beyond stdlib + `rapidfuzz`.
-5. **H5** (phonetic) — `phonetics` package.
-6. **H6** (alias/synonym) — YAML config, alias subcommand.
-7. **Persistent index** — JSON store, incremental updates, embedding cache.
-8. **H7** (embeddings) — `sentence-transformers`, `numpy`, optional `faiss`.
-9. **H8** (LLM) — `httpx` or `openai` SDK, prompt crafting.
-10. **H9** (interactive fallback) — `inquirer` or `questionary`.
-11. **JSON output + LLM-friendly mode** — `--json`, structured error/near-miss responses.
-12. **Integration tests** — fixture directory with tricky names, query fuzzing.
-
----
+1. **Phase 1: Scaffolding, Models & Config** — `pyproject.toml`, directory structure, configuration loader.
+2. **Phase 2: Scanner & Core Handlers (H1 - H4)** — Ignore list, exact, case-insensitive, token-normalized, and fuzzy (`rapidfuzz`).
+3. **Phase 3: Phonetic, Config Aliases & Memory (H5 - H6)** — `jellyfish` Soundex/Metaphone, alias YAML matching, memory updates, export/import CLI commands.
+4. **Phase 4: Persistent Indexing** — Pre-tokenized indices, CLI `index` subcommands.
+5. **Phase 5: Heavy Matchers (H7 - H8)** — Lazy sentence-transformers, Ollama/OpenAI API LLM matching.
+6. **Phase 6: Interactive Fallback, Verification & Smoke Tests** — H9 interactive prompts, feedback loop test suite.
 
 ## Directory Structure
 
