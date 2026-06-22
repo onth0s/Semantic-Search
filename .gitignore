@@ -12,3 +12,7 @@ venv/
 # Testing / Linting
 .pytest_cache/
 .ruff_cache/
+
+# Databases and Local Caches
+%APPDATA%/
+*.db
