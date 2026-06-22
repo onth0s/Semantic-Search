@@ -26,10 +26,14 @@ LATEST_RE = re.compile(
     r"\b(latest|newest)\b",
     re.IGNORECASE,
 )
+LARGEST_RE = re.compile(
+    r"\b(largest|biggest)\b",
+    re.IGNORECASE,
+)
 
 
 def extract_heuristics(query: str) -> dict:
-    """Extract temporal, type, and ordering filters from query, returning a dict.
+    """Extract temporal, type, ordering, and size filters from query, returning a dict.
 
     Returns:
         A dictionary with keys:
@@ -37,11 +41,13 @@ def extract_heuristics(query: str) -> dict:
             - 'modified_within_seconds': max age in seconds, or None.
             - 'extensions': list of lowercase extensions, or None.
             - 'latest': boolean indicating if 'latest'/'newest' was requested.
+            - 'largest': boolean indicating if 'largest'/'biggest' was requested.
     """
     clean_query = query
     modified_within_seconds = None
     extensions = None
     latest = False
+    largest = False
 
     # Temporal match
     temp_match = TEMPORAL_RE.search(clean_query)
@@ -75,6 +81,12 @@ def extract_heuristics(query: str) -> dict:
         latest = True
         clean_query = LATEST_RE.sub("", clean_query)
 
+    # Largest match
+    largest_match = LARGEST_RE.search(clean_query)
+    if largest_match:
+        largest = True
+        clean_query = LARGEST_RE.sub("", clean_query)
+
     # Clean up whitespace runs
     clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
@@ -83,4 +95,5 @@ def extract_heuristics(query: str) -> dict:
         "modified_within_seconds": modified_within_seconds,
         "extensions": extensions,
         "latest": latest,
+        "largest": largest,
     }

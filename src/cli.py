@@ -16,10 +16,7 @@ import click
 from rich.console import Console
 
 from src import __version__
-from src.chain import build_chain
 from src.config import load_config
-from src.models import MatchResult, SearchResult
-from src.scanner import scan_directory
 
 # ---------------------------------------------------------------------------
 # Rich console — shared across all commands
@@ -150,88 +147,26 @@ def find(
         console.print(f"[dim]Depth:[/]  {depth}")
         console.print()
 
-    # Scan directory
-    exclude_patterns = config.get("index", {}).get("exclude_patterns", [])
-    candidates = scan_directory(search_root, depth=depth, exclude_patterns=exclude_patterns)
+    from src.engine import SearchEngine
 
-    # Apply extension filter if provided
-    if ext:
-        ext_clean = ext.lower().lstrip(".")
-        candidates = [p for p in candidates if p.suffix.lower().lstrip(".") == ext_clean]
-
-    # Sort by time or size if requested
-    if latest:
-
-        def get_mtime(p: Path) -> float:
-            try:
-                return p.stat().st_mtime
-            except Exception:
-                return 0.0
-
-        candidates.sort(key=get_mtime, reverse=True)
-
-    if largest:
-
-        def get_size(p: Path) -> int:
-            try:
-                return p.stat().st_size if p.is_file() else 0
-            except Exception:
-                return 0
-
-        candidates.sort(key=get_size, reverse=True)
-
-    # Check for direct bypass when query is a placeholder and sorting/filtering is active
-    if query in ("", ".", "*") and (latest or largest or ext) and candidates:
-        match_result = MatchResult(candidates[0], 1.0, "explicit_flags")
-    else:
-        # Build and execute chain
-        try:
-            chain = build_chain(config)
-        except ValueError as exc:
-            err_console.print(f"[bold red]Error building handler chain:[/] {exc}")
-            sys.exit(1)
-
-        match_result = chain.handle(query, candidates)
-
-    if match_result is not None and match_result.confidence >= min_confidence:
-        search_result = SearchResult(
-            status="success",
+    try:
+        engine = SearchEngine(config)
+        search_result = engine.find_path(
             query=query,
-            match=match_result,
+            root_dir=search_root,
+            depth=depth,
+            min_confidence=min_confidence,
+            top_n=top_n,
+            non_interactive=non_interactive,
+            no_index=no_index,
+            latest=latest,
+            largest=largest,
+            ext=ext,
+            verbose=verbose,
         )
-    else:
-        # Collect near-misses from all enabled handlers
-        near_misses = []
-        seen_paths = set()
-        current = chain
-        while current is not None:
-            try:
-                res = current.match(query, candidates)
-                if res is not None and res.path not in seen_paths:
-                    near_misses.append(res)
-                    seen_paths.add(res.path)
-            except Exception:
-                pass
-            current = getattr(current, "next_handler", None)
-
-        # Filter near-misses above a minimum relevance threshold (e.g. 0.2)
-        near_misses = [m for m in near_misses if m.confidence >= 0.2]
-        # Rank by confidence descending
-        near_misses.sort(key=lambda m: m.confidence, reverse=True)
-
-        if near_misses:
-            search_result = SearchResult(
-                status="ambiguous",
-                query=query,
-                near_misses=near_misses,
-                message="No match found above confidence threshold.",
-            )
-        else:
-            search_result = SearchResult(
-                status="failed",
-                query=query,
-                message="No candidate paths or near-misses matched the query.",
-            )
+    except Exception as exc:
+        err_console.print(f"[bold red]Search Engine error:[/] {exc}")
+        sys.exit(1)
 
     # Output results
     if json_output:
@@ -271,28 +206,98 @@ def index() -> None:
 
 @index.command("create")
 @click.argument("path", default=".", type=click.Path(exists=True, path_type=Path))
-def index_create(path: Path) -> None:
+@click.option("--depth", default=5, type=int, help="Maximum folder depth to traverse.")
+def index_create(path: Path, depth: int) -> None:
     """Build a new index for PATH."""
-    console.print(f"[yellow]⚠[/]  Index creation not yet implemented. Path: [bold]{path}[/]")
+    try:
+        config = load_config()
+        store = config.get("index", {}).get("store", "")
+        exclude = config.get("index", {}).get("exclude_patterns", [])
+        from src.index import IndexManager
+
+        manager = IndexManager(Path(store))
+        console.print(f"[yellow]Scanning and indexing:[/] {path} (depth: {depth})...")
+        added, deleted = manager.create_or_update_index(
+            path, depth=depth, exclude_patterns=exclude
+        )
+        console.print(
+            f"[bold green]✔ Success:[/] Indexed root: [bold]{path}[/] "
+            f"([cyan]+{added}[/] added, [magenta]-{deleted}[/] deleted)."
+        )
+    except Exception as exc:
+        err_console.print(f"[bold red]Error building index:[/] {exc}")
+        sys.exit(1)
 
 
 @index.command("update")
 @click.argument("path", default=".", type=click.Path(exists=True, path_type=Path))
-def index_update(path: Path) -> None:
+@click.option("--depth", default=5, type=int, help="Maximum folder depth to traverse.")
+def index_update(path: Path, depth: int) -> None:
     """Incrementally update the index for PATH."""
-    console.print(f"[yellow]⚠[/]  Index update not yet implemented. Path: [bold]{path}[/]")
+    try:
+        config = load_config()
+        store = config.get("index", {}).get("store", "")
+        exclude = config.get("index", {}).get("exclude_patterns", [])
+        from src.index import IndexManager
+
+        manager = IndexManager(Path(store))
+        console.print(f"[yellow]Updating index for:[/] {path}...")
+        added, deleted = manager.create_or_update_index(
+            path, depth=depth, exclude_patterns=exclude
+        )
+        console.print(
+            f"[bold green]✔ Success:[/] Updated root: [bold]{path}[/] "
+            f"([cyan]+{added}[/] updated, [magenta]-{deleted}[/] removed)."
+        )
+    except Exception as exc:
+        err_console.print(f"[bold red]Error updating index:[/] {exc}")
+        sys.exit(1)
 
 
 @index.command("list")
 def index_list() -> None:
     """List all indexed paths."""
-    console.print("[yellow]⚠[/]  Index listing not yet implemented.")
+    try:
+        config = load_config()
+        store = config.get("index", {}).get("store", "")
+        from src.index import IndexManager
+
+        manager = IndexManager(Path(store))
+        roots = manager.get_indexed_roots()
+        if not roots:
+            console.print("[yellow]No roots are currently indexed.[/]")
+        else:
+            console.print("[bold]Indexed root directories:[/]")
+            for r in roots:
+                console.print(f"  - [cyan]{r}[/]")
+    except Exception as exc:
+        err_console.print(f"[bold red]Error listing index:[/] {exc}")
+        sys.exit(1)
 
 
 @index.command("remove")
-def index_remove() -> None:
-    """Remove the persistent index."""
-    console.print("[yellow]⚠[/]  Index removal not yet implemented.")
+@click.argument("path", default=".", type=click.Path(path_type=Path))
+@click.option("--all", "all_roots", is_flag=True, help="Clear the entire index database.")
+def index_remove(path: Path, all_roots: bool) -> None:
+    """Remove the persistent index for PATH or clear ALL."""
+    try:
+        config = load_config()
+        store = config.get("index", {}).get("store", "")
+        from src.index import IndexManager
+
+        manager = IndexManager(Path(store))
+        if all_roots:
+            manager.clear_index()
+            console.print("[bold green]✔ Success:[/] Entire index database cleared.")
+        else:
+            removed = manager.remove_root(path)
+            if removed:
+                console.print(f"[bold green]✔ Success:[/] Removed root [bold]{path}[/] from index.")
+            else:
+                console.print(f"[yellow]⚠[/] Path [bold]{path}[/] was not found in the index.")
+    except Exception as exc:
+        err_console.print(f"[bold red]Error removing from index:[/] {exc}")
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
