@@ -19,6 +19,17 @@ A Python CLI tool designed to help humans and LLM agents find filesystem paths u
 
 ---
 
+## 🧰 Tech Stack
+
+- **Python**: 3.11+
+- **CLI Framework**: [Click](https://click.palletsprojects.com/) — subcommand-based CLI routing
+- **Config**: PyYAML — YAML config and alias loading
+- **Linter / Formatter**: [Ruff](https://docs.astral.sh/ruff/) — fast Python linter and formatter
+- **Testing**: pytest
+- **Terminal UI**: [Rich](https://rich.readthedocs.io/) — styled and colored CLI output
+
+---
+
 ## 🏗️ Architecture: Handler Pattern (Chain of Responsibility)
 
 Matching strategies are decoupled into individual **Handlers** with a uniform interface. Handlers are structured as a prioritized chain, executing from fastest/cheapest to slowest/deepest.
