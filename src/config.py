@@ -330,3 +330,41 @@ def load_config(path: Path | None = None) -> dict:
     _validate_config(merged)
 
     return merged
+
+
+def save_config(config_dict: dict, path: Path | None = None) -> None:
+    """Save configuration changes to disk.
+
+    Resolution order:
+    1. If *path* is given explicitly, save to that file.
+    2. Otherwise save to the user-level config at ``%APPDATA%\\sempath\\config.yaml``.
+    """
+    target_path = path if path is not None else _APPDATA_CONFIG
+
+    # Ensure parent directory exists
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing content to preserve other settings
+    raw_config = {}
+    if target_path.exists():
+        with open(target_path, encoding="utf-8") as f:
+            try:
+                raw_config = yaml.safe_load(f) or {}
+            except Exception:
+                raw_config = {}
+    elif _BUNDLED_CONFIG.exists():
+        with open(_BUNDLED_CONFIG, encoding="utf-8") as f:
+            try:
+                raw_config = yaml.safe_load(f) or {}
+            except Exception:
+                raw_config = {}
+
+    # Merge updates
+    for k, v in config_dict.items():
+        if isinstance(v, dict) and k in raw_config and isinstance(raw_config[k], dict):
+            raw_config[k] = _deep_merge(raw_config[k], v)
+        else:
+            raw_config[k] = v
+
+    with open(target_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(raw_config, f, default_flow_style=False, sort_keys=False)

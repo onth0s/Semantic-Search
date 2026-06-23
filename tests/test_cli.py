@@ -109,3 +109,34 @@ class TestImportMemoryHelp:
         """import-memory --help exits with code 0."""
         result = runner.invoke(cli, ["import-memory", "--help"])
         assert result.exit_code == 0
+
+
+class TestConfigVerbose:
+    """Tests for the 'config verbose' subcommand."""
+
+    def test_config_verbose_help_exits_0(self, runner: CliRunner):
+        """config verbose --help exits with code 0."""
+        result = runner.invoke(cli, ["config", "verbose", "--help"])
+        assert result.exit_code == 0
+
+    def test_config_verbose_off(self, runner: CliRunner):
+        """config verbose off disables verbosity in loaded config."""
+        result = runner.invoke(cli, ["config", "verbose", "off"])
+        assert result.exit_code == 0
+        assert "disabled" in result.output
+
+        from src.config import load_config
+
+        cfg = load_config()
+        assert cfg["verbose"] is False
+
+    def test_config_verbose_on(self, runner: CliRunner):
+        """config verbose on enables verbosity in loaded config."""
+        result = runner.invoke(cli, ["config", "verbose", "on"])
+        assert result.exit_code == 0
+        assert "enabled" in result.output
+
+        from src.config import load_config
+
+        cfg = load_config()
+        assert cfg["verbose"] is True

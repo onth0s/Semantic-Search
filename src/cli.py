@@ -506,3 +506,35 @@ def import_memory(file_path: Path) -> None:
     except Exception as exc:
         err_console.print(f"[bold red]Error importing memory:[/] {exc}")
         sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# config subgroup
+# ---------------------------------------------------------------------------
+
+
+@cli.group()
+def config() -> None:
+    """Manage the persistent configuration settings."""
+    pass
+
+
+@config.command("verbose")
+@click.argument("value", type=click.Choice(["on", "off", "true", "false"], case_sensitive=False))
+def config_verbose(value: str) -> None:
+    """Enable or disable verbose output globally.
+
+    Usage:
+        sempath config verbose on
+        sempath config verbose off
+    """
+    is_verbose = value.lower() in ("on", "true")
+    try:
+        from src.config import save_config
+
+        save_config({"verbose": is_verbose})
+        status_str = "enabled" if is_verbose else "disabled"
+        console.print(f"[bold green]✔ Success:[/] Verbose logging has been [bold]{status_str}[/].")
+    except Exception as exc:
+        err_console.print(f"[bold red]Error updating configuration:[/] {exc}")
+        sys.exit(1)
