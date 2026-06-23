@@ -51,6 +51,14 @@ class EmbeddingHandler(BaseHandler):
 
         os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
         os.environ["HF_HUB_VERBOSITY"] = "error"
+        os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+        try:
+            from huggingface_hub.utils import disable_progress_bars
+
+            disable_progress_bars()
+        except ImportError:
+            pass
+
         try:
             from sentence_transformers import SentenceTransformer, util
         except ImportError:
@@ -82,8 +90,12 @@ class EmbeddingHandler(BaseHandler):
             from src.heuristics import translate_wildcards
 
             translated_query = translate_wildcards(query)
-            query_emb = self._model.encode(translated_query, convert_to_tensor=True)
-            candidate_embs = self._model.encode(candidate_texts, convert_to_tensor=True)
+            query_emb = self._model.encode(
+                translated_query, convert_to_tensor=True, show_progress_bar=False
+            )
+            candidate_embs = self._model.encode(
+                candidate_texts, convert_to_tensor=True, show_progress_bar=False
+            )
 
             # Compute cosine similarities
             cosine_scores = util.cos_sim(query_emb, candidate_embs)[0]
