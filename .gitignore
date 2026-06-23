@@ -21,3 +21,6 @@ venv/
 build/
 dist/
 *.spec
+
+# Miscellaneous
+misc/
