@@ -189,11 +189,21 @@ _GROUP_OTHER = "Other matches"
 _GROUP_GENERIC = "Generic/placeholder files"
 
 
-def _classify_match(path: Path) -> str:
+def _classify_match(path: Path, search_root: Path) -> str:
     """Return the display group label for a near-miss match."""
     if _is_generic_stem(path.stem):
         return _GROUP_GENERIC
-    return _GROUP_OTHER
+
+    # Determine if it has a subfolder parent relative to search_root
+    try:
+        rel_path = path.resolve().relative_to(search_root.resolve())
+        # If the parent is just '.' or the path itself is '.'
+        if rel_path.parent == Path("."):
+            return _GROUP_OTHER
+        # Return parent directory string with forward slashes
+        return str(rel_path.parent).replace("\\", "/")
+    except Exception:
+        return _GROUP_OTHER
 
 
 def _print_grouped_matches(
@@ -209,25 +219,50 @@ def _print_grouped_matches(
     """
     from collections import defaultdict
 
-    # Bucket into groups preserving insertion order
-    groups: dict[str, list] = defaultdict(list)
-    for total, nm in enumerate(matches):
-        if total >= limit:
-            break
-        groups[_classify_match(nm.path)].append(nm)
+    ctx = click.get_current_context(silent=True)
+    search_root = ctx.obj.get("root", Path(".")) if (ctx and ctx.obj) else Path(".")
 
-    # Render each non-empty group
-    group_order = [_GROUP_OTHER, _GROUP_GENERIC]
+    # Bucket all matches first (without early clamping)
+    groups: dict[str, list] = defaultdict(list)
+    for nm in matches:
+        group_lbl = _classify_match(nm.path, search_root)
+        groups[group_lbl].append(nm)
+
+    # Determine sorting order of groups:
+    # 1. Custom parent-directory groups (sorted alphabetically/by insertion)
+    # 2. "Other matches"
+    # 3. "Generic/placeholder files"
+    all_groups = list(groups.keys())
+
+    # We want "Other matches" first if present, then subfolders, then generic files at the very end.
+    subfolder_groups = sorted([g for g in all_groups if g not in (_GROUP_OTHER, _GROUP_GENERIC)])
+
+    group_order = []
+    if _GROUP_OTHER in groups:
+        group_order.append(_GROUP_OTHER)
+    group_order.extend(subfolder_groups)
+    if _GROUP_GENERIC in groups:
+        group_order.append(_GROUP_GENERIC)
+
+    printed_count = 0
     for group_name in group_order:
-        items = groups.get(group_name)
+        if printed_count >= limit:
+            break
+        items = groups.get(group_name, [])
         if not items:
             continue
-        style = "[bold]" if group_name == _GROUP_OTHER else "[bold dim]"
+
+        # Render group header
+        style = "[bold]" if group_name != _GROUP_GENERIC else "[bold dim]"
         console.print(f"{style}{group_name}:[/]")
+
         for nm in items:
+            if printed_count >= limit:
+                break
             nm_meta = f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else ""
-            color = "cyan" if group_name == _GROUP_OTHER else "dim cyan"
+            color = "cyan" if group_name != _GROUP_GENERIC else "dim cyan"
             console.print(f"  - [{color}]{nm.path}[/]{nm_meta}")
+            printed_count += 1
 
 
 # ---------------------------------------------------------------------------

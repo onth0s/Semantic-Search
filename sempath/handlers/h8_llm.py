@@ -88,18 +88,20 @@ class LLMHandler(BaseHandler):
         url: str = handlers_cfg.get("h8_url", "http://localhost:11434/v1")
         api_key: str = handlers_cfg.get("h8_api_key", "")
         exhaustive = self.config.get("exhaustive", False)
+        # LLM safety: evaluate max 100 candidates in H8.
+        candidates_to_use = candidates[:100]
         if exhaustive:
-            # Under exhaustive mode, LLM clamping is unbounded
-            top_k = 999999
+            # Unbounded H8 matches up to candidate list size (max 100)
+            top_k = len(candidates_to_use)
         else:
             # Clamp manually based on -N option / top_n if available,
             # else fall back to h8_top_k config/default
             ctx = click.get_current_context(silent=True)
             top_n_val = ctx.obj.get("top_n") if (ctx and ctx.obj) else None
             if top_n_val is not None:
-                top_k = int(top_n_val)
+                top_k = min(int(top_n_val), len(candidates_to_use))
             else:
-                top_k = int(handlers_cfg.get("h8_top_k", 6))
+                top_k = min(int(handlers_cfg.get("h8_top_k", 6)), len(candidates_to_use))
 
         # --- Resolve search root for relative path computation ---------------
         ctx = click.get_current_context(silent=True)
@@ -112,7 +114,7 @@ class LLMHandler(BaseHandler):
             except ValueError:
                 return str(p)
 
-        rel_map: dict[str, Path] = {_rel(p): p for p in candidates}
+        rel_map: dict[str, Path] = {_rel(p): p for p in candidates_to_use}
 
         # Validate the model is available before making the real call
         verbose_log(f"[dim]H8: checking model '{model}' is available...[/]")
