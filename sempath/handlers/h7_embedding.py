@@ -9,6 +9,7 @@ Returns a MatchResult with confidence equal to cosine_sim.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import click
@@ -86,9 +87,19 @@ class EmbeddingHandler(BaseHandler):
                 err_console.print(f"[bold red]Error loading embedding model:[/] {exc}")
                 return None
 
-        # Embed query and candidate basenames (or stems)
-        # Use p.stem as it represents the semantic filename without extension
-        candidate_texts = [p.stem for p in candidates]
+        # Embed relative path from search root so parent folder names contribute
+        # e.g. "3D-to-reGEN-to-VID/Katsuragi Misato" instead of just "Misato"
+        ctx = click.get_current_context(silent=True)
+        search_root = ctx.obj.get("root", Path(".")) if ctx else Path(".")
+
+        def _candidate_text(p: Path) -> str:
+            try:
+                rel = p.relative_to(search_root)
+            except ValueError:
+                rel = p
+            return re.sub(r"[\\/._\-]+", " ", str(rel)).strip()
+
+        candidate_texts = [_candidate_text(p) for p in candidates]
         try:
             from sempath.heuristics import translate_wildcards
 

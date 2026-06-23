@@ -26,9 +26,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "h4_threshold": 75,
         "h7_model": "all-MiniLM-L6-v2",
         "h8_provider": "ollama",
-        "h8_model": "llama3",
+        "h8_model": "minimax-m3:cloud",
         "h8_url": "http://localhost:11434/v1",
         "h8_api_key": "",
+        "h8_top_k": 6,
     },
     "index": {
         "auto": True,

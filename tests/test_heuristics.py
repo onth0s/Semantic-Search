@@ -6,7 +6,8 @@ from sempath.heuristics import extract_heuristics
 def test_extract_heuristics_plain():
     """extract_heuristics on a plain query returns empty filters."""
     res = extract_heuristics("Desktop/notes")
-    assert res.clean_query == "Desktop/notes"
+    # singularize_token: 'notes' -> 'note', 'Desktop' unchanged
+    assert res.clean_query == "Desktop/note"
     assert res.age_limit is None
     assert res.extensions is None
     assert res.latest is False
@@ -15,11 +16,11 @@ def test_extract_heuristics_plain():
 def test_extract_heuristics_temporal():
     """extract_heuristics extracts temporal filters correctly."""
     res = extract_heuristics("Desktop/notes yesterday")
-    assert res.clean_query == "Desktop/notes"
+    assert res.clean_query == "Desktop/note"
     assert res.age_limit == 86400
 
     res = extract_heuristics("modified last week notes")
-    assert res.clean_query == "notes"
+    assert res.clean_query == "note"
     assert res.age_limit == 604800
 
     res = extract_heuristics("changed last month documents")
@@ -35,7 +36,7 @@ def test_extract_heuristics_type():
     assert "jpg" in res.extensions
 
     res = extract_heuristics("notes pdf")
-    assert res.clean_query == "notes"
+    assert res.clean_query == "note"  # 'notes' singularized to 'note'
     assert "pdf" in res.extensions
 
 

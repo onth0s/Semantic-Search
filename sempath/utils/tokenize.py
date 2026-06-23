@@ -11,12 +11,38 @@ import re
 _NON_ALNUM_RE = re.compile(r"[^a-zA-Z0-9]+")
 
 
+def singularize_token(token: str) -> str:
+    """Normalize common English plural suffixes to singular for matching.
+
+    Examples::
+        >>> singularize_token("names")
+        'name'
+        >>> singularize_token("babies")
+        'baby'
+        >>> singularize_token("kisses")
+        'kiss'
+        >>> singularize_token("name")
+        'name'
+    """
+    if token.endswith("sses"):
+        return token[:-2]  # kisses -> kiss
+    if token.endswith("ies") and len(token) > 4:
+        return token[:-3] + "y"  # babies -> baby
+    if (
+        token.endswith("s")
+        and not token.endswith(("ss", "us", "is", "as", "ous"))
+        and len(token) > 2
+    ):
+        return token[:-1]  # names -> name
+    return token
+
+
 def normalize_tokens(text: str) -> set[str]:
     """Normalise *text* into a set of lowercase alphanumeric tokens.
 
     Strips all non-alphanumeric characters, lowercases the result,
     splits on whitespace and separator boundaries, and returns the
-    unique token set.
+    unique token set. Plural suffixes are singularized.
 
     Examples::
 
@@ -35,18 +61,21 @@ def normalize_tokens(text: str) -> set[str]:
     if not cleaned:
         return set()
 
-    return set(cleaned.split())
+    return {singularize_token(t) for t in cleaned.split()}
 
 
 _WILD_RE = re.compile(r"[^a-zA-Z0-9*?]+")
 
 
 def normalize_tokens_with_wildcards(text: str) -> set[str]:
-    """Normalise text into a set of lowercase alphanumeric and wildcard tokens."""
+    """Normalise text into a set of lowercase alphanumeric and wildcard tokens.
+
+    Plural suffixes are singularized (wildcards are left intact).
+    """
     if not text:
         return set()
 
     cleaned = _WILD_RE.sub(" ", text).strip().lower()
     if not cleaned:
         return set()
-    return set(cleaned.split())
+    return {singularize_token(t) if "*" not in t and "?" not in t else t for t in cleaned.split()}

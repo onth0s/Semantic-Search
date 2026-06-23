@@ -1,116 +1,166 @@
-"""LLM handler — query translation and rewrite fallback.
+"""LLM handler — direct semantic path matching.
 
-Sends the user's natural language query to an LLM provider (Ollama or OpenAI)
-to translate it into a canonical, structured search query. Then evaluates
-the canonical query against the fast handlers (H1-H6) in a second cycle.
+Sends the candidate relative paths and the user query to the configured LLM
+model and asks it to select the best matching paths.  The response is a plain
+newline-separated list of relative paths; we resolve them back to absolute
+Path objects and return them as MatchResult entries.
+
+Configuration keys (under ``handlers`` in config):
+    h8_model   - Ollama model tag to use (default: minimax-m3:cloud).
+    h8_url     - Base URL of the Ollama server (default: http://localhost:11434/v1).
+    h8_api_key - Bearer token if required (default: "").
+    h8_top_k   - Maximum number of paths to return (default: 6).
+
+If the configured model is not available the handler raises ValueError
+immediately.  It does **not** fall back to any other model.
 """
 
 from __future__ import annotations
 
-import copy
 import json
 import urllib.error
 import urllib.request
 from pathlib import Path
 
+import click
+
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+from sempath.utils.console import err_console
+
+_CONFIDENCE = 0.80
+
+_SYSTEM_PROMPT = (
+    "You are a filesystem path matching assistant.\n"
+    "You are given a list of filesystem paths (relative) and a user query.\n"
+    "Select up to {top_k} paths that best match the query intent, ordered from best to worst.\n"
+    "Output ONLY the selected paths, one per line.\n"
+    "Do not include explanation, markdown, code fences, or quotation marks.\n"
+    "If nothing matches, output nothing."
+)
+
+
+def _check_model_available(base_url: str, model: str) -> None:
+    """Verify the model is present in Ollama's tag list.
+
+    Raises ValueError (no fallback) if the model is not found or the
+    Ollama server cannot be reached.
+    """
+    tags_url = base_url.rstrip("/").removesuffix("/v1") + "/api/tags"
+    try:
+        req = urllib.request.Request(tags_url, method="GET")
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError as exc:
+        raise ValueError(f"Cannot reach Ollama server at {tags_url}: {exc}") from exc
+    except Exception as exc:
+        raise ValueError(f"Unexpected error checking Ollama models: {exc}") from exc
+
+    available = [m.get("name", "") for m in data.get("models", [])]
+    if model not in available:
+        raise ValueError(
+            f"Model '{model}' is not available in Ollama. "
+            f"Available models: {available or ['(none loaded)']}\n"
+            "DO NOT fall back to a local model — fix your h8_model configuration."
+        )
 
 
 class LLMHandler(BaseHandler):
-    """LLM query translation rewriter. Confidence: inherited from second cycle."""
+    """Direct LLM semantic path matcher. Confidence: {_CONFIDENCE}."""
 
     name: str = "h8_llm"
 
     def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
-        """Attempt to translate the query via LLM and run the fast chain."""
         results = self.match_all(query, candidates)
         if not results:
             return None
-        # Tie-breaker: shortest path depth first
-        return min(results, key=lambda r: len(r.path.parts))
+        return results[0]
 
     def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
-        """Attempt to translate the query via LLM and return all fast chain matches."""
+        """Ask the LLM to pick the best matching paths from ``candidates``."""
         if not query or not candidates:
             return []
 
         from sempath.utils.logging import verbose_log
 
-        # Load LLM configurations
         handlers_cfg = self.config.get("handlers", {})
-        provider = handlers_cfg.get("h8_provider", "ollama")
-        model = handlers_cfg.get("h8_model", "llama3")
-        url = handlers_cfg.get("h8_url", "http://localhost:11434/v1")
-        api_key = handlers_cfg.get("h8_api_key", "")
+        model: str = handlers_cfg.get("h8_model", "minimax-m3:cloud")
+        url: str = handlers_cfg.get("h8_url", "http://localhost:11434/v1")
+        api_key: str = handlers_cfg.get("h8_api_key", "")
+        top_k: int = int(handlers_cfg.get("h8_top_k", 6))
 
-        # Format URL to target chat completions endpoint
-        endpoint = f"{url.rstrip('/')}/chat/completions"
+        # --- Resolve search root for relative path computation ---------------
+        ctx = click.get_current_context(silent=True)
+        search_root: Path = ctx.obj.get("root", Path(".")) if ctx else Path(".")
 
-        # Construct prompt instructing model to output only keywords and markers
-        system_instructions = (
-            "You are a query translation assistant. Your task is to rewrite a vague, colloquial, "
-            "or descriptive user search query into simple canonical keywords and markers. "
-            "Keep the core folder/file names, and include temporal keywords ('yesterday', 'today', "
-            "'last week', 'last month'), type keywords ('image', 'pic', 'photo', "
-            "'document', 'doc', 'pdf'), "
-            "or ordering keywords ('latest', 'newest') if described. "
-            "Output ONLY the translated keywords separated by spaces. Do not include explanation, "
-            "markdown, or quotes."
-        )
+        # Build relative-path strings; fall back to absolute if not under root
+        def _rel(p: Path) -> str:
+            try:
+                return str(p.relative_to(search_root))
+            except ValueError:
+                return str(p)
 
-        from sempath.heuristics import translate_wildcards
+        rel_map: dict[str, Path] = {_rel(p): p for p in candidates}
 
-        translated_query = translate_wildcards(query)
+        # Validate the model is available before making the real call
+        verbose_log(f"[dim]H8: checking model '{model}' is available...[/]")
+        try:
+            _check_model_available(url, model)
+        except ValueError as exc:
+            err_console.print(f"[bold red]H8 LLM error:[/] {exc}")
+            raise  # Do NOT swallow — propagate so the pipeline reports cleanly
+
+        # --- Build prompt ----------------------------------------------------
+        path_list = "\n".join(rel_map.keys())
+        system_content = _SYSTEM_PROMPT.format(top_k=top_k)
+        user_content = f"Paths:\n{path_list}\n\nQuery: {query}"
 
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": system_instructions},
-                {"role": "user", "content": translated_query},
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
             ],
             "temperature": 0.0,
         }
 
-        headers = {"Content-Type": "application/json"}
+        headers: dict[str, str] = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        verbose_log(f"[dim]Sending query translation request to LLM ({provider}/{model})...[/]")
+        endpoint = f"{url.rstrip('/')}/chat/completions"
+        verbose_log(f"[dim]H8: querying {model} at {endpoint} (top_k={top_k})...[/]")
 
         try:
             req = urllib.request.Request(
-                endpoint, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST"
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
             )
-            # Timeout set to 5 seconds to prevent blocking UI
-            with urllib.request.urlopen(req, timeout=5.0) as response:
+            with urllib.request.urlopen(req, timeout=30.0) as response:
                 res_data = json.loads(response.read().decode("utf-8"))
-                canonical_query = res_data["choices"][0]["message"]["content"].strip()
-                # Clean up any surrounding quotes if returned by the LLM
-                canonical_query = canonical_query.strip("'\"")
+                raw_content: str = res_data["choices"][0]["message"]["content"].strip()
         except Exception as exc:
-            verbose_log(f"[dim]LLM query translation failed: {exc}[/]")
+            verbose_log(f"[dim]H8 LLM request failed: {exc}[/]")
             return []
 
-        verbose_log(f"[dim]LLM canonical translation: '{canonical_query}'[/]")
+        verbose_log(f"[dim]H8 LLM raw response:\n{raw_content}[/]")
 
-        # Second Cycle execution: evaluate canonical query on H1 - H6 only
-        from sempath.chain import build_chain
+        # --- Parse response --------------------------------------------------
+        results: list[MatchResult] = []
+        rel_lower = {k.lower(): v for k, v in rel_map.items()}
 
-        fast_config = copy.deepcopy(self.config)
-        enabled_handlers = fast_config.get("handlers", {}).get("enabled", [])
-        fast_handlers = [h for h in enabled_handlers if h in ("h1", "h2", "h3", "h4", "h5", "h6")]
-        fast_config["handlers"]["enabled"] = fast_handlers
+        for line in raw_content.splitlines():
+            line = line.strip().strip("\"'`-• ")
+            if not line:
+                continue
+            # Try exact match first, then case-insensitive
+            matched_path = rel_map.get(line) or rel_lower.get(line.lower())
+            if matched_path is not None:
+                results.append(MatchResult(matched_path, _CONFIDENCE, self.name))
+            if len(results) >= top_k:
+                break
 
-        try:
-            fast_chain = build_chain(fast_config)
-            results = fast_chain.handle(canonical_query, candidates)
-            if results:
-                # Wrap the matches and indicate they resolved via H8 LLM rewrite
-                return [
-                    MatchResult(r.path, r.confidence, f"{self.name}({r.handler})") for r in results
-                ]
-        except Exception as exc:
-            verbose_log(f"[dim]Second cycle fast chain execution failed: {exc}[/]")
-
-        return []
+        verbose_log(f"[dim]H8: matched {len(results)} path(s)[/]")
+        return results

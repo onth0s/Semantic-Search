@@ -350,6 +350,12 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     # Clean up whitespace runs again
     clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
+    # Singularize remaining tokens for better H7/H8 semantic matching
+    # (e.g. "japanese names" -> "japanese name")
+    from sempath.utils.tokenize import singularize_token
+
+    clean_query = " ".join(singularize_token(t) for t in clean_query.split())
+
     return HeuristicsResult(
         clean_query=clean_query,
         extensions=extensions,

@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sempath.engine import SearchEngine
 from sempath.handlers.h7_embedding import EmbeddingHandler
 from sempath.handlers.h8_llm import LLMHandler
@@ -138,28 +140,70 @@ class TestEmbeddingHandler:
 
 
 class TestLLMHandler:
-    """Tests for H8 LLMHandler query rewriter."""
+    """Tests for H8 LLMHandler direct semantic path matcher."""
 
+    @patch("sempath.handlers.h8_llm._check_model_available")
     @patch("urllib.request.urlopen")
-    def test_llm_rewrite_and_second_cycle(self, mock_urlopen, sample_config: dict):
-        # Mock LLM API JSON response translating to "Desktop/__MAIN"
+    def test_llm_direct_path_match(self, mock_urlopen, mock_check, sample_config: dict):
+        """H8 asks the LLM to pick paths and returns matched MatchResults."""
+        # LLM returns two relative paths, one per line
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps(
-            {"choices": [{"message": {"content": "Desktop/__MAIN"}}]}
+            {"choices": [{"message": {"content": "__MAIN\nDownloads"}}]}
         ).encode("utf-8")
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
         handler = LLMHandler(sample_config)
         ctx = MagicMock()
-        ctx.obj = {"verbose": True}
+        # root must match so relative_to() works
+        ctx.obj = {"verbose": True, "root": Path("C:/User")}
 
-        candidates = [Path("C:/User/Desktop/__MAIN"), Path("C:/User/Downloads")]
+        candidates = [Path("C:/User/__MAIN"), Path("C:/User/Downloads"), Path("C:/User/Videos")]
 
         with patch("click.get_current_context", return_value=ctx):
-            res = handler.match("give me the main directory on desktop", candidates)
-            assert res is not None
-            assert res.path == Path("C:/User/Desktop/__MAIN")
-            assert res.handler == "h8_llm(h1_exact)"
+            results = handler.match_all("give me the main directory", candidates)
+
+        assert len(results) == 2
+        assert results[0].path == Path("C:/User/__MAIN")
+        assert results[0].handler == "h8_llm"
+        assert results[0].confidence == 0.80
+        assert results[1].path == Path("C:/User/Downloads")
+
+    @patch("sempath.handlers.h8_llm._check_model_available")
+    @patch("urllib.request.urlopen")
+    def test_llm_match_returns_single_best(self, mock_urlopen, mock_check, sample_config: dict):
+        """match() returns the first result from match_all."""
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(
+            {"choices": [{"message": {"content": "Videos"}}]}
+        ).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        handler = LLMHandler(sample_config)
+        ctx = MagicMock()
+        ctx.obj = {"verbose": True, "root": Path("C:/User")}
+
+        candidates = [Path("C:/User/Videos"), Path("C:/User/Downloads")]
+
+        with patch("click.get_current_context", return_value=ctx):
+            res = handler.match("show me my videos", candidates)
+
+        assert res is not None
+        assert res.path == Path("C:/User/Videos")
+
+    @patch("sempath.handlers.h8_llm._check_model_available", side_effect=ValueError("Model 'xyz' not available"))
+    def test_llm_raises_on_missing_model(self, mock_check, sample_config: dict):
+        """H8 propagates ValueError when model is not available — no fallback."""
+        handler = LLMHandler(sample_config)
+        ctx = MagicMock()
+        ctx.obj = {"verbose": True, "root": Path("C:/User")}
+
+        candidates = [Path("C:/User/__MAIN")]
+
+        with patch("click.get_current_context", return_value=ctx):
+            with pytest.raises(ValueError, match="not available"):
+                handler.match_all("main dir", candidates)
+
 
 
 class TestInteractiveHandler:
