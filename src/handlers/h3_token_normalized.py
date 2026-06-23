@@ -109,3 +109,49 @@ class TokenNormalizedHandler(BaseHandler):
         # Tie-breaker: shortest path depth first
         best = min(matches, key=lambda p: len(p.parts))
         return MatchResult(best, 0.9, self.name)
+
+    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+        """Attempt a token-normalized and token-subset match against candidates."""
+        if not query or not candidates:
+            return []
+
+        query_tokens = _normalize_tokens_with_wildcards(query)
+        if not query_tokens:
+            return []
+
+        # Split query by path separators to check subpath suffixes
+        query_parts = [p for p in query.replace("\\", "/").split("/") if p]
+        k = len(query_parts)
+
+        results = []
+        for p in candidates:
+            p_name_tokens = _normalize_tokens_with_wildcards(p.name)
+            p_stem_tokens = _normalize_tokens_with_wildcards(p.stem)
+
+            confidence = 0.0
+
+            # 1. Exact token sets matching name or stem
+            if _match_token_sets(query_tokens, p_name_tokens) or _match_token_sets(query_tokens, p_stem_tokens):
+                confidence = 0.90
+            
+            # 2. Path suffix tokens matching (for multi-part queries)
+            elif k > 1 and len(p.parts) >= k:
+                suffix_parts = p.parts[-k:]
+                suffix_str = "/".join(suffix_parts)
+                if _match_token_sets(query_tokens, _normalize_tokens_with_wildcards(suffix_str)):
+                    confidence = 0.90
+
+            # 3. Token-subset fallback (only if no wildcard in query)
+            if confidence == 0.0 and not any("*" in q or "?" in q for q in query_tokens):
+                if query_tokens.issubset(p_name_tokens) or query_tokens.issubset(p_stem_tokens):
+                    confidence = 0.90
+                elif k > 1 and len(p.parts) >= k:
+                    suffix_parts = p.parts[-k:]
+                    suffix_str = "/".join(suffix_parts)
+                    if query_tokens.issubset(_normalize_tokens_with_wildcards(suffix_str)):
+                        confidence = 0.90
+
+            if confidence > 0.0:
+                results.append(MatchResult(p, confidence, self.name))
+
+        return results

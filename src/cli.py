@@ -44,7 +44,7 @@ def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> 
         full_name = " ".join(prefix_args)
         console.print(f"\n[bold green]COMMAND: {full_name}[/]")
         console.print("=" * (len(full_name) + 9))
-        console.print(cmd.get_help(cmd_ctx))
+        console.print(cmd.get_help(cmd_ctx), markup=False)
 
         if isinstance(cmd, click.Group):
             sub_names = sorted(cmd.list_commands(cmd_ctx))
@@ -99,7 +99,7 @@ def cli(ctx: click.Context) -> None:
     help="Minimum confidence score (0.0-1.0) to return a match.",
 )
 @click.option(
-    "--top-n", default=1, type=int, show_default=True, help="Number of results to return."
+    "--top-n", default=5, type=int, show_default=True, help="Number of results to return."
 )
 @click.option(
     "--non-interactive", is_flag=True, default=False, help="Disable interactive fallback (H9)."
@@ -163,6 +163,12 @@ def find(
         err_console.print(f"[bold red]Error loading config:[/] {exc}")
         sys.exit(1)
 
+    verbose_final = verbose or config.get("verbose", False)
+    exhaustive = config.get("exhaustive", False)
+    top_n_final = 999999 if exhaustive else top_n
+    no_index_final = no_index or exhaustive
+    non_interactive_final = non_interactive or exhaustive
+
     # Store options in context for handler access
     ctx.obj.update(
         {
@@ -170,11 +176,11 @@ def find(
             "root": search_root,
             "depth": depth,
             "min_confidence": min_confidence,
-            "top_n": top_n,
-            "non_interactive": non_interactive,
-            "no_index": no_index,
+            "top_n": top_n_final,
+            "non_interactive": non_interactive_final,
+            "no_index": no_index_final,
             "json_output": json_output,
-            "verbose": verbose,
+            "verbose": verbose_final,
             "config": config,
             "latest": latest,
             "largest": largest,
@@ -182,7 +188,7 @@ def find(
         }
     )
 
-    if verbose:
+    if verbose_final:
         console.print(f"[dim]Query:[/]  [bold cyan]{query}[/]")
         console.print(f"[dim]Root:[/]   [bold]{search_root}[/]")
         console.print(f"[dim]Depth:[/]  {depth}")
@@ -197,13 +203,13 @@ def find(
             root_dir=search_root,
             depth=depth,
             min_confidence=min_confidence,
-            top_n=top_n,
-            non_interactive=non_interactive,
-            no_index=no_index,
+            top_n=top_n_final,
+            non_interactive=non_interactive_final,
+            no_index=no_index_final,
             latest=latest,
             largest=largest,
             ext=ext,
-            verbose=verbose,
+            verbose=verbose_final,
         )
     except Exception as exc:
         err_console.print(f"[bold red]Search Engine error:[/] {exc}")
@@ -220,11 +226,18 @@ def find(
                 f"[bold green]✔ Success:[/] Found match: [bold cyan]{res.path}[/]"
                 f" [dim]({res.handler}, confidence: {res.confidence:.2f})[/]"
             )
+            if search_result.near_misses and top_n_final > 1:
+                console.print("[bold]Other matches:[/]")
+                for nm in search_result.near_misses[:top_n_final - 1]:
+                    console.print(
+                        f"  - [cyan]{nm.path}[/] "
+                        f"[dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
+                    )
             sys.exit(0)
         elif search_result.status == "ambiguous":
             console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
             console.print("[bold]Near misses:[/]")
-            for nm in search_result.near_misses[:top_n]:
+            for nm in search_result.near_misses[:top_n_final]:
                 console.print(
                     f"  - [cyan]{nm.path}[/] "
                     f"[dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"

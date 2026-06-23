@@ -49,3 +49,7 @@ heuristics:
       keywords: [blend1, blend1s, backup, backups]
       extensions: [blend*]
 
+verbose: true
+exhaustive: true
+
+

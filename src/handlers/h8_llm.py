@@ -26,8 +26,16 @@ class LLMHandler(BaseHandler):
 
     def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
         """Attempt to translate the query via LLM and run the fast chain."""
-        if not query or not candidates:
+        results = self.match_all(query, candidates)
+        if not results:
             return None
+        # Tie-breaker: shortest path depth first
+        return min(results, key=lambda r: len(r.path.parts))
+
+    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+        """Attempt to translate the query via LLM and return all fast chain matches."""
+        if not query or not candidates:
+            return []
 
         # Check interactive mode / verbose from Click context
         ctx = click.get_current_context(silent=True)
@@ -87,7 +95,7 @@ class LLMHandler(BaseHandler):
         except Exception as exc:
             if verbose:
                 click.echo(f"[dim]LLM query translation failed: {exc}[/]", err=True)
-            return None
+            return []
 
         if verbose:
             click.echo(f"[dim]LLM canonical translation: '{canonical_query}'[/]")
@@ -102,12 +110,15 @@ class LLMHandler(BaseHandler):
 
         try:
             fast_chain = build_chain(fast_config)
-            result = fast_chain.handle(canonical_query, candidates)
-            if result is not None:
-                # Wrap the match and indicate it resolved via H8 LLM rewrite
-                return MatchResult(result.path, result.confidence, f"{self.name}({result.handler})")
+            results = fast_chain.handle(canonical_query, candidates)
+            if results:
+                # Wrap the matches and indicate they resolved via H8 LLM rewrite
+                return [
+                    MatchResult(r.path, r.confidence, f"{self.name}({r.handler})")
+                    for r in results
+                ]
         except Exception as exc:
             if verbose:
                 click.echo(f"[dim]Second cycle fast chain execution failed: {exc}[/]", err=True)
 
-        return None
+        return []

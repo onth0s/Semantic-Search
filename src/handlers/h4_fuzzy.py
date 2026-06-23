@@ -68,3 +68,39 @@ class FuzzyMatchHandler(BaseHandler):
             return None
 
         return MatchResult(best_p, best_ratio / 100.0, self.name)
+
+    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+        """Attempt a fuzzy match against all candidates, returning all matches above threshold."""
+        if not query or not candidates:
+            return []
+
+        from rapidfuzz import fuzz
+
+        threshold = self.config.get("handlers", {}).get("h4_threshold", 75)
+
+        query_clean = query.replace("*", "").replace("?", "")
+        if not query_clean:
+            return []
+
+        query_lower = query_clean.lower()
+        query_pure = query_lower.replace("\\", "/")
+        query_parts = [p for p in query_pure.split("/") if p]
+        k = len(query_parts)
+
+        results = []
+
+        for p in candidates:
+            r_name = fuzz.ratio(query_lower, p.name.lower())
+            r_stem = fuzz.ratio(query_lower, p.stem.lower())
+            r_max = max(r_name, r_stem)
+
+            if k > 1 and len(p.parts) >= k:
+                suffix_parts = p.parts[-k:]
+                suffix_str = "/".join(suffix_parts).lower()
+                r_suffix = fuzz.ratio(query_pure, suffix_str)
+                r_max = max(r_max, r_suffix)
+
+            if r_max >= threshold:
+                results.append(MatchResult(p, r_max / 100.0, self.name))
+
+        return results

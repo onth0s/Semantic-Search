@@ -283,15 +283,17 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
                     code_token = jellyfish.metaphone(token)
                     code_kw = jellyfish.metaphone(kw)
                     if code_token and code_kw and code_token == code_kw:
-                        matched_categories.add(cat_name)
-                        pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
-                        clean_query = pattern.sub(" ", clean_query)
-                        token_matched = True
-                        if verbose:
-                            err_console.print(
-                                f"[dim]Phonetic category match: token [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] phonetically (Metaphone: {code_token}) in category [bold green]{cat_name}[/].[/]"
-                            )
-                        break
+                        # Guard against naive phonetic collisions (e.g., feet/foot vs photo) using fuzzy ratio
+                        if fuzz.ratio(token.lower(), kw.lower()) >= 50:
+                            matched_categories.add(cat_name)
+                            pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
+                            clean_query = pattern.sub(" ", clean_query)
+                            token_matched = True
+                            if verbose:
+                                err_console.print(
+                                    f"[dim]Phonetic category match: token [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] phonetically (Metaphone: {code_token}) in category [bold green]{cat_name}[/].[/]"
+                                )
+                            break
                 except Exception:
                     pass
 

@@ -198,32 +198,40 @@ class SearchEngine:
         except ValueError as exc:
             raise ValueError(f"Error building handler chain: {exc}") from exc
 
-        match_result = chain.handle(clean_query, filtered_candidates)
+        match_results = chain.handle(clean_query, filtered_candidates)
 
-        if match_result is not None and match_result.confidence >= min_confidence:
+        # Filter matches above min_confidence and sort them
+        confident_matches = [m for m in match_results if m.confidence >= min_confidence]
+        # Sort primary by confidence descending, secondary by path depth ascending
+        confident_matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
+
+        if confident_matches:
+            top_match = confident_matches[0]
+            other_matches = confident_matches[1:]
             return SearchResult(
                 status="success",
                 query=query,
-                match=match_result,
+                match=top_match,
+                near_misses=other_matches,
             )
 
-        # Collect near-misses
-        near_misses = []
-        seen_paths = set()
+        # Collect near-misses by scanning all handlers
+        seen_paths = {}
         current = chain
         while current is not None:
             try:
-                res = current.match(clean_query, filtered_candidates)
-                if res is not None and res.path not in seen_paths:
-                    near_misses.append(res)
-                    seen_paths.add(res.path)
+                res_list = current.match_all(clean_query, filtered_candidates)
+                for r in res_list:
+                    if r.path not in seen_paths or r.confidence > seen_paths[r.path].confidence:
+                        seen_paths[r.path] = r
             except Exception:
                 pass
             current = getattr(current, "next_handler", None)
 
+        near_misses = list(seen_paths.values())
         # Filter near-misses above a minimum relevance threshold (e.g. 0.2)
         near_misses = [m for m in near_misses if m.confidence >= 0.2]
-        near_misses.sort(key=lambda m: m.confidence, reverse=True)
+        near_misses.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
 
         if near_misses:
             return SearchResult(

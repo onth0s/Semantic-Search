@@ -77,15 +77,15 @@ class TestBuildChainSubset:
 class TestChainDelegation:
     """Tests for chain delegation (handle method)."""
 
-    def test_handle_with_no_matching_returns_none(self, sample_config: dict):
-        """Calling handle() on the head with no matching candidates returns None."""
+    def test_handle_with_no_matching_returns_empty_list(self, sample_config: dict):
+        """Calling handle() on the head with no matching candidates returns an empty list."""
         # Use only fast, deterministic handlers to avoid heavy imports
         sample_config["handlers"]["enabled"] = ["h1", "h2"]
         head = build_chain(sample_config)
 
         # Query that won't match any candidate
         result = head.handle("nonexistent_gibberish_xyz", [Path("/tmp/unrelated")])
-        assert result is None
+        assert result == []
 
     def test_handle_returns_match_result_on_exact(self, sample_config: dict, mock_fs_path: Path):
         """Calling handle() returns a MatchResult when an exact match exists."""
@@ -95,6 +95,6 @@ class TestChainDelegation:
         # Create a candidate that exactly matches the query
         target = mock_fs_path / "Desktop"
         result = head.handle("Desktop", [target])
-        if result is not None:
-            assert result.path == target
-            assert result.confidence == 1.0
+        assert len(result) == 1
+        assert result[0].path == target
+        assert result[0].confidence == 1.0

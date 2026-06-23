@@ -79,3 +79,36 @@ class PhoneticMatchHandler(BaseHandler):
         # Tie-breaker: shortest path depth first
         best = min(matches, key=lambda p: len(p.parts))
         return MatchResult(best, 0.75, self.name)
+
+    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+        """Attempt a phonetic match against candidate basenames, returning all matches."""
+        if not query or not candidates:
+            return []
+
+        query_clean = query.replace("*", "").replace("?", "")
+        if not query_clean:
+            return []
+
+        query_codes = self._get_phonetic_codes(query_clean)
+        if not query_codes:
+            return []
+
+        # Split query by path separators to check subpath suffixes
+        query_parts = [p for p in query_clean.replace("\\", "/").split("/") if p]
+        k = len(query_parts)
+
+        results = []
+        for p in candidates:
+            # 1. Base phonetic code matching name or stem
+            if self._get_phonetic_codes(p.name) == query_codes or self._get_phonetic_codes(p.stem) == query_codes:
+                results.append(MatchResult(p, 0.75, self.name))
+                continue
+
+            # 2. Path suffix phonetic code matching (for multi-part queries)
+            if k > 1 and len(p.parts) >= k:
+                suffix_parts = p.parts[-k:]
+                suffix_str = "/".join(suffix_parts)
+                if self._get_phonetic_codes(suffix_str) == query_codes:
+                    results.append(MatchResult(p, 0.75, self.name))
+
+        return results

@@ -59,3 +59,39 @@ class ExactMatchHandler(BaseHandler):
         # Tie-breaker: shortest path depth first
         best = min(matches, key=lambda p: len(p.parts))
         return MatchResult(best, 1.0, self.name)
+
+    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+        """Attempt an exact string match against candidate basenames, returning all matches."""
+        if not query or not candidates:
+            return []
+
+        query_pure = query.replace("\\", "/")
+        is_glob = "*" in query or "?" in query
+        matches = []
+
+        import fnmatch
+
+        for p in candidates:
+            if is_glob:
+                # 1. Glob name match
+                if fnmatch.fnmatchcase(p.name, query) or fnmatch.fnmatchcase(p.stem, query):
+                    matches.append(MatchResult(p, 1.0, self.name))
+                # 2. Glob path suffix match (if query contains path separators)
+                elif "/" in query_pure:
+                    query_parts = [part for part in query_pure.split("/") if part]
+                    k = len(query_parts)
+                    if len(p.parts) >= k:
+                        p_suffix = "/".join(part for part in p.parts[-k:])
+                        if fnmatch.fnmatchcase(p_suffix, query_pure):
+                            matches.append(MatchResult(p, 1.0, self.name))
+            else:
+                # 1. Exact name match
+                if p.name == query or p.stem == query:
+                    matches.append(MatchResult(p, 1.0, self.name))
+                # 2. Path suffix match (if query contains path separators)
+                elif "/" in query_pure:
+                    p_str = str(p).replace("\\", "/")
+                    if p_str.endswith(query_pure):
+                        matches.append(MatchResult(p, 1.0, self.name))
+
+        return matches

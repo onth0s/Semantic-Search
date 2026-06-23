@@ -19,6 +19,8 @@ import yaml
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG: dict[str, Any] = {
+    "verbose": True,
+    "exhaustive": True,
     "handlers": {
         "enabled": ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9"],
         "h4_threshold": 75,
