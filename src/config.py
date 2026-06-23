@@ -162,6 +162,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
                     "wavs",
                     "flac",
                     "flacs",
+                    "song",
+                    "songs",
+                    "tune",
+                    "tunes",
                 ],
                 "extensions": ["mp3", "wav", "flac", "m4a", "ogg", "aac"],
             },
@@ -322,6 +326,28 @@ def load_config(path: Path | None = None) -> dict:
 
     merged = _deep_merge(DEFAULT_CONFIG, user_config)
 
+    # Ensure any new default category keywords or extensions are merged into user categories
+    if "heuristics" in merged and "categories" in merged["heuristics"]:
+        categories = merged["heuristics"]["categories"]
+        default_categories = DEFAULT_CONFIG.get("heuristics", {}).get("categories", {})
+        for cat_name, default_info in default_categories.items():
+            if cat_name in categories:
+                user_kws = categories[cat_name].get("keywords", [])
+                default_kws = default_info.get("keywords", [])
+                new_kws = list(user_kws)
+                for kw in default_kws:
+                    if kw not in new_kws:
+                        new_kws.append(kw)
+                categories[cat_name]["keywords"] = new_kws
+
+                user_exts = categories[cat_name].get("extensions", [])
+                default_exts = default_info.get("extensions", [])
+                new_exts = list(user_exts)
+                for ext in default_exts:
+                    if ext not in new_exts:
+                        new_exts.append(ext)
+                categories[cat_name]["extensions"] = new_exts
+
     # Expand environment variables in path-like config values
     index_store = merged.get("index", {}).get("store", "")
     if index_store:
@@ -348,12 +374,6 @@ def save_config(config_dict: dict, path: Path | None = None) -> None:
     raw_config = {}
     if target_path.exists():
         with open(target_path, encoding="utf-8") as f:
-            try:
-                raw_config = yaml.safe_load(f) or {}
-            except Exception:
-                raw_config = {}
-    elif _BUNDLED_CONFIG.exists():
-        with open(_BUNDLED_CONFIG, encoding="utf-8") as f:
             try:
                 raw_config = yaml.safe_load(f) or {}
             except Exception:

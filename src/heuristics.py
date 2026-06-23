@@ -264,7 +264,8 @@ def translate_wildcards(query: str) -> str:
         from src.utils.console import err_console
 
         err_console.print(
-            f"[dim]Wildcard translation: '[bold cyan]{query}[/]' -> '[bold yellow]{translated}[/]'[/]"
+            f"[dim]Wildcard translation: '[bold cyan]{query}[/]' -> "
+            f"'[bold yellow]{translated}[/]'[/]"
         )
 
     return translated
@@ -303,7 +304,8 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
     categories = config.get("heuristics", {}).get("categories", DEFAULT_CATEGORIES)
     category_fuzzy_threshold = config.get("heuristics", {}).get("category_fuzzy_threshold")
     if category_fuzzy_threshold is None:
-        category_fuzzy_threshold = config.get("handlers", {}).get("h4_threshold", 75)
+        # Default to 80 to prevent false matches (e.g. song -> json at 75)
+        category_fuzzy_threshold = 80
 
     import click
 
@@ -399,7 +401,8 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
             clean_query = pattern.sub(" ", clean_query)
             if verbose:
                 err_console.print(
-                    f"[dim]Exact category match: [bold cyan]{kw}[/] in query matches category [bold green]{cat_name}[/].[/]"
+                    f"[dim]Exact category match: [bold cyan]{kw}[/] "
+                    f"in query matches category [bold green]{cat_name}[/].[/]"
                 )
 
     # 2. Fuzzy and phonetic matching on remaining tokens
@@ -421,25 +424,30 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
                 clean_query = pattern.sub(" ", clean_query)
                 if verbose:
                     err_console.print(
-                        f"[dim]Exact category match (token): [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] in category [bold green]{cat_name}[/].[/]"
+                        f"[dim]Exact category match (token): [bold cyan]{token}[/] "
+                        f"matches keyword [bold cyan]{kw}[/] in category "
+                        f"[bold green]{cat_name}[/].[/]"
                     )
                 break
 
-            # Fuzzy check
-            r = fuzz.ratio(token.lower(), kw.lower())
-            if r >= category_fuzzy_threshold:
-                matched_categories.add(cat_name)
-                matched_category_keywords.setdefault(cat_name, []).append(token.lower())
-                pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
-                clean_query = pattern.sub(" ", clean_query)
-                if verbose:
-                    err_console.print(
-                        f"[dim]Fuzzy category match: token [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] (ratio: {r:.1f} >= {category_fuzzy_threshold}) in category [bold green]{cat_name}[/].[/]"
-                    )
-                break
+            # Fuzzy check (only if keyword >= 4 chars and token >= 4 chars, unless threshold < 70)
+            if category_fuzzy_threshold < 70 or (len(kw) >= 4 and len(token) >= 4):
+                r = fuzz.ratio(token.lower(), kw.lower())
+                if r >= category_fuzzy_threshold:
+                    matched_categories.add(cat_name)
+                    matched_category_keywords.setdefault(cat_name, []).append(token.lower())
+                    pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
+                    clean_query = pattern.sub(" ", clean_query)
+                    if verbose:
+                        err_console.print(
+                            f"[dim]Fuzzy category match: token [bold cyan]{token}[/] "
+                            f"matches keyword [bold cyan]{kw}[/] (ratio: {r:.1f} >= "
+                            f"{category_fuzzy_threshold}) in category [bold green]{cat_name}[/].[/]"
+                        )
+                    break
 
-            # Phonetic check (only if both alphabetic)
-            if token.isalpha() and kw.isalpha():
+            # Phonetic check (only if keyword >= 4 chars, token >= 4 chars, and both alphabetic)
+            if len(kw) >= 4 and len(token) >= 4 and token.isalpha() and kw.isalpha():
                 try:
                     code_token = jellyfish.metaphone(token)
                     code_kw = jellyfish.metaphone(kw)
@@ -455,7 +463,10 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
                         clean_query = pattern.sub(" ", clean_query)
                         if verbose:
                             err_console.print(
-                                f"[dim]Phonetic category match: token [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] phonetically (Metaphone: {code_token}) in category [bold green]{cat_name}[/].[/]"
+                                f"[dim]Phonetic category match: token [bold cyan]{token}[/] "
+                                f"matches keyword [bold cyan]{kw}[/] phonetically "
+                                f"(Metaphone: {code_token}) in category "
+                                f"[bold green]{cat_name}[/].[/]"
                             )
                         break
                 except Exception:

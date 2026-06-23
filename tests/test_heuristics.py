@@ -137,3 +137,14 @@ def test_extract_heuristics_audio_songs():
     assert res["clean_query"] == ""
     assert "audio" in res["matched_categories"]
     assert "tunes" in res["matched_category_keywords"]["audio"]
+
+
+def test_extract_heuristics_no_false_fuzzy_matches():
+    """Test that short words/keywords (like 'song' vs 'json') are not fuzzy matched."""
+    # Under previous fuzzy matching behavior, 'song' would match 'json' (code)
+    # with a similarity of 75% because both are 4 characters.
+    # The new threshold (80) and length constraints prevent this.
+    res = extract_heuristics("song")
+    # It should match 'audio' exactly, NOT 'code' via fuzzy matching json
+    assert "audio" in res["matched_categories"]
+    assert "code" not in res["matched_categories"]

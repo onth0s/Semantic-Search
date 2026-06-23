@@ -96,3 +96,63 @@ class TestExpandEnvVars:
         result = expand_env_vars("C:\\some\\literal\\path")
         assert isinstance(result, Path)
         assert str(result) == "C:\\some\\literal\\path"
+
+
+class TestConfigMergeDefaults:
+    """Tests for merging default category keywords/extensions into user configurations."""
+
+    def test_merge_missing_default_keywords(self, tmp_path: Path):
+        """load_config merges default keywords that are missing from user-configured categories."""
+        import yaml
+
+        # User has a custom category definition for "audio" that has
+        # custom keywords and misses default ones
+        user_config = {
+            "heuristics": {
+                "categories": {
+                    "audio": {
+                        "keywords": ["soundtrack", "melody"],
+                        "extensions": ["mp3", "m4a"],
+                    }
+                }
+            }
+        }
+        config_path = tmp_path / "custom_config.yaml"
+        config_path.write_text(yaml.dump(user_config), encoding="utf-8")
+
+        config = load_config(config_path)
+        categories = config["heuristics"]["categories"]
+
+        # Custom keywords must be preserved
+        assert "soundtrack" in categories["audio"]["keywords"]
+        assert "melody" in categories["audio"]["keywords"]
+        # Default keywords (e.g. "song", "mp3") must be merged in
+        assert "song" in categories["audio"]["keywords"]
+        assert "music" in categories["audio"]["keywords"]
+        # Custom and default extensions should be merged
+        assert "m4a" in categories["audio"]["extensions"]
+        assert "mp3" in categories["audio"]["extensions"]
+        assert "wav" in categories["audio"]["extensions"]
+
+
+class TestSaveConfigMinimal:
+    """Tests for save_config saving only modified values without copying all defaults."""
+
+    def test_save_config_saves_only_overrides(self, tmp_path: Path):
+        """save_config writes a minimal file rather than copying all defaults."""
+        import yaml
+
+        from src.config import save_config
+
+        config_path = tmp_path / "saved_config.yaml"
+
+        # Save a simple config override
+        save_config({"verbose": False}, path=config_path)
+
+        # Read the file directly to check contents
+        assert config_path.exists()
+        with open(config_path, encoding="utf-8") as f:
+            written_data = yaml.safe_load(f)
+
+        # The written config should only contain the modified value
+        assert written_data == {"verbose": False}

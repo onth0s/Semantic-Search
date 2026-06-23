@@ -261,6 +261,43 @@ def test_directory_content_matching(sample_config: dict, tmp_path: Path):
     assert "Mado Akira" in res.message
 
 
+def test_directory_content_matching_fuzzy_and_phonetic(sample_config: dict, tmp_path: Path):
+    """SearchEngine finds category files inside directories that match fuzzily or phonetically."""
+    engine = SearchEngine(sample_config)
+
+    # Setup Mado Akira directory
+    akira_dir = tmp_path / "Mado Akira"
+    akira_dir.mkdir(parents=True)
+    img_inside = akira_dir / "akira.png"
+    img_inside.write_text("", encoding="utf-8")
+
+    # 1. Fuzzy match "akri pics" -> matches "Mado Akira"
+    res = engine.find_path("akri pics", tmp_path, no_index=True)
+    assert res.status == "success"
+    assert res.match.path.resolve() == img_inside.resolve()
+
+    # 2. Phonetic match "akera pics" -> matches "Mado Akira"
+    res = engine.find_path("akera pics", tmp_path, no_index=True)
+    assert res.status == "success"
+    assert res.match.path.resolve() == img_inside.resolve()
+
+
+def test_directory_content_matching_ancestor(sample_config: dict, tmp_path: Path):
+    """SearchEngine finds files when the search term matches an ancestor/current folder."""
+    engine = SearchEngine(sample_config)
+
+    # Setup Desktop directory structure
+    desktop = tmp_path / "Desktop"
+    desktop.mkdir(parents=True)
+    song = desktop / "Roi.mp3"
+    song.write_text("", encoding="utf-8")
+
+    # Search from within Desktop itself with query "dsktp song"
+    res = engine.find_path("dsktp song", desktop, no_index=True)
+    assert res.status == "success"
+    assert res.match.path.resolve() == song.resolve()
+
+
 def test_embedding_handler_similarity_threshold(sample_config: dict):
     """EmbeddingHandler returns None for best matches with cosine similarity below 0.5."""
     import sys

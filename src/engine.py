@@ -7,6 +7,7 @@ the handler chain of responsibility.
 
 from __future__ import annotations
 
+import contextlib
 import time
 from pathlib import Path
 
@@ -18,6 +19,93 @@ from src.heuristics import extract_heuristics
 from src.index import IndexManager
 from src.models import MatchResult, SearchResult
 from src.scanner import scan_directory
+
+
+def _match_dir_name(q_tokens: set[str], dir_name: str, config: dict | None = None) -> bool:
+    """Check if query tokens match a directory name (exact, fuzzy, phonetic, or alias)."""
+    if not q_tokens or not dir_name:
+        return False
+
+    import fnmatch
+
+    import jellyfish
+    from rapidfuzz import fuzz
+
+    from src.handlers.h3_token_normalized import _normalize_tokens_with_wildcards
+
+    p_tokens = _normalize_tokens_with_wildcards(dir_name)
+    if not p_tokens:
+        return False
+
+    aliases = config.get("aliases", {}) if config else {}
+    token_to_aliases = {}
+    for alias_key, alias_values in aliases.items():
+        key_norm = alias_key.lower()
+        val_norms = {v.lower() for v in alias_values}
+        all_norms = val_norms.union({key_norm})
+        for tok in all_norms:
+            token_to_aliases.setdefault(tok, set()).add(key_norm)
+
+    for q_tok in q_tokens:
+        matched = False
+        q_tok_lower = q_tok.lower()
+
+        q_meta = None
+        if q_tok_lower.isalpha():
+            with contextlib.suppress(Exception):
+                q_meta = jellyfish.metaphone(q_tok_lower)
+
+        q_aliases = token_to_aliases.get(q_tok_lower, set())
+
+        for p_tok in p_tokens:
+            p_tok_lower = p_tok.lower()
+
+            # 1. Exact match
+            if q_tok_lower == p_tok_lower:
+                matched = True
+                break
+
+            # 2. Wildcard/glob match
+            if ("*" in q_tok_lower or "?" in q_tok_lower) and fnmatch.fnmatch(
+                p_tok_lower, q_tok_lower
+            ):
+                matched = True
+                break
+            if ("*" in p_tok_lower or "?" in p_tok_lower) and fnmatch.fnmatch(
+                q_tok_lower, p_tok_lower
+            ):
+                matched = True
+                break
+
+            # 3. Alias match
+            p_aliases = token_to_aliases.get(p_tok_lower, set())
+            if q_aliases and p_aliases and q_aliases.intersection(p_aliases):
+                matched = True
+                break
+
+            # 4. Fuzzy match (requires length >= 4)
+            if (
+                len(q_tok_lower) >= 4
+                and len(p_tok_lower) >= 4
+                and fuzz.ratio(q_tok_lower, p_tok_lower) >= 80
+            ):
+                matched = True
+                break
+
+            # 5. Phonetic match (requires length >= 4)
+            if len(q_tok_lower) >= 4 and len(p_tok_lower) >= 4 and q_meta and p_tok_lower.isalpha():
+                try:
+                    p_meta = jellyfish.metaphone(p_tok_lower)
+                    if q_meta == p_meta and fuzz.ratio(q_tok_lower, p_tok_lower) >= 50:
+                        matched = True
+                        break
+                except Exception:
+                    pass
+
+        if not matched:
+            return False
+
+    return True
 
 
 class SearchEngine:
@@ -68,7 +156,8 @@ class SearchEngine:
                         from src.utils.console import err_console
 
                         err_console.print(
-                            f"[dim]Fast-resolved routing alias '{alias_name}' to '{resolved_base_path}'[/]"
+                            f"[dim]Fast-resolved routing alias '{alias_name}' "
+                            f"to '{resolved_base_path}'[/]"
                         )
                     # Restrict candidate gathering scope to resolved_base_path
                     search_root = resolved_base_path
@@ -130,7 +219,11 @@ class SearchEngine:
             from src.utils.console import err_console
 
             err_console.print(
-                f"[dim]Heuristics extracted: clean_query='{clean_query}', extensions={exts_final}, latest={latest_final}, largest={largest_final}, dir_only={heuristics.get('directory_only')}, file_only={heuristics.get('file_only')}[/]"
+                f"[dim]Heuristics extracted: clean_query='{clean_query}', "
+                f"extensions={exts_final}, latest={latest_final}, "
+                f"largest={largest_final}, "
+                f"dir_only={heuristics.get('directory_only')}, "
+                f"file_only={heuristics.get('file_only')}[/]"
             )
 
         # 3. Filter candidates
@@ -213,11 +306,21 @@ class SearchEngine:
             q_tokens = _normalize_tokens_with_wildcards(clean_query)
             if q_tokens:
                 matching_dirs = []
+
+                # 1. Check ancestors of search_root (including search_root itself)
+                current = search_root.resolve()
+                while True:
+                    if _match_dir_name(q_tokens, current.name, self.config):
+                        matching_dirs.append(current)
+                    parent = current.parent
+                    if parent == current:
+                        break
+                    current = parent
+
+                # 2. Check candidate directories under search_root
                 for p in candidates:
-                    if p.is_dir():
-                        p_tokens = _normalize_tokens_with_wildcards(p.name)
-                        if q_tokens.issubset(p_tokens):
-                            matching_dirs.append(p)
+                    if p.is_dir() and _match_dir_name(q_tokens, p.name, self.config):
+                        matching_dirs.append(p)
 
                 # If we found matching directories, look for category files inside them
                 if matching_dirs:
