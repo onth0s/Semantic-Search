@@ -13,6 +13,7 @@ colored and styled to match the rest of the CLI.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -63,8 +64,26 @@ def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> 
     ctx.exit()
 
 
+class SempathGroup(rich_click.RichGroup):
+    """Custom Click Group to preprocess arguments like -5 into --top-n 5."""
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        new_args = []
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if re.match(r"^-\d+$", arg):
+                val = arg[1:]
+                new_args.append("--top-n")
+                new_args.append(val)
+            else:
+                new_args.append(arg)
+            i += 1
+        return super().parse_args(ctx, new_args)
+
+
 # CLI group
-@rich_click.group()
+@rich_click.group(cls=SempathGroup)
 @rich_click.version_option(__version__, prog_name="sempath")
 @click.option(
     "--help-full",
@@ -131,6 +150,9 @@ def cli(ctx: click.Context) -> None:
     "--largest", is_flag=True, default=False, help="Sort matches to return the largest file."
 )
 @click.option(
+    "--smallest", is_flag=True, default=False, help="Sort matches to return the smallest file."
+)
+@click.option(
     "--ext",
     type=str,
     default=None,
@@ -151,6 +173,7 @@ def find(
     verbose: bool,
     latest: bool,
     largest: bool,
+    smallest: bool,
     ext: str | None,
 ) -> None:
     """Search for filesystem paths matching QUERY.
@@ -171,7 +194,12 @@ def find(
 
     verbose_final = verbose or config.get("verbose", False)
     exhaustive = config.get("exhaustive", False)
-    top_n_final = 999999 if exhaustive else top_n
+
+    from click.core import ParameterSource
+
+    top_n_explicit = ctx.get_parameter_source("top_n") == ParameterSource.COMMANDLINE
+    top_n_final = top_n if (top_n_explicit or not exhaustive) else 999999
+
     no_index_final = no_index or exhaustive
     non_interactive_final = non_interactive or exhaustive
 
@@ -190,6 +218,7 @@ def find(
             "config": config,
             "latest": latest,
             "largest": largest,
+            "smallest": smallest,
             "ext": ext,
         }
     )
@@ -214,6 +243,7 @@ def find(
             no_index=no_index_final,
             latest=latest,
             largest=largest,
+            smallest=smallest,
             ext=ext,
             verbose=verbose_final,
         )

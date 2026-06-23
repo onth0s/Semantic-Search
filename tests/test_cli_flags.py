@@ -55,6 +55,14 @@ def test_find_largest_flag(mock_temp_dir: Path):
     assert "file2.txt" in result.output  # file2 is larger (21 bytes vs 5)
 
 
+def test_find_smallest_flag(mock_temp_dir: Path):
+    """find --smallest matches the smallest file."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["find", "--smallest", "--ext", "txt", ".", str(mock_temp_dir)])
+    assert result.exit_code == 0
+    assert "file1.txt" in result.output  # file1 is smaller (5 bytes vs 21)
+
+
 def test_help_full_flag():
     """--help-full flag prints help for all commands recursively and exits 0."""
     runner = CliRunner()
@@ -89,3 +97,17 @@ def test_find_verbose_output_control(mock_temp_dir: Path):
     assert "image.png" in res_verbose.output
     assert "confidence" in res_verbose.output
     assert "explicit_flags" in res_verbose.output
+
+
+def test_negative_integer_clamp(mock_temp_dir: Path):
+    """Test that -[integer] shortcut successfully clamps results (even with exhaustive)."""
+    runner = CliRunner()
+    # Invoke with -1 to clamp results to 1, even if multiple match
+    result = runner.invoke(cli, ["find", "--ext", "txt", ".", "-1", str(mock_temp_dir)])
+    assert result.exit_code == 0
+    # There should only be one match shown (e.g. file1.txt or file2.txt, not both)
+    lines = [line for line in result.output.splitlines() if line.strip()]
+    # Check if there is only 1 file listed. When top_n=1, only main match is output (no near-miss).
+    # The output contains the single file path.
+    txt_matches = [line for line in lines if "file" in line]
+    assert len(txt_matches) == 1

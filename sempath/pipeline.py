@@ -54,7 +54,7 @@ def filter_by_age(candidates: list[Path], max_age_seconds: int | None) -> list[P
     return valid_candidates
 
 
-def sort_candidates(candidates: list[Path], latest: bool, largest: bool) -> None:
+def sort_candidates(candidates: list[Path], latest: bool, largest: bool, smallest: bool) -> None:
     """Sort candidates in-place by modification time or size."""
     if latest:
 
@@ -75,3 +75,13 @@ def sort_candidates(candidates: list[Path], latest: bool, largest: bool) -> None
                 return 0
 
         candidates.sort(key=get_size, reverse=True)
+
+    elif smallest:
+
+        def get_size_smallest(p: Path) -> float:
+            try:
+                return float(p.stat().st_size) if p.is_file() else float("inf")
+            except Exception:
+                return float("inf")
+
+        candidates.sort(key=get_size_smallest)

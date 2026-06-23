@@ -19,11 +19,15 @@ TEMPORAL_RE = re.compile(
     re.IGNORECASE,
 )
 LATEST_RE = re.compile(
-    r"\b(latest|newest)\b",
+    r"\b(latest|newest|lastest)\b",
     re.IGNORECASE,
 )
 LARGEST_RE = re.compile(
     r"\b(largest|biggest)\b",
+    re.IGNORECASE,
+)
+SMALLEST_RE = re.compile(
+    r"\b(smallest|tiniest)\b",
     re.IGNORECASE,
 )
 DIR_INTENT_RE = re.compile(
@@ -114,6 +118,7 @@ class HeuristicsResult:
     file_only: bool = False
     latest: bool = False
     largest: bool = False
+    smallest: bool = False
     matched_categories: list[str] = field(default_factory=list)
     matched_category_keywords: dict[str, list[str]] = field(default_factory=dict)
 
@@ -128,6 +133,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
             - 'extensions': list of lowercase extensions, or None.
             - 'latest': boolean indicating if 'latest'/'newest' was requested.
             - 'largest': boolean indicating if 'largest'/'biggest' was requested.
+            - 'smallest': boolean indicating if 'smallest'/'tiniest' was requested.
             - 'directory_only': boolean indicating if query is looking for a directory.
             - 'file_only': boolean indicating if query is looking for a file.
             - 'matched_categories': list of matched categories.
@@ -138,6 +144,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     extensions = None
     latest = False
     largest = False
+    smallest = False
     directory_only = False
     file_only = False
 
@@ -185,6 +192,12 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     if largest_match:
         largest = True
         clean_query = LARGEST_RE.sub("", clean_query)
+
+    # Smallest match
+    smallest_match = SMALLEST_RE.search(clean_query)
+    if smallest_match:
+        smallest = True
+        clean_query = SMALLEST_RE.sub("", clean_query)
 
     # Directory intent match
     dir_match = DIR_INTENT_RE.search(clean_query)
@@ -332,6 +345,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
         file_only=file_only,
         latest=latest,
         largest=largest,
+        smallest=smallest,
         matched_categories=list(matched_categories),
         matched_category_keywords=matched_category_keywords,
     )

@@ -46,6 +46,24 @@ def test_extract_heuristics_latest():
     assert res.latest is True
     assert "pdf" in res.extensions
 
+    # Typo fallback
+    res = extract_heuristics("lastest doc on Desktop")
+    assert res.clean_query == "Desktop"
+    assert res.latest is True
+    assert "pdf" in res.extensions
+
+
+def test_extract_heuristics_smallest():
+    """extract_heuristics detects 'smallest' or 'tiniest' keywords."""
+    res = extract_heuristics("smallest pic on Desktop")
+    assert res.clean_query == "Desktop"
+    assert res.smallest is True
+    assert "png" in res.extensions
+
+    res = extract_heuristics("tiniest code file")
+    assert res.smallest is True
+    assert res.file_only is True
+
 
 def test_extract_heuristics_directory_file():
     """extract_heuristics detects folder, dir, and file keywords."""
