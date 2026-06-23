@@ -38,8 +38,8 @@ def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> 
     if not value or ctx.resilient_parsing:
         return
 
-    def _print_command_help(cmd: click.Command, parent_ctx: click.Context, prefix_args: list[str]) -> None:
-        cmd_ctx = cmd.context_class(cmd, parent=parent_ctx, info_name=" ".join(prefix_args))
+    def _print_command_help(cmd: click.Command, prefix_args: list[str]) -> None:
+        cmd_ctx = cmd.context_class(cmd, info_name=" ".join(prefix_args))
 
         full_name = " ".join(prefix_args)
         console.print(f"\n[bold green]COMMAND: {full_name}[/]")
@@ -51,9 +51,9 @@ def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> 
             for name in sub_names:
                 sub_cmd = cmd.get_command(cmd_ctx, name)
                 if sub_cmd:
-                    _print_command_help(sub_cmd, cmd_ctx, prefix_args + [name])
+                    _print_command_help(sub_cmd, prefix_args + [name])
 
-    _print_command_help(ctx.command, ctx, [ctx.info_name])
+    _print_command_help(ctx.command, [ctx.info_name])
     ctx.exit()
 
 
