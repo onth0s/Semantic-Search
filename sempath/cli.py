@@ -159,6 +159,78 @@ def _parse_handler_spec(spec: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Result grouping
+# ---------------------------------------------------------------------------
+
+_GENERIC_STEMS: frozenset[str] = frozenset(
+    {
+        "unnamed",
+        "unname2d",
+        "untitled",
+        "temp",
+        "tmp",
+        "test",
+        "var",
+        "deleteme",
+        "copy",
+        "newfolder",
+    }
+)
+
+
+def _is_generic_stem(stem: str) -> bool:
+    """Return True if the stem is a placeholder/generic filename."""
+    cleaned = re.sub(r"[\s\-_0-9()]+", "", stem.lower())
+    return cleaned in _GENERIC_STEMS
+
+
+# Group label constants - add more groupers here in the future.
+_GROUP_OTHER = "Other matches"
+_GROUP_GENERIC = "Generic/placeholder files"
+
+
+def _classify_match(path: Path) -> str:
+    """Return the display group label for a near-miss match."""
+    if _is_generic_stem(path.stem):
+        return _GROUP_GENERIC
+    return _GROUP_OTHER
+
+
+def _print_grouped_matches(
+    matches: list,
+    limit: int,
+    verbose: bool,
+) -> None:
+    """Print *matches* (up to *limit*) sorted into display groups.
+
+    Groups are rendered in declaration order; empty groups are skipped.
+    Each group gets a styled header. Within a group, items are listed
+    with confidence metadata when *verbose* is True.
+    """
+    from collections import defaultdict
+
+    # Bucket into groups preserving insertion order
+    groups: dict[str, list] = defaultdict(list)
+    for total, nm in enumerate(matches):
+        if total >= limit:
+            break
+        groups[_classify_match(nm.path)].append(nm)
+
+    # Render each non-empty group
+    group_order = [_GROUP_OTHER, _GROUP_GENERIC]
+    for group_name in group_order:
+        items = groups.get(group_name)
+        if not items:
+            continue
+        style = "[bold]" if group_name == _GROUP_OTHER else "[bold dim]"
+        console.print(f"{style}{group_name}:[/]")
+        for nm in items:
+            nm_meta = f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else ""
+            color = "cyan" if group_name == _GROUP_OTHER else "dim cyan"
+            console.print(f"  - [{color}]{nm.path}[/]{nm_meta}")
+
+
+# ---------------------------------------------------------------------------
 # find
 # ---------------------------------------------------------------------------
 
@@ -356,25 +428,19 @@ def find(
             )
             console.print(f"[bold green]✔ Success:[/] Found match: [bold cyan]{res.path}[/]{meta}")
             if search_result.near_misses and top_n_final > 1:
-                console.print("[bold]Other matches:[/]")
-                for nm in search_result.near_misses[: top_n_final - 1]:
-                    nm_meta = (
-                        f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
-                        if verbose_final
-                        else ""
-                    )
-                    console.print(f"  - [cyan]{nm.path}[/]{nm_meta}")
+                _print_grouped_matches(
+                    search_result.near_misses,
+                    limit=top_n_final - 1,
+                    verbose=verbose_final,
+                )
             sys.exit(0)
         elif search_result.status == "ambiguous":
             console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
-            console.print("[bold]Near misses:[/]")
-            for nm in search_result.near_misses[:top_n_final]:
-                nm_meta = (
-                    f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
-                    if verbose_final
-                    else ""
-                )
-                console.print(f"  - [cyan]{nm.path}[/]{nm_meta}")
+            _print_grouped_matches(
+                search_result.near_misses,
+                limit=top_n_final,
+                verbose=verbose_final,
+            )
             sys.exit(1)
         else:
             console.print(f"[bold red]❌ Failed:[/] {search_result.message}")

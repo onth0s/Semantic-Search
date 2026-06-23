@@ -103,22 +103,6 @@ class EmbeddingHandler(BaseHandler):
         rel_texts = [_candidate_rel_text(p) for p in candidates]
         stem_texts = [p.stem for p in candidates]
 
-        def _is_generic_stem(stem: str) -> bool:
-            stem_lower = stem.lower()
-            cleaned = re.sub(r"[\s\-_0-9()]+", "", stem_lower)
-            return cleaned in {
-                "unnamed",
-                "unname2d",
-                "untitled",
-                "temp",
-                "tmp",
-                "test",
-                "var",
-                "deleteme",
-                "copy",
-                "newfolder",
-            }
-
         try:
             from sempath.heuristics import translate_wildcards
 
@@ -149,7 +133,7 @@ class EmbeddingHandler(BaseHandler):
             num_candidates = len(candidates)
             for i, p in enumerate(candidates):
                 score_rel = float(scores[i])
-                score_stem = 0.0 if _is_generic_stem(p.stem) else float(scores[num_candidates + i])
+                score_stem = float(scores[num_candidates + i])
                 # Take the max score to keep the best of both folder context and bare name
                 results.append((p, max(score_rel, score_stem)))
             return results
