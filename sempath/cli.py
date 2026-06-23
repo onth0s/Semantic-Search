@@ -420,16 +420,32 @@ def find(
         if search_result.status == "success":
             if search_result.message:
                 console.print(f"[yellow]ℹ {search_result.message}[/]")  # noqa: RUF001
-            res = search_result.match
+
+            # If the engine's top result is a generic/placeholder file,
+            # promote the first real match to primary and push the generic
+            # back into the pool so it appears in the grouped display.
+            primary = search_result.match
+            near_misses: list = list(search_result.near_misses)
+
+            if _is_generic_stem(primary.path.stem):
+                all_results = [primary, *near_misses]
+                non_generic = [r for r in all_results if not _is_generic_stem(r.path.stem)]
+                generic = [r for r in all_results if _is_generic_stem(r.path.stem)]
+                if non_generic:
+                    primary = non_generic[0]
+                    near_misses = [*non_generic[1:], *generic]
+
             meta = (
-                f" [dim]({res.handler}, confidence: {res.confidence:.2f})[/]"
+                f" [dim]({primary.handler}, confidence: {primary.confidence:.2f})[/]"
                 if verbose_final
                 else ""
             )
-            console.print(f"[bold green]✔ Success:[/] Found match: [bold cyan]{res.path}[/]{meta}")
-            if search_result.near_misses and top_n_final > 1:
+            console.print(
+                f"[bold green]✔ Success:[/] Found match: [bold cyan]{primary.path}[/]{meta}"
+            )
+            if near_misses and top_n_final > 1:
                 _print_grouped_matches(
-                    search_result.near_misses,
+                    near_misses,
                     limit=top_n_final - 1,
                     verbose=verbose_final,
                 )
