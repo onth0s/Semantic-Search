@@ -32,6 +32,7 @@ from src import __version__
 from src.config import load_config
 from src.utils.console import console, err_console
 
+
 # ---------------------------------------------------------------------------
 def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> None:
     """Callback to print comprehensive help for all commands and subcommands recursively."""
@@ -51,7 +52,7 @@ def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> 
             for name in sub_names:
                 sub_cmd = cmd.get_command(cmd_ctx, name)
                 if sub_cmd:
-                    _print_command_help(sub_cmd, prefix_args + [name])
+                    _print_command_help(sub_cmd, [*prefix_args, name])
 
     _print_command_help(ctx.command, [ctx.info_name])
     ctx.exit()
@@ -228,7 +229,7 @@ def find(
             )
             if search_result.near_misses and top_n_final > 1:
                 console.print("[bold]Other matches:[/]")
-                for nm in search_result.near_misses[:top_n_final - 1]:
+                for nm in search_result.near_misses[: top_n_final - 1]:
                     console.print(
                         f"  - [cyan]{nm.path}[/] "
                         f"[dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"

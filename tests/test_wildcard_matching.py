@@ -76,9 +76,7 @@ def test_h5_phonetic_destructuring(sample_config: dict, mock_candidates: list[Pa
 def test_h6_alias_wildcard(sample_config: dict, mock_candidates: list[Path]):
     # Setup alias config with wildcard query/target
     cfg = dict(sample_config)
-    cfg["aliases"] = {
-        "docs*": ["notes*"]
-    }
+    cfg["aliases"] = {"docs*": ["notes*"]}
     handler = AliasHandler(cfg)
     # notes.txt is under candidates
     res = handler.match("docs", mock_candidates)
@@ -98,12 +96,7 @@ def test_engine_wildcard_extensions(tmp_path: Path, sample_config: dict):
     # Configure categories with wildcard extension
     cfg = dict(sample_config)
     cfg["heuristics"] = {
-        "categories": {
-            "backup_blend": {
-                "keywords": ["blend1"],
-                "extensions": ["blend*"]
-            }
-        }
+        "categories": {"backup_blend": {"keywords": ["blend1"], "extensions": ["blend*"]}}
     }
     engine = SearchEngine(cfg)
 

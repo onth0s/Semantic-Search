@@ -47,25 +47,32 @@ class BaseHandler(ABC):
     def handle(self, query: str, candidates: list[Path]) -> list[MatchResult]:
         """Execute this handler, falling through to the next if no match."""
         import click
+
         ctx = click.get_current_context(silent=True)
         verbose = ctx.obj.get("verbose", False) if ctx else False
 
         if verbose:
             from src.utils.console import err_console
-            err_console.print(f"[dim]Evaluating handler [bold cyan]{self.name}[/] on {len(candidates)} candidates...[/]")
+
+            err_console.print(
+                f"[dim]Evaluating handler [bold cyan]{self.name}[/] on {len(candidates)} candidates...[/]"
+            )
 
         results = self.match_all(query, candidates)
         if results:
             if verbose:
                 from src.utils.console import err_console
-                err_console.print(f"[bold green]✔ Handler {self.name} matched {len(results)} items (confidence range: {min(r.confidence for r in results):.2f}-{max(r.confidence for r in results):.2f})[/]")
+
+                err_console.print(
+                    f"[bold green]✔ Handler {self.name} matched {len(results)} items (confidence range: {min(r.confidence for r in results):.2f}-{max(r.confidence for r in results):.2f})[/]"
+                )
             return results
 
         if verbose:
             from src.utils.console import err_console
+
             err_console.print(f"[yellow]✗ Handler {self.name} returned no match.[/]")
 
         if self.next_handler is not None:
             return self.next_handler.handle(query, candidates)
         return []
-

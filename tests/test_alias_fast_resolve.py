@@ -1,13 +1,10 @@
 """Unit tests for the fast_resolve alias optimization in AliasHandler and SearchEngine."""
 
-import os
 from pathlib import Path
 from unittest.mock import patch
-import pytest
 
-from src.handlers.h6_alias import AliasHandler
 from src.engine import SearchEngine
-from src.models import SearchResult
+from src.handlers.h6_alias import AliasHandler
 
 
 def test_fast_resolve_learned_memory(sample_config: dict, tmp_path: Path):
@@ -60,12 +57,21 @@ def test_engine_early_bypass_direct(sample_config: dict, tmp_path: Path):
 
     # If it bypasses candidate gathering, it shouldn't access the index manager's is_indexed or get_candidates.
     # We patch them to raise an assertion error if called.
-    with patch.object(engine.index_manager, "is_indexed", side_effect=AssertionError("is_indexed should not be called")):
-        with patch("src.engine.scan_directory", side_effect=AssertionError("scan_directory should not be called")):
-            res = engine.find_path("principal", tmp_path)
-            assert res.status == "success"
-            assert res.match.path == target_dir
-            assert res.match.handler == "h6_alias"
+    with (
+        patch.object(
+            engine.index_manager,
+            "is_indexed",
+            side_effect=AssertionError("is_indexed should not be called"),
+        ),
+        patch(
+            "src.engine.scan_directory",
+            side_effect=AssertionError("scan_directory should not be called"),
+        ),
+    ):
+        res = engine.find_path("principal", tmp_path)
+        assert res.status == "success"
+        assert res.match.path == target_dir
+        assert res.match.handler == "h6_alias"
 
 
 def test_engine_early_bypass_routing(sample_config: dict, tmp_path: Path):

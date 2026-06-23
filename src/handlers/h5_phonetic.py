@@ -100,7 +100,10 @@ class PhoneticMatchHandler(BaseHandler):
         results = []
         for p in candidates:
             # 1. Base phonetic code matching name or stem
-            if self._get_phonetic_codes(p.name) == query_codes or self._get_phonetic_codes(p.stem) == query_codes:
+            if (
+                self._get_phonetic_codes(p.name) == query_codes
+                or self._get_phonetic_codes(p.stem) == query_codes
+            ):
                 results.append(MatchResult(p, 0.75, self.name))
                 continue
 

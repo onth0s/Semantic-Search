@@ -67,4 +67,3 @@ def test_help_full_flag():
     assert "alias add" in result.output
     assert "export-memory" in result.output
     assert "import-memory" in result.output
-

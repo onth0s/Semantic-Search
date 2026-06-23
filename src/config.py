@@ -52,33 +52,161 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "heuristics": {
         "categories": {
             "image": {
-                "keywords": ["pic", "pics", "picture", "pictures", "photo", "photos", "image", "images", "img", "imgs", "png", "pngs", "jpg", "jpgs", "jpeg", "jpegs", "webp", "gif", "gifs", "bmp", "bmps"],
-                "extensions": ["png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "ico", "svg"]
+                "keywords": [
+                    "pic",
+                    "pics",
+                    "picture",
+                    "pictures",
+                    "photo",
+                    "photos",
+                    "image",
+                    "images",
+                    "img",
+                    "imgs",
+                    "png",
+                    "pngs",
+                    "jpg",
+                    "jpgs",
+                    "jpeg",
+                    "jpegs",
+                    "webp",
+                    "gif",
+                    "gifs",
+                    "bmp",
+                    "bmps",
+                ],
+                "extensions": ["png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "ico", "svg"],
             },
             "document": {
-                "keywords": ["doc", "docs", "document", "documents", "pdf", "pdfs", "text", "txt", "txts", "csv", "csvs", "md", "markdown", "markdowns"],
-                "extensions": ["pdf", "docx", "doc", "txt", "rtf", "odt", "xls", "xlsx", "ppt", "pptx", "csv", "md", "markdown"]
+                "keywords": [
+                    "doc",
+                    "docs",
+                    "document",
+                    "documents",
+                    "pdf",
+                    "pdfs",
+                    "text",
+                    "txt",
+                    "txts",
+                    "csv",
+                    "csvs",
+                    "md",
+                    "markdown",
+                    "markdowns",
+                ],
+                "extensions": [
+                    "pdf",
+                    "docx",
+                    "doc",
+                    "txt",
+                    "rtf",
+                    "odt",
+                    "xls",
+                    "xlsx",
+                    "ppt",
+                    "pptx",
+                    "csv",
+                    "md",
+                    "markdown",
+                ],
             },
             "code": {
-                "keywords": ["code", "script", "scripts", "source", "py", "python", "js", "javascript", "ts", "typescript", "html", "css", "json", "yaml", "yml", "toml"],
-                "extensions": ["py", "js", "ts", "html", "css", "json", "yaml", "yml", "toml", "sh", "bat", "ps1", "rs", "go", "cpp", "c", "h"]
+                "keywords": [
+                    "code",
+                    "script",
+                    "scripts",
+                    "source",
+                    "py",
+                    "python",
+                    "js",
+                    "javascript",
+                    "ts",
+                    "typescript",
+                    "html",
+                    "css",
+                    "json",
+                    "yaml",
+                    "yml",
+                    "toml",
+                ],
+                "extensions": [
+                    "py",
+                    "js",
+                    "ts",
+                    "html",
+                    "css",
+                    "json",
+                    "yaml",
+                    "yml",
+                    "toml",
+                    "sh",
+                    "bat",
+                    "ps1",
+                    "rs",
+                    "go",
+                    "cpp",
+                    "c",
+                    "h",
+                ],
             },
             "audio": {
-                "keywords": ["audio", "audios", "sound", "sounds", "music", "mp3", "mp3s", "wav", "wavs", "flac", "flacs"],
-                "extensions": ["mp3", "wav", "flac", "m4a", "ogg", "aac"]
+                "keywords": [
+                    "audio",
+                    "audios",
+                    "sound",
+                    "sounds",
+                    "music",
+                    "mp3",
+                    "mp3s",
+                    "wav",
+                    "wavs",
+                    "flac",
+                    "flacs",
+                ],
+                "extensions": ["mp3", "wav", "flac", "m4a", "ogg", "aac"],
             },
             "video": {
-                "keywords": ["video", "videos", "vid", "vids", "movie", "movies", "film", "films", "mp4", "mp4s", "mkv", "mkvs", "avi", "avis", "mov", "movs"],
-                "extensions": ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"]
+                "keywords": [
+                    "video",
+                    "videos",
+                    "vid",
+                    "vids",
+                    "movie",
+                    "movies",
+                    "film",
+                    "films",
+                    "mp4",
+                    "mp4s",
+                    "mkv",
+                    "mkvs",
+                    "avi",
+                    "avis",
+                    "mov",
+                    "movs",
+                ],
+                "extensions": ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"],
             },
             "archive": {
-                "keywords": ["archive", "archives", "compressed", "compression", "zip", "zips", "rar", "rars", "7z", "7zs", "tar", "tars"],
-                "extensions": ["zip", "rar", "tar", "gz", "7z", "tgz"]
+                "keywords": [
+                    "archive",
+                    "archives",
+                    "compressed",
+                    "compression",
+                    "zip",
+                    "zips",
+                    "rar",
+                    "rars",
+                    "7z",
+                    "7zs",
+                    "tar",
+                    "tars",
+                ],
+                "extensions": ["zip", "rar", "tar", "gz", "7z", "tgz"],
             },
             "backup_blend": {
                 "keywords": ["blend1", "blend1s", "backup", "backups"],
-                "extensions": ["blend*"]
-            }
+                "extensions": ["blend*"],
+            },
         }
     },
 }
@@ -148,6 +276,7 @@ def _validate_config(config: dict) -> None:
     threshold = handlers.get("h4_threshold", 75)
     if not (0 <= threshold <= 100):
         raise ValueError(f"handlers.h4_threshold must be between 0 and 100, got {threshold}")
+
 
 # ---------------------------------------------------------------------------
 # Public API

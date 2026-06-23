@@ -20,6 +20,7 @@ def _normalize_tokens_with_wildcards(text: str) -> set[str]:
     if not text:
         return set()
     import re
+
     cleaned = re.sub(r"[^a-zA-Z0-9*?]+", " ", text).strip().lower()
     if not cleaned:
         return set()
@@ -33,6 +34,7 @@ def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> boo
         return query_tokens == candidate_tokens
 
     import fnmatch
+
     q_list = list(query_tokens)
     c_list = list(candidate_tokens)
 
@@ -40,9 +42,7 @@ def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> boo
         if q_idx == len(q_list):
             if len(c_idx_set) == len(c_list):
                 return True
-            if "*" in q_list:
-                return True
-            return False
+            return "*" in q_list
 
         q_tok = q_list[q_idx]
 
@@ -52,9 +52,7 @@ def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> boo
                 return True
             # Match remaining candidate tokens
             remaining_indices = [i for i in range(len(c_list)) if i not in c_idx_set]
-            if search(q_idx + 1, c_idx_set.union(remaining_indices)):
-                return True
-            return False
+            return bool(search(q_idx + 1, c_idx_set.union(remaining_indices)))
 
         for i, c_tok in enumerate(c_list):
             if i in c_idx_set:
@@ -131,9 +129,11 @@ class TokenNormalizedHandler(BaseHandler):
             confidence = 0.0
 
             # 1. Exact token sets matching name or stem
-            if _match_token_sets(query_tokens, p_name_tokens) or _match_token_sets(query_tokens, p_stem_tokens):
+            if _match_token_sets(query_tokens, p_name_tokens) or _match_token_sets(
+                query_tokens, p_stem_tokens
+            ):
                 confidence = 0.90
-            
+
             # 2. Path suffix tokens matching (for multi-part queries)
             elif k > 1 and len(p.parts) >= k:
                 suffix_parts = p.parts[-k:]

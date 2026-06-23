@@ -12,33 +12,161 @@ from datetime import timedelta
 # Default categories configuration mirroring config.yaml
 DEFAULT_CATEGORIES = {
     "image": {
-        "keywords": ["pic", "pics", "picture", "pictures", "photo", "photos", "image", "images", "img", "imgs", "png", "pngs", "jpg", "jpgs", "jpeg", "jpegs", "webp", "gif", "gifs", "bmp", "bmps"],
-        "extensions": ["png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "ico", "svg"]
+        "keywords": [
+            "pic",
+            "pics",
+            "picture",
+            "pictures",
+            "photo",
+            "photos",
+            "image",
+            "images",
+            "img",
+            "imgs",
+            "png",
+            "pngs",
+            "jpg",
+            "jpgs",
+            "jpeg",
+            "jpegs",
+            "webp",
+            "gif",
+            "gifs",
+            "bmp",
+            "bmps",
+        ],
+        "extensions": ["png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "ico", "svg"],
     },
     "document": {
-        "keywords": ["doc", "docs", "document", "documents", "pdf", "pdfs", "text", "txt", "txts", "csv", "csvs", "md", "markdown", "markdowns"],
-        "extensions": ["pdf", "docx", "doc", "txt", "rtf", "odt", "xls", "xlsx", "ppt", "pptx", "csv", "md", "markdown"]
+        "keywords": [
+            "doc",
+            "docs",
+            "document",
+            "documents",
+            "pdf",
+            "pdfs",
+            "text",
+            "txt",
+            "txts",
+            "csv",
+            "csvs",
+            "md",
+            "markdown",
+            "markdowns",
+        ],
+        "extensions": [
+            "pdf",
+            "docx",
+            "doc",
+            "txt",
+            "rtf",
+            "odt",
+            "xls",
+            "xlsx",
+            "ppt",
+            "pptx",
+            "csv",
+            "md",
+            "markdown",
+        ],
     },
     "code": {
-        "keywords": ["code", "script", "scripts", "source", "py", "python", "js", "javascript", "ts", "typescript", "html", "css", "json", "yaml", "yml", "toml"],
-        "extensions": ["py", "js", "ts", "html", "css", "json", "yaml", "yml", "toml", "sh", "bat", "ps1", "rs", "go", "cpp", "c", "h"]
+        "keywords": [
+            "code",
+            "script",
+            "scripts",
+            "source",
+            "py",
+            "python",
+            "js",
+            "javascript",
+            "ts",
+            "typescript",
+            "html",
+            "css",
+            "json",
+            "yaml",
+            "yml",
+            "toml",
+        ],
+        "extensions": [
+            "py",
+            "js",
+            "ts",
+            "html",
+            "css",
+            "json",
+            "yaml",
+            "yml",
+            "toml",
+            "sh",
+            "bat",
+            "ps1",
+            "rs",
+            "go",
+            "cpp",
+            "c",
+            "h",
+        ],
     },
     "audio": {
-        "keywords": ["audio", "audios", "sound", "sounds", "music", "mp3", "mp3s", "wav", "wavs", "flac", "flacs"],
-        "extensions": ["mp3", "wav", "flac", "m4a", "ogg", "aac"]
+        "keywords": [
+            "audio",
+            "audios",
+            "sound",
+            "sounds",
+            "music",
+            "mp3",
+            "mp3s",
+            "wav",
+            "wavs",
+            "flac",
+            "flacs",
+        ],
+        "extensions": ["mp3", "wav", "flac", "m4a", "ogg", "aac"],
     },
     "video": {
-        "keywords": ["video", "videos", "vid", "vids", "movie", "movies", "film", "films", "mp4", "mp4s", "mkv", "mkvs", "avi", "avis", "mov", "movs"],
-        "extensions": ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"]
+        "keywords": [
+            "video",
+            "videos",
+            "vid",
+            "vids",
+            "movie",
+            "movies",
+            "film",
+            "films",
+            "mp4",
+            "mp4s",
+            "mkv",
+            "mkvs",
+            "avi",
+            "avis",
+            "mov",
+            "movs",
+        ],
+        "extensions": ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"],
     },
     "archive": {
-        "keywords": ["archive", "archives", "compressed", "compression", "zip", "zips", "rar", "rars", "7z", "7zs", "tar", "tars"],
-        "extensions": ["zip", "rar", "tar", "gz", "7z", "tgz"]
+        "keywords": [
+            "archive",
+            "archives",
+            "compressed",
+            "compression",
+            "zip",
+            "zips",
+            "rar",
+            "rars",
+            "7z",
+            "7zs",
+            "tar",
+            "tars",
+        ],
+        "extensions": ["zip", "rar", "tar", "gz", "7z", "tgz"],
     },
     "backup_blend": {
         "keywords": ["blend1", "blend1s", "backup", "backups"],
-        "extensions": ["blend*"]
-    }
+        "extensions": ["blend*"],
+    },
 }
 
 # Regexes
@@ -125,11 +253,15 @@ def translate_wildcards(query: str) -> str:
 
     # Log translation details
     import click
+
     ctx = click.get_current_context(silent=True)
     verbose = ctx.obj.get("verbose", False) if ctx else False
     if verbose:
         from src.utils.console import err_console
-        err_console.print(f"[dim]Wildcard translation: '[bold cyan]{query}[/]' -> '[bold yellow]{translated}[/]'[/]")
+
+        err_console.print(
+            f"[dim]Wildcard translation: '[bold cyan]{query}[/]' -> '[bold yellow]{translated}[/]'[/]"
+        )
 
     return translated
 
@@ -158,6 +290,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
     # Load categories config
     if config is None:
         from src.config import load_config
+
         try:
             config = load_config()
         except Exception:
@@ -169,6 +302,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
         category_fuzzy_threshold = config.get("handlers", {}).get("h4_threshold", 75)
 
     import click
+
     ctx = click.get_current_context(silent=True)
     verbose = ctx.obj.get("verbose", False) if ctx else False
 
@@ -214,8 +348,10 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
 
     # Category matching
     import re as regex
-    from rapidfuzz import fuzz
+
     import jellyfish
+    from rapidfuzz import fuzz
+
     from src.utils.console import err_console
 
     # Sort keywords by length in descending order
@@ -224,11 +360,11 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
         keywords = cat_info.get("keywords", [])
         for kw in keywords:
             keyword_pairs.append((kw, cat_name))
-    
+
     keyword_pairs.sort(key=lambda x: len(x[0]), reverse=True)
 
     matched_categories = set()
-    
+
     # 1. Exact token matching
     for kw, cat_name in keyword_pairs:
         pattern = regex.compile(rf"\b{regex.escape(kw)}\b", regex.IGNORECASE)
@@ -245,55 +381,54 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
     for token in tokens_to_check:
         if len(token) < 3:
             continue
-        
-        token_matched = False
+
         for kw, cat_name in keyword_pairs:
             # Skip multi-word/compound keywords for fuzzy/phonetic
             if " " in kw or "-" in kw or "_" in kw:
                 continue
-            
+
             # Exact match check
             if token.lower() == kw.lower():
                 matched_categories.add(cat_name)
                 pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
                 clean_query = pattern.sub(" ", clean_query)
-                token_matched = True
                 if verbose:
                     err_console.print(
                         f"[dim]Exact category match (token): [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] in category [bold green]{cat_name}[/].[/]"
                     )
                 break
-            
+
             # Fuzzy check
             r = fuzz.ratio(token.lower(), kw.lower())
             if r >= category_fuzzy_threshold:
                 matched_categories.add(cat_name)
                 pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
                 clean_query = pattern.sub(" ", clean_query)
-                token_matched = True
                 if verbose:
                     err_console.print(
                         f"[dim]Fuzzy category match: token [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] (ratio: {r:.1f} >= {category_fuzzy_threshold}) in category [bold green]{cat_name}[/].[/]"
                     )
                 break
-                
+
             # Phonetic check (only if both alphabetic)
             if token.isalpha() and kw.isalpha():
                 try:
                     code_token = jellyfish.metaphone(token)
                     code_kw = jellyfish.metaphone(kw)
-                    if code_token and code_kw and code_token == code_kw:
-                        # Guard against naive phonetic collisions (e.g., feet/foot vs photo) using fuzzy ratio
-                        if fuzz.ratio(token.lower(), kw.lower()) >= 50:
-                            matched_categories.add(cat_name)
-                            pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
-                            clean_query = pattern.sub(" ", clean_query)
-                            token_matched = True
-                            if verbose:
-                                err_console.print(
-                                    f"[dim]Phonetic category match: token [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] phonetically (Metaphone: {code_token}) in category [bold green]{cat_name}[/].[/]"
-                                )
-                            break
+                    if (
+                        code_token
+                        and code_kw
+                        and code_token == code_kw
+                        and fuzz.ratio(token.lower(), kw.lower()) >= 50
+                    ):
+                        matched_categories.add(cat_name)
+                        pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
+                        clean_query = pattern.sub(" ", clean_query)
+                        if verbose:
+                            err_console.print(
+                                f"[dim]Phonetic category match: token [bold cyan]{token}[/] matches keyword [bold cyan]{kw}[/] phonetically (Metaphone: {code_token}) in category [bold green]{cat_name}[/].[/]"
+                            )
+                        break
                 except Exception:
                     pass
 
@@ -319,4 +454,3 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
         "directory_only": directory_only,
         "file_only": file_only,
     }
-

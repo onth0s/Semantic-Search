@@ -48,6 +48,7 @@ class EmbeddingHandler(BaseHandler):
 
         # Lazy load sentence-transformers
         import os
+
         os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
         os.environ["HF_HUB_VERBOSITY"] = "error"
         try:
@@ -79,6 +80,7 @@ class EmbeddingHandler(BaseHandler):
         candidate_texts = [p.stem for p in candidates]
         try:
             from src.heuristics import translate_wildcards
+
             translated_query = translate_wildcards(query)
             query_emb = self._model.encode(translated_query, convert_to_tensor=True)
             candidate_embs = self._model.encode(candidate_texts, convert_to_tensor=True)

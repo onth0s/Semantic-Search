@@ -5,3 +5,5 @@
 - **Test Success Message**: When all tests pass, append a cute message at the end with an ASCII character saying "BANZAI~!".
 - **Rich CLI Output**: Use [Rich](https://rich.readthedocs.io/) to color and style all relevant CLI output (status messages, match results, errors, warnings, tables, progress indicators). Plain uncolored output is not acceptable for user-facing messages.
 - **Don't restore any files that have been deleted unless the user explicitly tells you to.**
+- **Code Quality Check**: Always run Ruff (`py -3.13 -m ruff check --fix` and `py -3.13 -m ruff format`) to check and format the codebase after every major change.
+

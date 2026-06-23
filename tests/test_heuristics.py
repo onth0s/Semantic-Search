@@ -81,12 +81,7 @@ def test_extract_heuristics_categories():
     config = {
         "heuristics": {
             "category_fuzzy_threshold": 50,
-            "categories": {
-                "image": {
-                    "keywords": ["pic", "pics"],
-                    "extensions": ["png", "jpg"]
-                }
-            }
+            "categories": {"image": {"keywords": ["pic", "pics"], "extensions": ["png", "jpg"]}},
         }
     }
     res = extract_heuristics("pci on Desktop", config)
@@ -99,7 +94,10 @@ def test_translate_wildcards():
     from src.heuristics import translate_wildcards
 
     # *.blend*
-    assert translate_wildcards("*.blend*") == "a file whose name ends with .blend followed by any characters"
+    assert (
+        translate_wildcards("*.blend*")
+        == "a file whose name ends with .blend followed by any characters"
+    )
 
     # *.txt
     assert translate_wildcards("*.txt") == "a file ending in .txt"

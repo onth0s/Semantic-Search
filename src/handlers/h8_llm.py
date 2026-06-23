@@ -64,6 +64,7 @@ class LLMHandler(BaseHandler):
         )
 
         from src.heuristics import translate_wildcards
+
         translated_query = translate_wildcards(query)
 
         payload = {
@@ -114,8 +115,7 @@ class LLMHandler(BaseHandler):
             if results:
                 # Wrap the matches and indicate they resolved via H8 LLM rewrite
                 return [
-                    MatchResult(r.path, r.confidence, f"{self.name}({r.handler})")
-                    for r in results
+                    MatchResult(r.path, r.confidence, f"{self.name}({r.handler})") for r in results
                 ]
         except Exception as exc:
             if verbose:

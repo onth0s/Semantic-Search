@@ -32,6 +32,7 @@ class AliasHandler(BaseHandler):
 
         # Glob match if query or key has wildcard
         import fnmatch
+
         if "*" in query_lower or "?" in query_lower:
             if fnmatch.fnmatch(key_lower, query_lower):
                 return True
@@ -94,24 +95,32 @@ class AliasHandler(BaseHandler):
         aliases = self.config.get("aliases", {})
         import fnmatch
         import os
+
         for key, targets in aliases.items():
-            if self._matches_key(alias_name, key) or any(self._matches_key(alias_name, target) for target in targets):
+            if self._matches_key(alias_name, key) or any(
+                self._matches_key(alias_name, target) for target in targets
+            ):
                 # We found a matching config alias!
                 # We check the search_root itself first
                 search_root = Path(search_root).resolve()
                 for target in targets:
                     target_lower = target.lower()
                     if "*" in target or "?" in target:
-                        if fnmatch.fnmatch(search_root.name.lower(), target_lower) or fnmatch.fnmatch(search_root.stem.lower(), target_lower):
+                        if fnmatch.fnmatch(
+                            search_root.name.lower(), target_lower
+                        ) or fnmatch.fnmatch(search_root.stem.lower(), target_lower):
                             return search_root
                     else:
-                        if search_root.name.lower() == target_lower or search_root.stem.lower() == target_lower:
+                        if (
+                            search_root.name.lower() == target_lower
+                            or search_root.stem.lower() == target_lower
+                        ):
                             return search_root
 
                 # BFS search under search_root
                 exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
                 queue = [search_root]
-                for level in range(5):
+                for _level in range(5):
                     next_queue = []
                     matched_paths = []
                     for current_dir in queue:
@@ -126,7 +135,9 @@ class AliasHandler(BaseHandler):
                                     target_lower = target.lower()
                                     if "*" in target or "?" in target:
                                         stem = Path(entry.name).stem.lower()
-                                        if fnmatch.fnmatch(entry_name_lower, target_lower) or fnmatch.fnmatch(stem, target_lower):
+                                        if fnmatch.fnmatch(
+                                            entry_name_lower, target_lower
+                                        ) or fnmatch.fnmatch(stem, target_lower):
                                             matched_target = True
                                             break
                                     else:
@@ -153,6 +164,7 @@ class AliasHandler(BaseHandler):
         """Resolve an alias name to a Path by checking learned and config aliases."""
         # 1. Try fast resolve if click context is available
         import click
+
         ctx = click.get_current_context(silent=True)
         search_root = ctx.obj.get("root") if ctx else None
         if not search_root:
@@ -175,14 +187,19 @@ class AliasHandler(BaseHandler):
         # 2. Check config aliases
         aliases = self.config.get("aliases", {})
         import fnmatch
+
         for key, targets in aliases.items():
-            if self._matches_key(alias_name, key) or any(self._matches_key(alias_name, target) for target in targets):
+            if self._matches_key(alias_name, key) or any(
+                self._matches_key(alias_name, target) for target in targets
+            ):
                 matched = []
                 for p in candidates:
                     for target in targets:
                         target_lower = target.lower()
                         if "*" in target or "?" in target:
-                            if fnmatch.fnmatch(p.name.lower(), target_lower) or fnmatch.fnmatch(p.stem.lower(), target_lower):
+                            if fnmatch.fnmatch(p.name.lower(), target_lower) or fnmatch.fnmatch(
+                                p.stem.lower(), target_lower
+                            ):
                                 matched.append(p)
                         else:
                             if p.name.lower() == target_lower or p.stem.lower() == target_lower:
@@ -227,6 +244,7 @@ class AliasHandler(BaseHandler):
                 # Filter by extensions
                 if exts:
                     import fnmatch
+
                     new_filtered = []
                     for p in filtered:
                         suffix = p.suffix.lower().lstrip(".")
@@ -304,6 +322,7 @@ class AliasHandler(BaseHandler):
 
         # 2. Try fast resolve for direct match if click context is available
         import click
+
         ctx = click.get_current_context(silent=True)
         search_root = ctx.obj.get("root") if ctx else None
         if not search_root:
@@ -326,14 +345,19 @@ class AliasHandler(BaseHandler):
         # 3.2 Check direct config alias match
         aliases = self.config.get("aliases", {})
         import fnmatch
+
         for key, targets in aliases.items():
-            if self._matches_key(query, key) or any(self._matches_key(query, target) for target in targets):
+            if self._matches_key(query, key) or any(
+                self._matches_key(query, target) for target in targets
+            ):
                 matched = []
                 for p in candidates:
                     for target in targets:
                         target_lower = target.lower()
                         if "*" in target or "?" in target:
-                            if fnmatch.fnmatch(p.name.lower(), target_lower) or fnmatch.fnmatch(p.stem.lower(), target_lower):
+                            if fnmatch.fnmatch(p.name.lower(), target_lower) or fnmatch.fnmatch(
+                                p.stem.lower(), target_lower
+                            ):
                                 matched.append(p)
                         else:
                             if p.name.lower() == target_lower or p.stem.lower() == target_lower:

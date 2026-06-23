@@ -37,7 +37,9 @@ class CaseInsensitiveHandler(BaseHandler):
 
             if is_glob:
                 # 1. Case-insensitive glob name match
-                if fnmatch.fnmatch(p_name_lower, query_lower) or fnmatch.fnmatch(p_stem_lower, query_lower):
+                if fnmatch.fnmatch(p_name_lower, query_lower) or fnmatch.fnmatch(
+                    p_stem_lower, query_lower
+                ):
                     matches.append(p)
                 # 2. Case-insensitive glob path suffix match (if query contains path separators)
                 elif "/" in query_pure:
@@ -84,7 +86,9 @@ class CaseInsensitiveHandler(BaseHandler):
 
             if is_glob:
                 # 1. Case-insensitive glob name match
-                if fnmatch.fnmatch(p_name_lower, query_lower) or fnmatch.fnmatch(p_stem_lower, query_lower):
+                if fnmatch.fnmatch(p_name_lower, query_lower) or fnmatch.fnmatch(
+                    p_stem_lower, query_lower
+                ):
                     confidence = 0.95
                 # 2. Case-insensitive glob path suffix match (if query contains path separators)
                 elif "/" in query_pure:
@@ -103,7 +107,7 @@ class CaseInsensitiveHandler(BaseHandler):
                     p_str_lower = str(p).replace("\\", "/").lower()
                     if p_str_lower.endswith(query_pure):
                         confidence = 0.95
-                
+
                 # 3. Substring match fallback (non-wildcard only)
                 if confidence == 0.0:
                     if query_lower in p_name_lower or query_lower in p_stem_lower:
