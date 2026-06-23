@@ -28,7 +28,7 @@ memory import/export, Windows admin USN Journal acceleration, and tests.
 > ```
 > These are the only commands guaranteed to install the package and run the test suite properly without environment mismatch issues.
 
-Last local verification: 125 tests passed on Python 3.13.1.
+Last local verification: 130 tests passed on Python 3.13.1.
 
 ## Project Rules
 
@@ -142,7 +142,7 @@ sempath import-memory FILE_PATH
 | `--root` | `None` | Root directory to search, overriding the positional `ROOT_DIR`. |
 | `--depth` | `5` | Maximum folder depth to traverse. |
 | `--min-confidence` | `0.3` | Minimum confidence score needed for success. |
-| `--top-n` | `1` | Number of near misses to print in text output. |
+| `--top-n` | `5` | Number of near misses to print in text output. |
 | `--non-interactive` | `false` | Disable H9 interactive fallback and skip the H7 confirmation prompt. |
 | `--no-index` | `false` | Force on-the-fly scanning instead of SQLite index use. |
 | `--json` | `false` | Emit structured JSON. |
