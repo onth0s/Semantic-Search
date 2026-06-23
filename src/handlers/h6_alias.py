@@ -76,7 +76,7 @@ class AliasHandler(BaseHandler):
         # 2. Check config aliases
         aliases = self.config.get("aliases", {})
         for key, targets in aliases.items():
-            if self._matches_key(alias_name, key):
+            if self._matches_key(alias_name, key) or any(self._matches_key(alias_name, target) for target in targets):
                 matched = []
                 for p in candidates:
                     for target in targets:
@@ -198,7 +198,7 @@ class AliasHandler(BaseHandler):
         # 3. Check direct config alias match
         aliases = self.config.get("aliases", {})
         for key, targets in aliases.items():
-            if self._matches_key(query, key):
+            if self._matches_key(query, key) or any(self._matches_key(query, target) for target in targets):
                 matched = []
                 for p in candidates:
                     for target in targets:

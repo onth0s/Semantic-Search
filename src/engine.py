@@ -83,6 +83,12 @@ class SearchEngine:
         # 3. Filter candidates
         filtered_candidates = candidates
 
+        # Filter by directory/file intent
+        if heuristics.get("directory_only"):
+            filtered_candidates = [p for p in filtered_candidates if p.is_dir()]
+        elif heuristics.get("file_only"):
+            filtered_candidates = [p for p in filtered_candidates if p.is_file()]
+
         # Filter by extensions
         if exts_final:
             filtered_candidates = [

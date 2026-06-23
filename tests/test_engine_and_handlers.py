@@ -39,6 +39,58 @@ class TestSearchEngineHeuristics:
         assert res.match.path == f2
 
 
+class TestSearchEngineTypeFiltering:
+    """Tests that SearchEngine filters candidates correctly based on path type intent."""
+
+    def test_find_path_directory_intent(self, tmp_path: Path, sample_config: dict):
+        d1 = tmp_path / "some_dir"
+        d1.mkdir()
+        f1 = tmp_path / "some_file.txt"
+        f1.write_text("content", encoding="utf-8")
+
+        engine = SearchEngine(sample_config)
+
+        # Query specifying "folder"
+        ctx = MagicMock()
+        ctx.obj = {"non_interactive": True}
+        with patch("click.get_current_context", return_value=ctx):
+            res = engine.find_path(
+                query="some folder",
+                root_dir=tmp_path,
+                no_index=True,
+                min_confidence=0.1,
+                non_interactive=True,
+            )
+        assert res.status == "success"
+        # It should ignore the file and match the directory
+        assert res.match is not None
+        assert res.match.path == d1
+
+    def test_find_path_file_intent(self, tmp_path: Path, sample_config: dict):
+        d1 = tmp_path / "some_dir"
+        d1.mkdir()
+        f1 = tmp_path / "some"
+        f1.write_text("content", encoding="utf-8")
+
+        engine = SearchEngine(sample_config)
+
+        # Query specifying "file"
+        ctx = MagicMock()
+        ctx.obj = {"non_interactive": True}
+        with patch("click.get_current_context", return_value=ctx):
+            res = engine.find_path(
+                query="some file",
+                root_dir=tmp_path,
+                no_index=True,
+                min_confidence=0.1,
+                non_interactive=True,
+            )
+        assert res.status == "success"
+        # It should ignore the directory and match the file
+        assert res.match is not None
+        assert res.match.path == f1
+
+
 class TestEmbeddingHandler:
     """Tests for H7 EmbeddingHandler."""
 

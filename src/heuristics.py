@@ -30,10 +30,18 @@ LARGEST_RE = re.compile(
     r"\b(largest|biggest)\b",
     re.IGNORECASE,
 )
+DIR_INTENT_RE = re.compile(
+    r"\b(dir|directory|folder|folders)\b",
+    re.IGNORECASE,
+)
+FILE_INTENT_RE = re.compile(
+    r"\b(file|files)\b",
+    re.IGNORECASE,
+)
 
 
 def extract_heuristics(query: str) -> dict:
-    """Extract temporal, type, ordering, and size filters from query, returning a dict.
+    """Extract temporal, type, ordering, size, and directory/file intents from query.
 
     Returns:
         A dictionary with keys:
@@ -42,12 +50,16 @@ def extract_heuristics(query: str) -> dict:
             - 'extensions': list of lowercase extensions, or None.
             - 'latest': boolean indicating if 'latest'/'newest' was requested.
             - 'largest': boolean indicating if 'largest'/'biggest' was requested.
+            - 'directory_only': boolean indicating if query is looking for a directory.
+            - 'file_only': boolean indicating if query is looking for a file.
     """
     clean_query = query
     modified_within_seconds = None
     extensions = None
     latest = False
     largest = False
+    directory_only = False
+    file_only = False
 
     # Temporal match
     temp_match = TEMPORAL_RE.search(clean_query)
@@ -87,6 +99,18 @@ def extract_heuristics(query: str) -> dict:
         largest = True
         clean_query = LARGEST_RE.sub("", clean_query)
 
+    # Directory intent match
+    dir_match = DIR_INTENT_RE.search(clean_query)
+    if dir_match:
+        directory_only = True
+        clean_query = DIR_INTENT_RE.sub("", clean_query)
+
+    # File intent match
+    file_match = FILE_INTENT_RE.search(clean_query)
+    if file_match:
+        file_only = True
+        clean_query = FILE_INTENT_RE.sub("", clean_query)
+
     # Clean up whitespace runs
     clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
@@ -96,4 +120,6 @@ def extract_heuristics(query: str) -> dict:
         "extensions": extensions,
         "latest": latest,
         "largest": largest,
+        "directory_only": directory_only,
+        "file_only": file_only,
     }

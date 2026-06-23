@@ -47,6 +47,9 @@ class EmbeddingHandler(BaseHandler):
                 return None
 
         # Lazy load sentence-transformers
+        import os
+        os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+        os.environ["HF_HUB_VERBOSITY"] = "error"
         try:
             from sentence_transformers import SentenceTransformer, util
         except ImportError:

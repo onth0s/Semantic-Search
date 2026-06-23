@@ -45,3 +45,16 @@ def test_extract_heuristics_latest():
     assert res["clean_query"] == "on Desktop"
     assert res["latest"] is True
     assert "pdf" in res["extensions"]
+
+
+def test_extract_heuristics_directory_file():
+    """extract_heuristics detects folder, dir, and file keywords."""
+    res = extract_heuristics("important folder on Desktop")
+    assert res["clean_query"] == "important on Desktop"
+    assert res["directory_only"] is True
+    assert res["file_only"] is False
+
+    res = extract_heuristics("notes file")
+    assert res["clean_query"] == "notes"
+    assert res["directory_only"] is False
+    assert res["file_only"] is True

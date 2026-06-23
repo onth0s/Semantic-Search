@@ -59,6 +59,11 @@ def test_alias_config_exact_and_fuzzy(sample_config: dict, mock_candidates: list
     assert res is not None
     assert res.path.name == "__MAIN"
 
+    # 3. Match on config target synonym "principal" -> resolves to __MAIN
+    res = handler.match("principal", mock_candidates)
+    assert res is not None
+    assert res.path.name == "__MAIN"
+
 
 def test_alias_config_regex(sample_config: dict, mock_candidates: list[Path]):
     """AliasHandler matches regex patterns in alias keys."""
