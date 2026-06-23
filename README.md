@@ -62,28 +62,28 @@ Optional runtime integrations:
 
 ## Architecture
 
-`sempath` resolves a query through a decoupled processing pipeline, orchestrated by the central `SearchEngine` (in `src/engine.py`):
+`sempath` resolves a query through a decoupled processing pipeline, orchestrated by the central `SearchEngine` (in `sempath/engine.py`):
 
-1. **Alias Routing**: Performs early bypass check for alias matches and handles sub-query routing (e.g., `"<sub query> on <alias>"`) using direct path resolution (via `src/handlers/h6_alias.py`).
-2. **Candidate Gathering**: Gathers candidate paths from the SQLite index (via `src/index.py`) or scans on the fly with `--no-index` (via `src/scanner.py`).
-3. **Heuristics Extraction**: Extracts query constraints (such as file extensions, age/temporal filters, latest, or largest) from the query string (via `src/heuristics.py`).
-4. **Pipeline Filtering & Sorting**: Filters candidates by intent (file/directory), extensions, age constraints, and sorts candidates (via `src/pipeline.py`).
-5. **Directory Matching**: Resolves queries targeting files inside a matching directory (via `src/directory_matcher.py`).
-6. **Handler Chain Execution**: Runs the candidate list through the configured handler chain of matching strategies H1 through H9 (via `src/chain.py`).
+1. **Alias Routing**: Performs early bypass check for alias matches and handles sub-query routing (e.g., `"<sub query> on <alias>"`) using direct path resolution (via `sempath/handlers/h6_alias.py`).
+2. **Candidate Gathering**: Gathers candidate paths from the SQLite index (via `sempath/index.py`) or scans on the fly with `--no-index` (via `sempath/scanner.py`).
+3. **Heuristics Extraction**: Extracts query constraints (such as file extensions, age/temporal filters, sorting intents like latest/oldest, or largest/smallest) from the query string (via `sempath/heuristics.py`).
+4. **Pipeline Filtering & Sorting**: Filters candidates by intent (file/directory), extensions, age constraints, and sorts candidates (via `sempath/pipeline.py`).
+5. **Directory Matching**: Resolves queries targeting files inside a matching directory (via `sempath/directory_matcher.py`).
+6. **Handler Chain Execution**: Runs the candidate list through the configured handler chain of matching strategies H1 through H9 (via `sempath/chain.py`).
 7. **Result Dispatch**: Returns a success, ambiguous near-miss, or failure search result.
 
 ```mermaid
 graph TD
     UserQuery["User Query"] --> Routing{"Alias Routing Match?"}
     Routing -- Yes (Early Bypass) --> DirectResult["Direct / Scoped Alias Result"]
-    Routing -- No --> Heuristics["Heuristics Parser (src/heuristics.py)"]
+    Routing -- No --> Heuristics["Heuristics Parser (sempath/heuristics.py)"]
     Heuristics --> Candidates["Candidate Gathering"]
-    Candidates --> Index["SQLite Index (src/index.py)"]
-    Candidates --> Scan["On-the-fly Scan (src/scanner.py)"]
-    Index --> Pipeline["Pipeline (src/pipeline.py)"]
+    Candidates --> Index["SQLite Index (sempath/index.py)"]
+    Candidates --> Scan["On-the-fly Scan (sempath/scanner.py)"]
+    Index --> Pipeline["Pipeline (sempath/pipeline.py)"]
     Scan --> Pipeline
-    Pipeline --> DirMatcher["Directory Matcher (src/directory_matcher.py)"]
-    DirMatcher --> Chain["Handler Chain H1-H9 (src/chain.py)"]
+    Pipeline --> DirMatcher["Directory Matcher (sempath/directory_matcher.py)"]
+    DirMatcher --> Chain["Handler Chain H1-H9 (sempath/chain.py)"]
     Chain --> Result["SearchResult JSON/text output"]
 ```
 
@@ -144,13 +144,15 @@ sempath import-memory FILE_PATH
 | `--root` | `None` | Root directory to search, overriding the positional `ROOT_DIR`. |
 | `--depth` | `5` | Maximum folder depth to traverse. |
 | `--min-confidence` | `0.3` | Minimum confidence score needed for success. |
-| `--top-n` | `5` | Number of near misses to print in text output. |
+| `--top-n` | `5` | Number of near misses to print in text output. (Can be clamped via `-[integer]` suffix, e.g. `sempath find "pic" -3`). |
 | `--non-interactive` | `false` | Disable H9 interactive fallback and skip the H7 confirmation prompt. |
 | `--no-index` | `false` | Force on-the-fly scanning instead of SQLite index use. |
 | `--json` | `false` | Emit structured JSON. |
 | `--verbose` | `false` | Enable detailed under-the-hood diagnostics, category matching, and handler execution logs. |
 | `--latest` | `false` | Sort filtered candidates by newest modification time. |
 | `--largest` | `false` | Sort filtered candidates by largest file size. |
+| `--smallest` | `false` | Sort filtered candidates by smallest file size. |
+| `--oldest` | `false` | Sort filtered candidates by oldest modification time. |
 | `--ext` | `None` | Keep candidates with the given extension. |
 
 ## Indexing And Scanning
