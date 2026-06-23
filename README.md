@@ -1,7 +1,8 @@
 # sempath
 
 `sempath` is a Windows-first Python CLI for finding filesystem paths from vague,
-colloquial, misspelled, or semantically fuzzy descriptions. It is meant to be
+colloquial, misspelled, semantically fuzzy, or wildcard/glob (e.g. `*.txt`) descriptions.
+It features config-driven ad hoc category keyword tags (e.g. `docs`, `pics`) and is meant to be
 usable by both humans and LLM agents that need reliable path resolution without
 knowing exact casing, spelling, or directory names.
 
@@ -96,14 +97,14 @@ handlers:
 
 | Handler | Implemented behavior |
 |---|---|
-| H1 Exact | Exact basename, stem, or path-suffix match. |
-| H2 Case-insensitive | Case-insensitive basename, stem, or path-suffix match. |
-| H3 Token-normalized | Normalizes alphanumeric tokens and compares unordered token sets. |
-| H4 Fuzzy | RapidFuzz ratio against name, stem, and path suffixes. |
-| H5 Phonetic | jellyfish Metaphone comparison for name, stem, and path suffixes. |
-| H6 Alias | Config aliases and learned aliases with exact, regex, fuzzy, and phonetic key matching. Supports `"<sub query> on <alias>"` and `"<sub query> in <alias>"` routing. |
-| H7 Embedding | Optional lazy `sentence-transformers` semantic match. Prompts before loading in interactive mode. |
-| H8 LLM rewrite | Sends the query to an OpenAI-compatible chat endpoint, then runs H1-H6 on the rewritten query. |
+| H1 Exact | Exact basename, stem, or path-suffix match. Supports case-sensitive globbing. |
+| H2 Case-insensitive | Case-insensitive basename, stem, or path-suffix match. Supports case-insensitive globbing. |
+| H3 Token-normalized | Normalizes alphanumeric and wildcard tokens and compares unordered sets via bijection globbing. |
+| H4 Fuzzy | RapidFuzz ratio against name, stem, and path suffixes. Destructures wildcard queries by stripping `*`/`?`. |
+| H5 Phonetic | jellyfish Metaphone comparison for name, stem, and path suffixes. Destructures wildcard queries by stripping `*`/`?`. |
+| H6 Alias | Config aliases and learned aliases with exact, regex, fuzzy, and phonetic key matching. Supports wildcard targets and `"<sub query> on <alias>"` / `"<sub query> in <alias>"` routing. |
+| H7 Embedding | Optional lazy `sentence-transformers` semantic match. Prompts before loading in interactive mode. Translates wildcard queries to descriptions before encoding. |
+| H8 LLM rewrite | Sends the query to an OpenAI-compatible chat endpoint (translating wildcard queries first), then runs H1-H6 on the rewritten query. |
 | H9 Interactive | Click-based fallback that offers fuzzy-ranked candidates and stores confirmed selections as learned memory. |
 
 ## CLI
@@ -134,7 +135,7 @@ sempath import-memory FILE_PATH
 | `--non-interactive` | `false` | Disable H9 interactive fallback and skip the H7 confirmation prompt. |
 | `--no-index` | `false` | Force on-the-fly scanning instead of SQLite index use. |
 | `--json` | `false` | Emit structured JSON. |
-| `--verbose` | `false` | Show extra diagnostic output. |
+| `--verbose` | `false` | Enable detailed under-the-hood diagnostics, category matching, and handler execution logs. |
 | `--latest` | `false` | Sort filtered candidates by newest modification time. |
 | `--largest` | `false` | Sort filtered candidates by largest file size. |
 | `--ext` | `None` | Keep candidates with the given extension. |

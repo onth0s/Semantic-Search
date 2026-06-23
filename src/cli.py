@@ -38,7 +38,7 @@ from src.utils.console import console, err_console
 @rich_click.version_option(__version__, prog_name="sempath")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
-    """sempath — find filesystem paths by vague, colloquial, or fuzzy descriptions."""
+    """sempath — find filesystem paths by vague, colloquial, fuzzy, or wildcard descriptions."""
     ctx.ensure_object(dict)
 
 
@@ -81,7 +81,10 @@ def cli(ctx: click.Context) -> None:
     help="Output structured JSON instead of styled text.",
 )
 @click.option(
-    "--verbose", is_flag=True, default=False, help="Enable handler-by-handler execution logs."
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Enable detailed under-the-hood diagnostics, category matching, and handler execution logs.",
 )
 @click.option(
     "--latest", is_flag=True, default=False, help="Sort matches to return the newest path."
@@ -114,9 +117,11 @@ def find(
 ) -> None:
     """Search for filesystem paths matching QUERY.
 
-    QUERY is a vague, colloquial, or fuzzy description of the path you're
-    looking for. ROOT_DIR (default: current directory) is the starting
-    point for the search.
+    QUERY is a vague, colloquial, fuzzy, or wildcard-based (e.g. *.txt) description
+    of the path you're looking for. Supports configured category keyword tags (e.g. docs, pics)
+    exact, fuzzy, and phonetic matching.
+
+    ROOT_DIR (default: current directory) is the starting point for the search.
     """
     search_root = root or root_dir
 
