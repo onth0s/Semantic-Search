@@ -22,6 +22,10 @@ LATEST_RE = re.compile(
     r"\b(latest|newest|lastest)\b",
     re.IGNORECASE,
 )
+OLDEST_RE = re.compile(
+    r"\b(oldest)\b",
+    re.IGNORECASE,
+)
 LARGEST_RE = re.compile(
     r"\b(largest|biggest)\b",
     re.IGNORECASE,
@@ -119,6 +123,7 @@ class HeuristicsResult:
     latest: bool = False
     largest: bool = False
     smallest: bool = False
+    oldest: bool = False
     matched_categories: list[str] = field(default_factory=list)
     matched_category_keywords: dict[str, list[str]] = field(default_factory=dict)
 
@@ -134,6 +139,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
             - 'latest': boolean indicating if 'latest'/'newest' was requested.
             - 'largest': boolean indicating if 'largest'/'biggest' was requested.
             - 'smallest': boolean indicating if 'smallest'/'tiniest' was requested.
+            - 'oldest': boolean indicating if 'oldest' was requested.
             - 'directory_only': boolean indicating if query is looking for a directory.
             - 'file_only': boolean indicating if query is looking for a file.
             - 'matched_categories': list of matched categories.
@@ -145,6 +151,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     latest = False
     largest = False
     smallest = False
+    oldest = False
     directory_only = False
     file_only = False
 
@@ -198,6 +205,12 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     if smallest_match:
         smallest = True
         clean_query = SMALLEST_RE.sub("", clean_query)
+
+    # Oldest match
+    oldest_match = OLDEST_RE.search(clean_query)
+    if oldest_match:
+        oldest = True
+        clean_query = OLDEST_RE.sub("", clean_query)
 
     # Directory intent match
     dir_match = DIR_INTENT_RE.search(clean_query)
@@ -346,6 +359,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
         latest=latest,
         largest=largest,
         smallest=smallest,
+        oldest=oldest,
         matched_categories=list(matched_categories),
         matched_category_keywords=matched_category_keywords,
     )

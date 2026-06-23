@@ -65,6 +65,14 @@ def test_extract_heuristics_smallest():
     assert res.file_only is True
 
 
+def test_extract_heuristics_oldest():
+    """extract_heuristics detects 'oldest' keyword."""
+    res = extract_heuristics("oldest pic on Desktop")
+    assert res.clean_query == "Desktop"
+    assert res.oldest is True
+    assert "png" in res.extensions
+
+
 def test_extract_heuristics_directory_file():
     """extract_heuristics detects folder, dir, and file keywords."""
     res = extract_heuristics("important folder on Desktop")

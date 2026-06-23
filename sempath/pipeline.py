@@ -54,7 +54,13 @@ def filter_by_age(candidates: list[Path], max_age_seconds: int | None) -> list[P
     return valid_candidates
 
 
-def sort_candidates(candidates: list[Path], latest: bool, largest: bool, smallest: bool) -> None:
+def sort_candidates(
+    candidates: list[Path],
+    latest: bool,
+    largest: bool,
+    smallest: bool,
+    oldest: bool,
+) -> None:
     """Sort candidates in-place by modification time or size."""
     if latest:
 
@@ -85,3 +91,13 @@ def sort_candidates(candidates: list[Path], latest: bool, largest: bool, smalles
                 return float("inf")
 
         candidates.sort(key=get_size_smallest)
+
+    elif oldest:
+
+        def get_mtime_oldest(p: Path) -> float:
+            try:
+                return p.stat().st_mtime
+            except Exception:
+                return float("inf")
+
+        candidates.sort(key=get_mtime_oldest)

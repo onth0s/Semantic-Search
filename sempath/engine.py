@@ -129,6 +129,7 @@ class SearchEngine:
         latest: bool = False,
         largest: bool = False,
         smallest: bool = False,
+        oldest: bool = False,
         ext: str | None = None,
         verbose: bool = False,
     ) -> SearchResult:
@@ -160,6 +161,7 @@ class SearchEngine:
         latest_final = latest or h_latest
         largest_final = largest or heuristics.largest
         smallest_final = smallest or heuristics.smallest
+        oldest_final = oldest or heuristics.oldest
         exts_final = [ext.lower().lstrip(".")] if ext else (h_exts or [])
 
         verbose_log(
@@ -214,13 +216,14 @@ class SearchEngine:
             latest=latest_final,
             largest=largest_final,
             smallest=smallest_final,
+            oldest=oldest_final,
         )
 
         # 5. Check for direct bypass
         # If query is a placeholder and we sorted/filtered, return the top candidate
         if (
             clean_query in ("", ".", "*")
-            and (latest_final or largest_final or smallest_final or exts_final)
+            and (latest_final or largest_final or smallest_final or oldest_final or exts_final)
             and filtered_candidates
         ):
             match_result = MatchResult(filtered_candidates[0], 1.0, "explicit_flags")

@@ -47,6 +47,14 @@ def test_find_latest_flag(mock_temp_dir: Path):
     assert "file1.txt" in result.output  # file1 is newer
 
 
+def test_find_oldest_flag(mock_temp_dir: Path):
+    """find --oldest matches the oldest file."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["find", "--oldest", "--ext", "txt", ".", str(mock_temp_dir)])
+    assert result.exit_code == 0
+    assert "file2.txt" in result.output  # file2 is older (100 seconds older)
+
+
 def test_find_largest_flag(mock_temp_dir: Path):
     """find --largest matches the largest file."""
     runner = CliRunner()

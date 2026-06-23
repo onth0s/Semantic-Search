@@ -153,6 +153,9 @@ def cli(ctx: click.Context) -> None:
     "--smallest", is_flag=True, default=False, help="Sort matches to return the smallest file."
 )
 @click.option(
+    "--oldest", is_flag=True, default=False, help="Sort matches to return the oldest path."
+)
+@click.option(
     "--ext",
     type=str,
     default=None,
@@ -174,6 +177,7 @@ def find(
     latest: bool,
     largest: bool,
     smallest: bool,
+    oldest: bool,
     ext: str | None,
 ) -> None:
     """Search for filesystem paths matching QUERY.
@@ -219,6 +223,7 @@ def find(
             "latest": latest,
             "largest": largest,
             "smallest": smallest,
+            "oldest": oldest,
             "ext": ext,
         }
     )
@@ -244,6 +249,7 @@ def find(
             latest=latest,
             largest=largest,
             smallest=smallest,
+            oldest=oldest,
             ext=ext,
             verbose=verbose_final,
         )
