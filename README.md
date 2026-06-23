@@ -28,7 +28,7 @@ memory import/export, Windows admin USN Journal acceleration, and tests.
 > ```
 > These are the only commands guaranteed to install the package and run the test suite properly without environment mismatch issues.
 
-Last local verification: 104 tests passed on Python 3.13.1.
+Last local verification: 125 tests passed on Python 3.13.1.
 
 ## Project Rules
 
@@ -65,9 +65,8 @@ Optional runtime integrations:
 
 1. Gather candidate paths from the SQLite index, or scan on the fly with
    `--no-index`.
-2. Apply query heuristics for extensions, temporal filters, latest/newest, and
-   largest/biggest.
-3. Filter and sort candidates based on explicit flags and parsed heuristics.
+2. Apply query heuristics for extensions, temporal filters, latest/newest, and largest/biggest (stripping prepositions/stopwords for heuristics).
+3. Filter and sort candidates based on explicit flags and parsed heuristics. Supports matching directory contents (e.g., resolving files of a category inside a matched directory).
 4. Run the configured handler chain.
 5. Return a success, ambiguous near-miss result, or failure object.
 
@@ -103,7 +102,7 @@ handlers:
 | H4 Fuzzy | RapidFuzz ratio against name, stem, and path suffixes. Destructures wildcard queries by stripping `*`/`?`. |
 | H5 Phonetic | jellyfish Metaphone comparison for name, stem, and path suffixes. Destructures wildcard queries by stripping `*`/`?`. |
 | H6 Alias | Config aliases and learned aliases with exact, regex, fuzzy, and phonetic key matching. Supports wildcard targets and `"<sub query> on <alias>"` / `"<sub query> in <alias>"` routing. |
-| H7 Embedding | Optional lazy `sentence-transformers` semantic match. Prompts before loading in interactive mode. Translates wildcard queries to descriptions before encoding. |
+| H7 Embedding | Optional lazy `sentence-transformers` semantic match. Prompts before loading in interactive mode. Translates wildcard queries to descriptions before encoding. Enforces a minimum similarity threshold of 0.5. |
 | H8 LLM rewrite | Sends the query to an OpenAI-compatible chat endpoint (translating wildcard queries first), then runs H1-H6 on the rewritten query. |
 | H9 Interactive | Click-based fallback that offers fuzzy-ranked candidates and stores confirmed selections as learned memory. |
 
