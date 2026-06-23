@@ -78,7 +78,9 @@ class EmbeddingHandler(BaseHandler):
         # Use p.stem as it represents the semantic filename without extension
         candidate_texts = [p.stem for p in candidates]
         try:
-            query_emb = self._model.encode(query, convert_to_tensor=True)
+            from src.heuristics import translate_wildcards
+            translated_query = translate_wildcards(query)
+            query_emb = self._model.encode(translated_query, convert_to_tensor=True)
             candidate_embs = self._model.encode(candidate_texts, convert_to_tensor=True)
 
             # Compute cosine similarities

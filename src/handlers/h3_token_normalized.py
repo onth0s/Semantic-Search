@@ -15,6 +15,59 @@ from src.handlers.base import BaseHandler
 from src.models import MatchResult
 
 
+def _normalize_tokens_with_wildcards(text: str) -> set[str]:
+    """Normalise text into a set of lowercase alphanumeric and wildcard tokens."""
+    if not text:
+        return set()
+    import re
+    cleaned = re.sub(r"[^a-zA-Z0-9*?]+", " ", text).strip().lower()
+    if not cleaned:
+        return set()
+    return set(cleaned.split())
+
+
+def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> bool:
+    """Compare query token patterns to candidate tokens using bijection/wildcard matching."""
+    has_wildcard = any("*" in q or "?" in q for q in query_tokens)
+    if not has_wildcard:
+        return query_tokens == candidate_tokens
+
+    import fnmatch
+    q_list = list(query_tokens)
+    c_list = list(candidate_tokens)
+
+    def search(q_idx: int, c_idx_set: set[int]) -> bool:
+        if q_idx == len(q_list):
+            if len(c_idx_set) == len(c_list):
+                return True
+            if "*" in q_list:
+                return True
+            return False
+
+        q_tok = q_list[q_idx]
+
+        if q_tok == "*":
+            # Match zero candidate tokens
+            if search(q_idx + 1, c_idx_set):
+                return True
+            # Match remaining candidate tokens
+            remaining_indices = [i for i in range(len(c_list)) if i not in c_idx_set]
+            if search(q_idx + 1, c_idx_set.union(remaining_indices)):
+                return True
+            return False
+
+        for i, c_tok in enumerate(c_list):
+            if i in c_idx_set:
+                continue
+            if fnmatch.fnmatch(c_tok, q_tok):
+                if search(q_idx + 1, c_idx_set.union({i})):
+                    return True
+
+        return False
+
+    return search(0, set())
+
+
 class TokenNormalizedHandler(BaseHandler):
     """Strip non-alphanumeric, split tokens, compare unordered sets. Confidence: 0.9."""
 
@@ -25,9 +78,7 @@ class TokenNormalizedHandler(BaseHandler):
         if not query or not candidates:
             return None
 
-        from src.utils.tokenize import normalize_tokens
-
-        query_tokens = normalize_tokens(query)
+        query_tokens = _normalize_tokens_with_wildcards(query)
         if not query_tokens:
             return None
 
@@ -38,10 +89,10 @@ class TokenNormalizedHandler(BaseHandler):
         matches = []
         for p in candidates:
             # 1. Base tokens matching name or stem
-            if normalize_tokens(p.name) == query_tokens:
+            if _match_token_sets(query_tokens, _normalize_tokens_with_wildcards(p.name)):
                 matches.append(p)
                 continue
-            if normalize_tokens(p.stem) == query_tokens:
+            if _match_token_sets(query_tokens, _normalize_tokens_with_wildcards(p.stem)):
                 matches.append(p)
                 continue
 
@@ -49,7 +100,7 @@ class TokenNormalizedHandler(BaseHandler):
             if k > 1 and len(p.parts) >= k:
                 suffix_parts = p.parts[-k:]
                 suffix_str = "/".join(suffix_parts)
-                if normalize_tokens(suffix_str) == query_tokens:
+                if _match_token_sets(query_tokens, _normalize_tokens_with_wildcards(suffix_str)):
                     matches.append(p)
 
         if not matches:

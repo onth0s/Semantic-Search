@@ -10,7 +10,7 @@ name = "sempath"
 version = "0.1.0"
 description = "Semantic filesystem path finder - find paths by vague, colloquial, or fuzzy descriptions."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "MIT"
 authors = [{ name = "Leonardo" }]
 keywords = ["cli", "filesystem", "semantic-search", "fuzzy-matching", "path-finder"]

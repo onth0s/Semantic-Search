@@ -44,12 +44,16 @@ class PhoneticMatchHandler(BaseHandler):
         if not query or not candidates:
             return None
 
-        query_codes = self._get_phonetic_codes(query)
+        query_clean = query.replace("*", "").replace("?", "")
+        if not query_clean:
+            return None
+
+        query_codes = self._get_phonetic_codes(query_clean)
         if not query_codes:
             return None
 
         # Split query by path separators to check subpath suffixes
-        query_parts = [p for p in query.replace("\\", "/").split("/") if p]
+        query_parts = [p for p in query_clean.replace("\\", "/").split("/") if p]
         k = len(query_parts)
 
         matches = []

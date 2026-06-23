@@ -30,6 +30,15 @@ class AliasHandler(BaseHandler):
         query_lower = query.lower().strip()
         key_lower = key.lower().strip()
 
+        # Glob match if query or key has wildcard
+        import fnmatch
+        if "*" in query_lower or "?" in query_lower:
+            if fnmatch.fnmatch(key_lower, query_lower):
+                return True
+        if "*" in key_lower or "?" in key_lower:
+            if fnmatch.fnmatch(query_lower, key_lower):
+                return True
+
         # 1. Exact case-insensitive match
         if query_lower == key_lower:
             return True
@@ -75,13 +84,19 @@ class AliasHandler(BaseHandler):
 
         # 2. Check config aliases
         aliases = self.config.get("aliases", {})
+        import fnmatch
         for key, targets in aliases.items():
             if self._matches_key(alias_name, key) or any(self._matches_key(alias_name, target) for target in targets):
                 matched = []
                 for p in candidates:
                     for target in targets:
-                        if p.name.lower() == target.lower() or p.stem.lower() == target.lower():
-                            matched.append(p)
+                        target_lower = target.lower()
+                        if "*" in target or "?" in target:
+                            if fnmatch.fnmatch(p.name.lower(), target_lower) or fnmatch.fnmatch(p.stem.lower(), target_lower):
+                                matched.append(p)
+                        else:
+                            if p.name.lower() == target_lower or p.stem.lower() == target_lower:
+                                matched.append(p)
                 if matched:
                     # Shortest depth tie-breaker
                     return min(matched, key=lambda p: len(p.parts))
@@ -111,7 +126,7 @@ class AliasHandler(BaseHandler):
                 # Parse sub-query heuristics
                 from src.heuristics import extract_heuristics
 
-                heuristics = extract_heuristics(sub_query)
+                heuristics = extract_heuristics(sub_query, self.config)
                 clean_q = heuristics["clean_query"]
                 exts = heuristics["extensions"]
                 age_limit = heuristics["modified_within_seconds"]
@@ -121,7 +136,18 @@ class AliasHandler(BaseHandler):
 
                 # Filter by extensions
                 if exts:
-                    filtered = [p for p in filtered if p.suffix.lower().lstrip(".") in exts]
+                    import fnmatch
+                    new_filtered = []
+                    for p in filtered:
+                        suffix = p.suffix.lower().lstrip(".")
+                        matched = False
+                        for ext in exts:
+                            if fnmatch.fnmatch(suffix, ext.lower()):
+                                matched = True
+                                break
+                        if matched:
+                            new_filtered.append(p)
+                    filtered = new_filtered
 
                 # Filter by modification time
                 if age_limit is not None:
@@ -197,13 +223,19 @@ class AliasHandler(BaseHandler):
 
         # 3. Check direct config alias match
         aliases = self.config.get("aliases", {})
+        import fnmatch
         for key, targets in aliases.items():
             if self._matches_key(query, key) or any(self._matches_key(query, target) for target in targets):
                 matched = []
                 for p in candidates:
                     for target in targets:
-                        if p.name.lower() == target.lower() or p.stem.lower() == target.lower():
-                            matched.append(p)
+                        target_lower = target.lower()
+                        if "*" in target or "?" in target:
+                            if fnmatch.fnmatch(p.name.lower(), target_lower) or fnmatch.fnmatch(p.stem.lower(), target_lower):
+                                matched.append(p)
+                        else:
+                            if p.name.lower() == target_lower or p.stem.lower() == target_lower:
+                                matched.append(p)
                 if matched:
                     best = min(matched, key=lambda p: len(p.parts))
                     return MatchResult(best, 0.95, self.name)

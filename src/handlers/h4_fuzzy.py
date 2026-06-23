@@ -32,7 +32,11 @@ class FuzzyMatchHandler(BaseHandler):
 
         threshold = self.config.get("handlers", {}).get("h4_threshold", 75)
 
-        query_lower = query.lower()
+        query_clean = query.replace("*", "").replace("?", "")
+        if not query_clean:
+            return None
+
+        query_lower = query_clean.lower()
         query_pure = query_lower.replace("\\", "/")
         query_parts = [p for p in query_pure.split("/") if p]
         k = len(query_parts)

@@ -25,17 +25,33 @@ class ExactMatchHandler(BaseHandler):
             return None
 
         query_pure = query.replace("\\", "/")
+        is_glob = "*" in query or "?" in query
         matches = []
 
+        import fnmatch
+
         for p in candidates:
-            # 1. Exact name match
-            if p.name == query or p.stem == query:
-                matches.append(p)
-            # 3. Path suffix match (if query contains path separators)
-            elif "/" in query_pure:
-                p_str = str(p).replace("\\", "/")
-                if p_str.endswith(query_pure):
+            if is_glob:
+                # 1. Glob name match
+                if fnmatch.fnmatchcase(p.name, query) or fnmatch.fnmatchcase(p.stem, query):
                     matches.append(p)
+                # 2. Glob path suffix match (if query contains path separators)
+                elif "/" in query_pure:
+                    query_parts = [part for part in query_pure.split("/") if part]
+                    k = len(query_parts)
+                    if len(p.parts) >= k:
+                        p_suffix = "/".join(part for part in p.parts[-k:])
+                        if fnmatch.fnmatchcase(p_suffix, query_pure):
+                            matches.append(p)
+            else:
+                # 1. Exact name match
+                if p.name == query or p.stem == query:
+                    matches.append(p)
+                # 2. Path suffix match (if query contains path separators)
+                elif "/" in query_pure:
+                    p_str = str(p).replace("\\", "/")
+                    if p_str.endswith(query_pure):
+                        matches.append(p)
 
         if not matches:
             return None

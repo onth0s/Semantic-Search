@@ -68,8 +68,12 @@ class SearchEngine:
                 exclude_patterns=exclude_patterns,
             )
 
+        if verbose:
+            from src.utils.console import err_console
+            err_console.print(f"[dim]Gathered {len(candidates)} candidates from scan/index...[/]")
+
         # 2. Extract heuristics
-        heuristics = extract_heuristics(query)
+        heuristics = extract_heuristics(query, self.config)
         clean_query = heuristics["clean_query"]
         h_exts = heuristics["extensions"]
         h_age_limit = heuristics["modified_within_seconds"]
@@ -80,6 +84,10 @@ class SearchEngine:
         largest_final = largest or heuristics.get("largest", False)
         exts_final = [ext.lower().lstrip(".")] if ext else (h_exts or [])
 
+        if verbose:
+            from src.utils.console import err_console
+            err_console.print(f"[dim]Heuristics extracted: clean_query='{clean_query}', extensions={exts_final}, latest={latest_final}, largest={largest_final}, dir_only={heuristics.get('directory_only')}, file_only={heuristics.get('file_only')}[/]")
+
         # 3. Filter candidates
         filtered_candidates = candidates
 
@@ -89,11 +97,20 @@ class SearchEngine:
         elif heuristics.get("file_only"):
             filtered_candidates = [p for p in filtered_candidates if p.is_file()]
 
-        # Filter by extensions
+        # Filter by extensions (supporting wildcards)
         if exts_final:
-            filtered_candidates = [
-                p for p in filtered_candidates if p.suffix.lower().lstrip(".") in exts_final
-            ]
+            import fnmatch
+            new_filtered = []
+            for p in filtered_candidates:
+                suffix = p.suffix.lower().lstrip(".")
+                matched = False
+                for ext_pat in exts_final:
+                    if fnmatch.fnmatch(suffix, ext_pat.lower()):
+                        matched = True
+                        break
+                if matched:
+                    new_filtered.append(p)
+            filtered_candidates = new_filtered
 
         # Filter by modification time from heuristics
         if h_age_limit is not None:
@@ -106,6 +123,10 @@ class SearchEngine:
                 except Exception:
                     pass
             filtered_candidates = valid_candidates
+
+        if verbose:
+            from src.utils.console import err_console
+            err_console.print(f"[dim]Remaining candidates after applying filters: {len(filtered_candidates)}[/]")
 
         # 4. Sort candidates
         if latest_final:

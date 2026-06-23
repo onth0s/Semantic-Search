@@ -55,11 +55,14 @@ class LLMHandler(BaseHandler):
             "markdown, or quotes."
         )
 
+        from src.heuristics import translate_wildcards
+        translated_query = translate_wildcards(query)
+
         payload = {
             "model": model,
             "messages": [
                 {"role": "system", "content": system_instructions},
-                {"role": "user", "content": query},
+                {"role": "user", "content": translated_query},
             ],
             "temperature": 0.0,
         }

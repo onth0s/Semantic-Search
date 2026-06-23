@@ -26,20 +26,36 @@ class CaseInsensitiveHandler(BaseHandler):
 
         query_lower = query.lower()
         query_pure = query_lower.replace("\\", "/")
+        is_glob = "*" in query or "?" in query
         matches = []
+
+        import fnmatch
 
         for p in candidates:
             p_name_lower = p.name.lower()
             p_stem_lower = p.stem.lower()
 
-            # 1. Case-insensitive name match
-            if p_name_lower == query_lower or p_stem_lower == query_lower:
-                matches.append(p)
-            # 3. Path suffix match (if query contains path separators)
-            elif "/" in query_pure:
-                p_str_lower = str(p).replace("\\", "/").lower()
-                if p_str_lower.endswith(query_pure):
+            if is_glob:
+                # 1. Case-insensitive glob name match
+                if fnmatch.fnmatch(p_name_lower, query_lower) or fnmatch.fnmatch(p_stem_lower, query_lower):
                     matches.append(p)
+                # 2. Case-insensitive glob path suffix match (if query contains path separators)
+                elif "/" in query_pure:
+                    query_parts = [part for part in query_pure.split("/") if part]
+                    k = len(query_parts)
+                    if len(p.parts) >= k:
+                        p_suffix_lower = "/".join(part.lower() for part in p.parts[-k:])
+                        if fnmatch.fnmatch(p_suffix_lower, query_pure):
+                            matches.append(p)
+            else:
+                # 1. Case-insensitive name match
+                if p_name_lower == query_lower or p_stem_lower == query_lower:
+                    matches.append(p)
+                # 2. Path suffix match (if query contains path separators)
+                elif "/" in query_pure:
+                    p_str_lower = str(p).replace("\\", "/").lower()
+                    if p_str_lower.endswith(query_pure):
+                        matches.append(p)
 
         if not matches:
             return None

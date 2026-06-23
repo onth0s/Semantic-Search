@@ -19,14 +19,15 @@ The current implementation includes the Click/Rich CLI, filesystem scanning,
 SQLite indexing, heuristic filters, handlers H1 through H9, learned alias memory,
 memory import/export, Windows admin USN Journal acceleration, and tests.
 
-Verified with:
+> [!IMPORTANT]
+> To avoid Windows environment/path conflicts (such as Anaconda shadowing standard Python), always use `py -3.13` to explicitly target the correct environment for installation and testing:
+> ```powershell
+> py -3.13 -m pip install -e .
+> py -3.13 -m pytest
+> ```
+> These are the only commands guaranteed to install the package and run the test suite properly without environment mismatch issues.
 
-```powershell
-py -3.13 -m pip install -e .[dev]
-py -3.13 -m pytest
-```
-
-Last local verification: 89 tests passed on Python 3.13.1.
+Last local verification: 104 tests passed on Python 3.13.1.
 
 ## Project Rules
 
