@@ -67,3 +67,25 @@ def test_help_full_flag():
     assert "alias add" in result.output
     assert "export-memory" in result.output
     assert "import-memory" in result.output
+
+
+def test_find_verbose_output_control(mock_temp_dir: Path):
+    """Test that confidence and handler metadata is only present when verbose is on."""
+    runner = CliRunner()
+
+    # Ensure config verbose is set to off initially
+    runner.invoke(cli, ["config", "verbose", "off"])
+
+    # 1. Without --verbose: metadata is hidden
+    res_non_verbose = runner.invoke(cli, ["find", "--ext", "png", ".", str(mock_temp_dir)])
+    assert res_non_verbose.exit_code == 0
+    assert "image.png" in res_non_verbose.output
+    assert "confidence" not in res_non_verbose.output
+    assert "explicit_flags" not in res_non_verbose.output
+
+    # 2. With --verbose: metadata is shown
+    res_verbose = runner.invoke(cli, ["find", "--ext", "png", "--verbose", ".", str(mock_temp_dir)])
+    assert res_verbose.exit_code == 0
+    assert "image.png" in res_verbose.output
+    assert "confidence" in res_verbose.output
+    assert "explicit_flags" in res_verbose.output

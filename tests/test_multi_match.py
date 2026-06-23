@@ -178,3 +178,24 @@ def test_exhaustive_feet_foot_sole(tmp_path: Path, sample_config: dict):
     assert res_sole.status == "success"
     all_sole_matches = [res_sole.match.path] + [nm.path for nm in res_sole.near_misses]
     assert len(all_sole_matches) == 12
+
+
+def test_category_query_multi_match(tmp_path: Path, sample_config: dict):
+    """Test that category queries like 'vids' return all matching candidates in near_misses."""
+    sample_config["handlers"]["enabled"] = ["h1", "h2", "h3"]
+    engine = SearchEngine(sample_config)
+
+    # Create multiple video files
+    (tmp_path / "v1.mp4").write_text("", encoding="utf-8")
+    (tmp_path / "v2.mov").write_text("", encoding="utf-8")
+    (tmp_path / "image.png").write_text("", encoding="utf-8")  # should not match vids
+
+    res = engine.find_path("vids", tmp_path, no_index=True, min_confidence=0.3, top_n=5)
+    assert res.status == "success"
+    assert res.match is not None
+    # We should have 1 main match + 1 near_miss = 2 video matches in total
+    assert len(res.near_misses) == 1
+    all_matched = [res.match.path] + [nm.path for nm in res.near_misses]
+    assert tmp_path / "v1.mp4" in all_matched
+    assert tmp_path / "v2.mov" in all_matched
+    assert tmp_path / "image.png" not in all_matched

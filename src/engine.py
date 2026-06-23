@@ -205,7 +205,13 @@ class SearchEngine:
             and filtered_candidates
         ):
             match_result = MatchResult(filtered_candidates[0], 1.0, "explicit_flags")
-            return SearchResult(status="success", query=query, match=match_result)
+            near_misses = [MatchResult(p, 1.0, "explicit_flags") for p in filtered_candidates[1:]]
+            return SearchResult(
+                status="success",
+                query=query,
+                match=match_result,
+                near_misses=near_misses,
+            )
 
         # 6. Build and execute Chain of Responsibility
         try:

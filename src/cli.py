@@ -41,12 +41,18 @@ def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> 
 
     def _print_command_help(cmd: click.Command, prefix_args: list[str]) -> None:
         cmd_ctx = cmd.context_class(cmd, info_name=" ".join(prefix_args))
-
         full_name = " ".join(prefix_args)
-        console.print(f"\n[bold green]COMMAND: {full_name}[/]")
+        # Blank line separator between blocks (not before the first one)
+        if prefix_args != [ctx.info_name]:
+            console.print()
+        console.print(f"[dim]COMMAND: [bold cyan]{full_name}[/][/]")
         console.print("=" * (len(full_name) + 9))
-        console.print(cmd.get_help(cmd_ctx), markup=False)
-
+        help_text = cmd.get_help(cmd_ctx)
+        if isinstance(cmd, click.Group):
+            cmds_idx = help_text.find("┌─ Commands")
+            if cmds_idx != -1:
+                help_text = help_text[:cmds_idx].rstrip()
+        console.print(help_text, markup=False)
         if isinstance(cmd, click.Group):
             sub_names = sorted(cmd.list_commands(cmd_ctx))
             for name in sub_names:
@@ -223,26 +229,32 @@ def find(
     else:
         if search_result.status == "success":
             res = search_result.match
-            console.print(
-                f"[bold green]✔ Success:[/] Found match: [bold cyan]{res.path}[/]"
+            meta = (
                 f" [dim]({res.handler}, confidence: {res.confidence:.2f})[/]"
+                if verbose_final
+                else ""
             )
+            console.print(f"[bold green]✔ Success:[/] Found match: [bold cyan]{res.path}[/]{meta}")
             if search_result.near_misses and top_n_final > 1:
                 console.print("[bold]Other matches:[/]")
                 for nm in search_result.near_misses[: top_n_final - 1]:
-                    console.print(
-                        f"  - [cyan]{nm.path}[/] "
-                        f"[dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
+                    nm_meta = (
+                        f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
+                        if verbose_final
+                        else ""
                     )
+                    console.print(f"  - [cyan]{nm.path}[/]{nm_meta}")
             sys.exit(0)
         elif search_result.status == "ambiguous":
             console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
             console.print("[bold]Near misses:[/]")
             for nm in search_result.near_misses[:top_n_final]:
-                console.print(
-                    f"  - [cyan]{nm.path}[/] "
-                    f"[dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
+                nm_meta = (
+                    f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
+                    if verbose_final
+                    else ""
                 )
+                console.print(f"  - [cyan]{nm.path}[/]{nm_meta}")
             sys.exit(1)
         else:
             console.print(f"[bold red]❌ Failed:[/] {search_result.message}")
