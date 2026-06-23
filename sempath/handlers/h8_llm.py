@@ -87,7 +87,19 @@ class LLMHandler(BaseHandler):
         model: str = handlers_cfg.get("h8_model", "minimax-m3:cloud")
         url: str = handlers_cfg.get("h8_url", "http://localhost:11434/v1")
         api_key: str = handlers_cfg.get("h8_api_key", "")
-        top_k: int = int(handlers_cfg.get("h8_top_k", 6))
+        exhaustive = self.config.get("exhaustive", False)
+        if exhaustive:
+            # Under exhaustive mode, LLM clamping is unbounded
+            top_k = 999999
+        else:
+            # Clamp manually based on -N option / top_n if available,
+            # else fall back to h8_top_k config/default
+            ctx = click.get_current_context(silent=True)
+            top_n_val = ctx.obj.get("top_n") if (ctx and ctx.obj) else None
+            if top_n_val is not None:
+                top_k = int(top_n_val)
+            else:
+                top_k = int(handlers_cfg.get("h8_top_k", 6))
 
         # --- Resolve search root for relative path computation ---------------
         ctx = click.get_current_context(silent=True)
