@@ -105,7 +105,7 @@ handlers:
 | H5 Phonetic | jellyfish Metaphone comparison for name, stem, and path suffixes. Destructures wildcard queries by stripping `*`/`?`. |
 | H6 Alias | Config aliases and learned aliases with exact, regex, fuzzy, and phonetic key matching. Supports wildcard targets and `"<sub query> on <alias>"` / `"<sub query> in <alias>"` routing. |
 | H7 | Embedding | Optional lazy `sentence-transformers` semantic match. Prompts before loading in interactive mode. Translates wildcard queries to descriptions before encoding. Enforces a minimum similarity threshold of 0.5. |
-| H8 | LLM direct match | Direct semantic path selector. Sends candidates and query to an OpenAI-compatible endpoint (defaults to local Ollama with `minimax-m3:cloud`), returns matched relative paths. Raises on error with no fallback. |
+| H8 | LLM direct match | Direct semantic path selector. Sends candidates and query to an OpenAI-compatible endpoint (defaults to local Ollama with `minimax-m3:cloud`), returns matched relative paths. Bounded to a maximum of 100 candidates to prevent timeout. Under exhaustive mode, LLM clamping is unbounded up to candidate count; otherwise manually clamped via `-N` or `h8_top_k`. |
 | H9 | Interactive | Click-based fallback that offers fuzzy-ranked candidates and stores confirmed selections as learned memory. |
 
 ## CLI
@@ -220,6 +220,15 @@ Ambiguous:
   ]
 }
 ```
+
+### CLI Text Grouping
+
+When printing search results in standard text output mode, near-misses and other candidate matches are automatically classified and grouped into:
+1. **Other matches** (bold cyan): For files matching the query directly at the root.
+2. **Subfolders** (bold): E.g., `3D-to-reGEN-to-VID/Annie Leonhart`, classifying matching items by their parent folder names relative to the search root.
+3. **Generic/placeholder files** (dim cyan): Bucket for files with generic names (e.g. `unnamed`, `temp`, `untitled`), visually de-emphasizing them.
+
+If a generic/placeholder file wins on score as the top match (e.g. `unnamed.jpg`), `sempath` automatically promotes the first non-generic candidate to primary success match, moving the generic file back into the appropriate grouped category display.
 
 Failure:
 
