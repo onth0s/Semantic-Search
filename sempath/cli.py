@@ -65,7 +65,14 @@ def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> 
 
 
 class SempathGroup(rich_click.RichGroup):
-    """Custom Click Group to preprocess arguments like -5 into --top-n 5."""
+    """Custom Click Group to preprocess shorthand arguments before Click parsing.
+
+    Rewrites:
+      -5          ->  --top-n 5           (output clamp)
+      -h8         ->  --handlers h8       (single handler)
+      -h1-6       ->  --handlers h1-6     (range)
+      -h2,h4,h5   ->  --handlers h2,h4,h5 (explicit list)
+    """
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
         new_args = []
@@ -73,9 +80,13 @@ class SempathGroup(rich_click.RichGroup):
         while i < len(args):
             arg = args[i]
             if re.match(r"^-\d+$", arg):
-                val = arg[1:]
+                # -5 -> --top-n 5
                 new_args.append("--top-n")
-                new_args.append(val)
+                new_args.append(arg[1:])
+            elif re.match(r"^-h(\d[\d,\-]*)$", arg):
+                # -h8, -h1-6, -h2,h4,h5 -> --handlers <spec>
+                new_args.append("--handlers")
+                new_args.append(arg[2:])
             else:
                 new_args.append(arg)
             i += 1
@@ -97,6 +108,54 @@ class SempathGroup(rich_click.RichGroup):
 def cli(ctx: click.Context) -> None:
     """sempath — find filesystem paths by vague, colloquial, fuzzy, or wildcard descriptions."""
     ctx.ensure_object(dict)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_ALL_HANDLERS = ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9"]
+
+
+def _parse_handler_spec(spec: str) -> list[str]:
+    """Parse a handler spec string into an ordered list of handler IDs.
+
+    Accepted formats::
+
+        "h1-8"      -> [h1, h2, h3, h4, h5, h6, h7, h8]
+        "h8"        -> [h8]
+        "h2,h4,h5"  -> [h2, h4, h5]
+        "1-6"       -> [h1, h2, h3, h4, h5, h6]   (leading h optional)
+        "1,3,7"     -> [h1, h3, h7]
+    """
+    spec = spec.strip()
+    handlers: list[str] = []
+
+    # Range pattern: [h]N-[h]M
+    range_m = re.fullmatch(r"h?(\d+)-h?(\d+)", spec)
+    if range_m:
+        lo, hi = int(range_m.group(1)), int(range_m.group(2))
+        handlers = [f"h{n}" for n in range(lo, hi + 1)]
+        return [h for h in handlers if h in _ALL_HANDLERS]
+
+    # Comma-separated list: h1,h3,h8 or 1,3,8
+    if "," in spec:
+        for part in spec.split(","):
+            part = part.strip()
+            hid = part if part.startswith("h") else f"h{part}"
+            if hid in _ALL_HANDLERS and hid not in handlers:
+                handlers.append(hid)
+        return handlers
+
+    # Single handler: h8 or 8
+    hid = spec if spec.startswith("h") else f"h{spec}"
+    if hid in _ALL_HANDLERS:
+        return [hid]
+
+    raise click.BadParameter(
+        f"'{spec}' is not a valid handler spec. Use e.g. h1, h8, h1-6, h2,h4,h5.",
+        param_hint="--handlers / -h",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +220,17 @@ def cli(ctx: click.Context) -> None:
     default=None,
     help="Filter candidates to keep only those with specified extension.",
 )
+@click.option(
+    "--handlers",
+    "handler_spec",
+    type=str,
+    default=None,
+    metavar="SPEC",
+    help=(
+        "Restrict which handler layers run. Examples: -h8 (only H8), "
+        "-h1-6 (H1 through H6), -h2,h4,h5. Default: all enabled handlers."
+    ),
+)
 @click.pass_context
 def find(
     ctx: click.Context,
@@ -179,6 +249,7 @@ def find(
     smallest: bool,
     oldest: bool,
     ext: str | None,
+    handler_spec: str | None,
 ) -> None:
     """Search for filesystem paths matching QUERY.
 
@@ -198,6 +269,18 @@ def find(
 
     verbose_final = verbose or config.get("verbose", False)
     exhaustive = config.get("exhaustive", False)
+
+    # --- Handler filtering ---------------------------------------------------
+    if handler_spec is not None:
+        try:
+            selected = _parse_handler_spec(handler_spec)
+        except click.BadParameter as exc:
+            err_console.print(f"[bold red]Invalid handler spec:[/] {exc}")
+            sys.exit(1)
+        # Override the enabled handler list in config
+        config.setdefault("handlers", {})["enabled"] = selected
+        if verbose or config.get("verbose", False):
+            console.print(f"[dim]Handlers:[/] {', '.join(selected)}")
 
     from click.core import ParameterSource
 

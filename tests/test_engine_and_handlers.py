@@ -191,7 +191,10 @@ class TestLLMHandler:
         assert res is not None
         assert res.path == Path("C:/User/Videos")
 
-    @patch("sempath.handlers.h8_llm._check_model_available", side_effect=ValueError("Model 'xyz' not available"))
+    @patch(
+        "sempath.handlers.h8_llm._check_model_available",
+        side_effect=ValueError("Model 'xyz' not available"),
+    )  # noqa: E501
     def test_llm_raises_on_missing_model(self, mock_check, sample_config: dict):
         """H8 propagates ValueError when model is not available — no fallback."""
         handler = LLMHandler(sample_config)
@@ -200,10 +203,11 @@ class TestLLMHandler:
 
         candidates = [Path("C:/User/__MAIN")]
 
-        with patch("click.get_current_context", return_value=ctx):
-            with pytest.raises(ValueError, match="not available"):
-                handler.match_all("main dir", candidates)
-
+        with (
+            patch("click.get_current_context", return_value=ctx),
+            pytest.raises(ValueError, match="not available"),
+        ):
+            handler.match_all("main dir", candidates)
 
 
 class TestInteractiveHandler:
