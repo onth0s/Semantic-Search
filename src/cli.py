@@ -228,6 +228,8 @@ def find(
         sys.exit(0 if search_result.status == "success" else 1)
     else:
         if search_result.status == "success":
+            if search_result.message:
+                console.print(f"[yellow]ℹ {search_result.message}[/]")  # noqa: RUF001
             res = search_result.match
             meta = (
                 f" [dim]({res.handler}, confidence: {res.confidence:.2f})[/]"

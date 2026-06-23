@@ -122,6 +122,10 @@ DEFAULT_CATEGORIES = {
             "wavs",
             "flac",
             "flacs",
+            "song",
+            "songs",
+            "tune",
+            "tunes",
         ],
         "extensions": ["mp3", "wav", "flac", "m4a", "ogg", "aac"],
     },
@@ -346,9 +350,29 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
     # Clean up whitespace runs
     clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
-    # Category matching
+    # Stopword stripping for heuristic search
+    stopwords_set = {
+        "of",
+        "the",
+        "a",
+        "an",
+        "in",
+        "on",
+        "at",
+        "for",
+        "with",
+        "about",
+        "to",
+        "by",
+        "from",
+    }
     import re as regex
 
+    stopwords_re = regex.compile(rf"\b({'|'.join(stopwords_set)})\b", regex.IGNORECASE)
+    clean_query = stopwords_re.sub(" ", clean_query)
+    clean_query = regex.sub(r"\s+", " ", clean_query).strip()
+
+    # Category matching
     import jellyfish
     from rapidfuzz import fuzz
 
@@ -364,12 +388,14 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
     keyword_pairs.sort(key=lambda x: len(x[0]), reverse=True)
 
     matched_categories = set()
+    matched_category_keywords = {}
 
     # 1. Exact token matching
     for kw, cat_name in keyword_pairs:
         pattern = regex.compile(rf"\b{regex.escape(kw)}\b", regex.IGNORECASE)
         if pattern.search(clean_query):
             matched_categories.add(cat_name)
+            matched_category_keywords.setdefault(cat_name, []).append(kw.lower())
             clean_query = pattern.sub(" ", clean_query)
             if verbose:
                 err_console.print(
@@ -390,6 +416,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
             # Exact match check
             if token.lower() == kw.lower():
                 matched_categories.add(cat_name)
+                matched_category_keywords.setdefault(cat_name, []).append(token.lower())
                 pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
                 clean_query = pattern.sub(" ", clean_query)
                 if verbose:
@@ -402,6 +429,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
             r = fuzz.ratio(token.lower(), kw.lower())
             if r >= category_fuzzy_threshold:
                 matched_categories.add(cat_name)
+                matched_category_keywords.setdefault(cat_name, []).append(token.lower())
                 pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
                 clean_query = pattern.sub(" ", clean_query)
                 if verbose:
@@ -422,6 +450,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
                         and fuzz.ratio(token.lower(), kw.lower()) >= 50
                     ):
                         matched_categories.add(cat_name)
+                        matched_category_keywords.setdefault(cat_name, []).append(token.lower())
                         pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
                         clean_query = pattern.sub(" ", clean_query)
                         if verbose:
@@ -453,4 +482,6 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
         "largest": largest,
         "directory_only": directory_only,
         "file_only": file_only,
+        "matched_categories": list(matched_categories),
+        "matched_category_keywords": matched_category_keywords,
     }

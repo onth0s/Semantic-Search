@@ -59,7 +59,7 @@ class SearchEngine:
             # Check for sub-query routing ("<sub_query> on/in <alias>")
             routing_match = re.search(r"^(.*?)\s+(?:on|in)\s+(\S+)\s*$", query, re.IGNORECASE)
             if routing_match:
-                routing_match.group(1).strip()
+                sub_query = routing_match.group(1).strip()
                 alias_name = routing_match.group(2).strip()
 
                 resolved_base_path = alias_handler.fast_resolve(alias_name, search_root)
@@ -73,6 +73,7 @@ class SearchEngine:
                     # Restrict candidate gathering scope to resolved_base_path
                     search_root = resolved_base_path
                     self.config["_current_search_root"] = search_root
+                    query = sub_query
             else:
                 # Check direct alias match
                 resolved_path = alias_handler.fast_resolve(query, search_root)
@@ -176,6 +177,80 @@ class SearchEngine:
                 f"[dim]Remaining candidates after applying filters: {len(filtered_candidates)}[/]"
             )
 
+        # Check if filtered_candidates is empty and we matched a category
+        if not filtered_candidates:
+            msg = "No candidate paths or near-misses matched the query."
+            if heuristics.get("matched_categories"):
+                matched_cats = heuristics["matched_categories"]
+                keywords = heuristics.get("matched_category_keywords", {})
+                if "audio" in matched_cats:
+                    audio_kws = keywords.get("audio", [])
+                    if any(kw in ("song", "songs") for kw in audio_kws):
+                        msg = "No songs found!"
+                    elif any(kw in ("tune", "tunes") for kw in audio_kws):
+                        msg = "No tunes found!"
+                    else:
+                        msg = "No audio files found!"
+                elif "image" in matched_cats:
+                    msg = "No image files found!"
+                elif "document" in matched_cats:
+                    msg = "No documents found!"
+                elif "code" in matched_cats:
+                    msg = "No code files found!"
+                elif "video" in matched_cats:
+                    msg = "No video files found!"
+                elif "archive" in matched_cats:
+                    msg = "No archive files found!"
+                elif "backup_blend" in matched_cats:
+                    msg = "No backup blend files found!"
+            return SearchResult(status="failed", query=query, message=msg)
+
+        # 3b. Check for Directory Content Matching
+        # If a category filter is active and clean_query is not a placeholder/empty
+        if exts_final and clean_query not in ("", ".", "*"):
+            from src.handlers.h3_token_normalized import _normalize_tokens_with_wildcards
+
+            q_tokens = _normalize_tokens_with_wildcards(clean_query)
+            if q_tokens:
+                matching_dirs = []
+                for p in candidates:
+                    if p.is_dir():
+                        p_tokens = _normalize_tokens_with_wildcards(p.name)
+                        if q_tokens.issubset(p_tokens):
+                            matching_dirs.append(p)
+
+                # If we found matching directories, look for category files inside them
+                if matching_dirs:
+                    # Sort matching directories by path depth (shallowest first)
+                    matching_dirs.sort(key=lambda d: len(d.parts))
+
+                    descendants = []
+                    matched_dir = None
+                    for d in matching_dirs:
+                        for fc in filtered_candidates:
+                            try:
+                                fc.relative_to(d)
+                                descendants.append(fc)
+                            except ValueError:
+                                pass
+                        if descendants:
+                            matched_dir = d
+                            break  # Use the first directory that has matching files
+
+                    if descendants:
+                        descendants.sort(key=lambda p: (len(p.parts), p.name.lower()))
+                        match_result = MatchResult(descendants[0], 0.95, "directory_content_match")
+                        near_misses = [
+                            MatchResult(p, 0.95, "directory_content_match") for p in descendants[1:]
+                        ]
+                        return SearchResult(
+                            status="success",
+                            query=query,
+                            match=match_result,
+                            near_misses=near_misses,
+                            message=f"Matching files inside directory: {matched_dir.resolve()}",
+                        )
+
         # 4. Sort candidates
         if latest_final:
 
@@ -262,8 +337,33 @@ class SearchEngine:
                 message="No match found above confidence threshold.",
             )
         else:
+            msg = "No candidate paths or near-misses matched the query."
+            if heuristics.get("matched_categories"):
+                matched_cats = heuristics["matched_categories"]
+                keywords = heuristics.get("matched_category_keywords", {})
+                if "audio" in matched_cats:
+                    audio_kws = keywords.get("audio", [])
+                    if any(kw in ("song", "songs") for kw in audio_kws):
+                        msg = "No songs found!"
+                    elif any(kw in ("tune", "tunes") for kw in audio_kws):
+                        msg = "No tunes found!"
+                    else:
+                        msg = "No audio files found!"
+                elif "image" in matched_cats:
+                    msg = "No image files found!"
+                elif "document" in matched_cats:
+                    msg = "No documents found!"
+                elif "code" in matched_cats:
+                    msg = "No code files found!"
+                elif "video" in matched_cats:
+                    msg = "No video files found!"
+                elif "archive" in matched_cats:
+                    msg = "No archive files found!"
+                elif "backup_blend" in matched_cats:
+                    msg = "No backup blend files found!"
+
             return SearchResult(
                 status="failed",
                 query=query,
-                message="No candidate paths or near-misses matched the query.",
+                message=msg,
             )

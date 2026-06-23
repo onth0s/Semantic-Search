@@ -24,14 +24,16 @@ class EmbeddingHandler(BaseHandler):
     name: str = "h7_embedding"
     _model = None
 
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
-        """Attempt a semantic embedding match against candidate basenames."""
+    def _compute_similarities(
+        self, query: str, candidates: list[Path]
+    ) -> list[tuple[Path, float]] | None:
+        """Compute cosine similarity between query and candidate stems."""
         if not query or not candidates:
             return None
 
         # Check interactive mode
         ctx = click.get_current_context(silent=True)
-        non_interactive = False
+        non_interactive = True
         if ctx:
             non_interactive = ctx.obj.get("non_interactive", False)
 
@@ -100,12 +102,38 @@ class EmbeddingHandler(BaseHandler):
             # Compute cosine similarities
             cosine_scores = util.cos_sim(query_emb, candidate_embs)[0]
 
-            # Find the best match
-            best_idx = int(cosine_scores.argmax())
-            best_score = float(cosine_scores[best_idx])
+            results = []
+            for i, p in enumerate(candidates):
+                score = float(cosine_scores[i])
+                results.append((p, score))
+            return results
 
-            return MatchResult(candidates[best_idx], best_score, self.name)
         except Exception as exc:
             if ctx and ctx.obj.get("verbose"):
                 err_console.print(f"[dim]Embedding match failed: {exc}[/]")
             return None
+
+    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
+        """Attempt a semantic embedding match against candidate basenames."""
+        results = self._compute_similarities(query, candidates)
+        if not results:
+            return None
+        # Find the best match
+        best_candidate, best_score = max(results, key=lambda x: x[1])
+        if best_score < 0.5:
+            return None
+        return MatchResult(best_candidate, best_score, self.name)
+
+    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+        """Attempt to match the query and return all matches >= 0.5 similarity."""
+        results = self._compute_similarities(query, candidates)
+        if not results:
+            return []
+
+        matches = []
+        for p, score in results:
+            if score >= 0.5:
+                matches.append(MatchResult(p, score, self.name))
+
+        matches.sort(key=lambda m: -m.confidence)
+        return matches

@@ -30,7 +30,7 @@ def test_extract_heuristics_temporal():
 def test_extract_heuristics_type():
     """extract_heuristics extracts file extension constraints."""
     res = extract_heuristics("pics on Desktop")
-    assert res["clean_query"] == "on Desktop"
+    assert res["clean_query"] == "Desktop"
     assert "png" in res["extensions"]
     assert "jpg" in res["extensions"]
 
@@ -42,7 +42,7 @@ def test_extract_heuristics_type():
 def test_extract_heuristics_latest():
     """extract_heuristics detects 'latest' or 'newest' keywords."""
     res = extract_heuristics("latest doc on Desktop")
-    assert res["clean_query"] == "on Desktop"
+    assert res["clean_query"] == "Desktop"
     assert res["latest"] is True
     assert "pdf" in res["extensions"]
 
@@ -50,7 +50,7 @@ def test_extract_heuristics_latest():
 def test_extract_heuristics_directory_file():
     """extract_heuristics detects folder, dir, and file keywords."""
     res = extract_heuristics("important folder on Desktop")
-    assert res["clean_query"] == "important on Desktop"
+    assert res["clean_query"] == "important Desktop"
     assert res["directory_only"] is True
     assert res["file_only"] is False
 
@@ -63,18 +63,18 @@ def test_extract_heuristics_categories():
     """extract_heuristics extracts extensions from category keywords and strips them."""
     # 1. Exact match
     res = extract_heuristics("pics on Desktop")
-    assert res["clean_query"] == "on Desktop"
+    assert res["clean_query"] == "Desktop"
     assert "png" in res["extensions"]
     assert "jpg" in res["extensions"]
 
     # 2. Fuzzy match (pics -> picts has ratio 88.9 -> match)
     res = extract_heuristics("picts on Desktop")
-    assert res["clean_query"] == "on Desktop"
+    assert res["clean_query"] == "Desktop"
     assert "png" in res["extensions"]
 
     # 3. Phonetic match (pics -> piks: jellyfish metaphone match PK)
     res = extract_heuristics("piks on Desktop")
-    assert res["clean_query"] == "on Desktop"
+    assert res["clean_query"] == "Desktop"
     assert "png" in res["extensions"]
 
     # 4. Custom threshold (category_fuzzy_threshold = 50, so pics -> pci matches)
@@ -85,7 +85,7 @@ def test_extract_heuristics_categories():
         }
     }
     res = extract_heuristics("pci on Desktop", config)
-    assert res["clean_query"] == "on Desktop"
+    assert res["clean_query"] == "Desktop"
     assert "png" in res["extensions"]
 
 
@@ -110,3 +110,30 @@ def test_translate_wildcards():
 
     # notes*
     assert translate_wildcards("notes*") == "a file starting with 'notes'"
+
+
+def test_extract_heuristics_stopword_stripping():
+    """Test that extract_heuristics strips common stopwords like 'of', 'the', 'a', etc."""
+    res = extract_heuristics("pics of akira")
+    # 'pics' is category keyword (stripped), 'of' is stopword (stripped), leaving 'akira'
+    assert res["clean_query"] == "akira"
+    assert "png" in res["extensions"]
+
+    res = extract_heuristics("the song on Desktop")
+    # 'the' is stopword, 'song' is category keyword, 'on' is stopword
+    assert res["clean_query"] == "Desktop"
+    assert "mp3" in res["extensions"]
+
+
+def test_extract_heuristics_audio_songs():
+    """Test that extract_heuristics identifies songs/tunes as audio category keywords."""
+    res = extract_heuristics("songs")
+    assert res["clean_query"] == ""
+    assert "audio" in res["matched_categories"]
+    assert "songs" in res["matched_category_keywords"]["audio"]
+    assert "mp3" in res["extensions"]
+
+    res = extract_heuristics("tunes")
+    assert res["clean_query"] == ""
+    assert "audio" in res["matched_categories"]
+    assert "tunes" in res["matched_category_keywords"]["audio"]

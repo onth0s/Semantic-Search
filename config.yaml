@@ -37,7 +37,7 @@ heuristics:
       keywords: [code, script, scripts, source, py, python, js, javascript, ts, typescript, html, css, json, yaml, yml, toml]
       extensions: [py, js, ts, html, css, json, yaml, yml, toml, sh, bat, ps1, rs, go, cpp, c, h]
     audio:
-      keywords: [audio, audios, sound, sounds, music, mp3, mp3s, wav, wavs, flac, flacs]
+      keywords: [audio, audios, sound, sounds, music, mp3, mp3s, wav, wavs, flac, flacs, song, songs, tune, tunes]
       extensions: [mp3, wav, flac, m4a, ogg, aac]
     video:
       keywords: [video, videos, vid, vids, movie, movies, film, films, mp4, mp4s, mkv, mkvs, avi, avis, mov, movs]
