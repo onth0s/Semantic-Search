@@ -1,6 +1,12 @@
 """Shared pytest fixtures for the sempath test suite."""
 
+import os
+import tempfile
 from pathlib import Path
+
+# Isolate APPDATA during tests to avoid cache/config leakage from/to the host machine
+_temp_appdata = tempfile.TemporaryDirectory()
+os.environ["APPDATA"] = _temp_appdata.name
 
 import pytest
 import yaml

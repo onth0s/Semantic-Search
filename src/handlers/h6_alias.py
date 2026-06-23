@@ -71,8 +71,98 @@ class AliasHandler(BaseHandler):
 
         return False
 
+    def fast_resolve(self, alias_name: str, search_root: Path) -> Path | None:
+        """Fast resolve an alias name to a Path by checking learned and config aliases.
+
+        Does not require a list of candidates. Uses BFS on search_root up to depth 5 for config aliases.
+        """
+        # 1. Check learned aliases
+        from src.utils.memory import load_memory
+
+        entries = load_memory()
+        for entry in entries:
+            if self._matches_key(alias_name, entry.get("query", "")):
+                p = Path(entry["path"])
+                if p.exists():
+                    try:
+                        if p.is_relative_to(search_root) or p == search_root:
+                            return p
+                    except ValueError:
+                        pass
+
+        # 2. Check config aliases
+        aliases = self.config.get("aliases", {})
+        import fnmatch
+        import os
+        for key, targets in aliases.items():
+            if self._matches_key(alias_name, key) or any(self._matches_key(alias_name, target) for target in targets):
+                # We found a matching config alias!
+                # We check the search_root itself first
+                search_root = Path(search_root).resolve()
+                for target in targets:
+                    target_lower = target.lower()
+                    if "*" in target or "?" in target:
+                        if fnmatch.fnmatch(search_root.name.lower(), target_lower) or fnmatch.fnmatch(search_root.stem.lower(), target_lower):
+                            return search_root
+                    else:
+                        if search_root.name.lower() == target_lower or search_root.stem.lower() == target_lower:
+                            return search_root
+
+                # BFS search under search_root
+                exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
+                queue = [search_root]
+                for level in range(5):
+                    next_queue = []
+                    matched_paths = []
+                    for current_dir in queue:
+                        try:
+                            for entry in os.scandir(current_dir):
+                                if entry.name.startswith(".") or entry.name in exclude_patterns:
+                                    continue
+
+                                entry_name_lower = entry.name.lower()
+                                matched_target = False
+                                for target in targets:
+                                    target_lower = target.lower()
+                                    if "*" in target or "?" in target:
+                                        stem = Path(entry.name).stem.lower()
+                                        if fnmatch.fnmatch(entry_name_lower, target_lower) or fnmatch.fnmatch(stem, target_lower):
+                                            matched_target = True
+                                            break
+                                    else:
+                                        stem = Path(entry.name).stem.lower()
+                                        if entry_name_lower == target_lower or stem == target_lower:
+                                            matched_target = True
+                                            break
+
+                                if matched_target:
+                                    matched_paths.append(Path(entry.path))
+
+                                if entry.is_dir(follow_symlinks=False):
+                                    next_queue.append(Path(entry.path))
+                        except Exception:
+                            pass
+
+                    if matched_paths:
+                        return min(matched_paths, key=lambda p: len(p.parts))
+
+                    queue = next_queue
+        return None
+
     def _resolve_alias_path(self, alias_name: str, candidates: list[Path]) -> Path | None:
         """Resolve an alias name to a Path by checking learned and config aliases."""
+        # 1. Try fast resolve if click context is available
+        import click
+        ctx = click.get_current_context(silent=True)
+        search_root = ctx.obj.get("root") if ctx else None
+        if not search_root:
+            search_root = self.config.get("_current_search_root")
+        if search_root:
+            res = self.fast_resolve(alias_name, Path(search_root))
+            if res:
+                return res
+
+        # Fallback to candidates-based resolution
         # 1. Check learned aliases
         from src.utils.memory import load_memory
 
@@ -212,7 +302,19 @@ class AliasHandler(BaseHandler):
                 # Fallback to returning the base path itself if no sub-query files match
                 return MatchResult(resolved_base_path, 0.95, self.name)
 
-        # 2. Check direct learned memory match
+        # 2. Try fast resolve for direct match if click context is available
+        import click
+        ctx = click.get_current_context(silent=True)
+        search_root = ctx.obj.get("root") if ctx else None
+        if not search_root:
+            search_root = self.config.get("_current_search_root")
+        if search_root:
+            resolved = self.fast_resolve(query, Path(search_root))
+            if resolved:
+                return MatchResult(resolved, 0.95, self.name)
+
+        # 3. Fallback to direct candidate-based matching (e.g. for testing)
+        # 3.1 Check direct learned memory match
         from src.utils.memory import load_memory
 
         entries = load_memory()
@@ -221,7 +323,7 @@ class AliasHandler(BaseHandler):
                 p = Path(entry["path"])
                 return MatchResult(p, 0.95, self.name)
 
-        # 3. Check direct config alias match
+        # 3.2 Check direct config alias match
         aliases = self.config.get("aliases", {})
         import fnmatch
         for key, targets in aliases.items():

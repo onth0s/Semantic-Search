@@ -45,6 +45,39 @@ class SearchEngine:
     ) -> SearchResult:
         """Search for paths matching the query under root_dir."""
         search_root = Path(root_dir).resolve()
+        self.config["_current_search_root"] = search_root
+
+        # Early-bypass check for alias matching
+        enabled_handlers = self.config.get("handlers", {}).get("enabled", [])
+        if "h6" in enabled_handlers:
+            from src.handlers.h6_alias import AliasHandler
+            import re
+
+            alias_handler = AliasHandler(self.config)
+
+            # Check for sub-query routing ("<sub_query> on/in <alias>")
+            routing_match = re.search(r"^(.*?)\s+(?:on|in)\s+(\S+)\s*$", query, re.IGNORECASE)
+            if routing_match:
+                sub_query = routing_match.group(1).strip()
+                alias_name = routing_match.group(2).strip()
+
+                resolved_base_path = alias_handler.fast_resolve(alias_name, search_root)
+                if resolved_base_path:
+                    if verbose:
+                        from src.utils.console import err_console
+                        err_console.print(f"[dim]Fast-resolved routing alias '{alias_name}' to '{resolved_base_path}'[/]")
+                    # Restrict candidate gathering scope to resolved_base_path
+                    search_root = resolved_base_path
+                    self.config["_current_search_root"] = search_root
+            else:
+                # Check direct alias match
+                resolved_path = alias_handler.fast_resolve(query, search_root)
+                if resolved_path:
+                    if verbose:
+                        from src.utils.console import err_console
+                        err_console.print(f"[dim]Fast-resolved direct alias '{query}' to '{resolved_path}'[/]")
+                    match_result = MatchResult(resolved_path, 0.95, "h6_alias")
+                    return SearchResult(status="success", query=query, match=match_result)
 
         # 1. Gather candidates (SQLite index vs on-the-fly)
         exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
