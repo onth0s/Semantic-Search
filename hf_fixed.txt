@@ -1,0 +1,240 @@
+
+COMMAND: __main__.py
+====================
+                                                                               
+ Usage: __main__.py [OPTIONS] COMMAND [ARGS]...                                
+                                                                               
+ sempath — find filesystem paths by vague, colloquial, fuzzy, or wildcard      
+ descriptions.                                                                 
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --version    Show the version and exit.                                     │
+│ --help-full  Show comprehensive help for every command and subcommand, then │
+│              exit.                                                          │
+│ --help       Show this message and exit.                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌─ Commands ──────────────────────────────────────────────────────────────────┐
+│ alias             Manage path aliases and learned mappings.                 │
+│ config            Manage the persistent configuration settings.             │
+│ export-memory     Export learned aliases and memory to FILE_PATH.           │
+│ find              Search for filesystem paths matching QUERY.               │
+│ import-memory     Import learned aliases and memory from FILE_PATH.         │
+│ index             Manage the persistent path index.                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py alias
+==========================
+                                                                               
+ Usage: __main__.py alias [OPTIONS] COMMAND [ARGS]...                          
+                                                                               
+ Manage path aliases and learned mappings.                                     
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌─ Commands ──────────────────────────────────────────────────────────────────┐
+│ add       Add a new alias NAME pointing to PATH.                            │
+│ clear     Clear all learned aliases.                                        │
+│ list      List all configured and learned aliases.                          │
+│ remove    Remove alias NAME.                                                │
+│ undo      Undo the last learned alias (chronological undo stack).           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py alias add
+==============================
+                                                                               
+ Usage: __main__.py alias add [OPTIONS] NAME PATH                              
+                                                                               
+ Add a new alias NAME pointing to PATH.                                        
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py alias clear
+================================
+                                                                               
+ Usage: __main__.py alias clear [OPTIONS]                                      
+                                                                               
+ Clear all learned aliases.                                                    
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py alias list
+===============================
+                                                                               
+ Usage: __main__.py alias list [OPTIONS]                                       
+                                                                               
+ List all configured and learned aliases.                                      
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py alias remove
+=================================
+                                                                               
+ Usage: __main__.py alias remove [OPTIONS] NAME                                
+                                                                               
+ Remove alias NAME.                                                            
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py alias undo
+===============================
+                                                                               
+ Usage: __main__.py alias undo [OPTIONS]                                       
+                                                                               
+ Undo the last learned alias (chronological undo stack).                       
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py config
+===========================
+                                                                               
+ Usage: __main__.py config [OPTIONS] COMMAND [ARGS]...                         
+                                                                               
+ Manage the persistent configuration settings.                                 
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌─ Commands ──────────────────────────────────────────────────────────────────┐
+│ verbose      Enable or disable verbose output globally.                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py config verbose
+===================================
+                                                                               
+ Usage: __main__.py config verbose [OPTIONS] {on|off|true|false}               
+                                                                               
+ Enable or disable verbose output globally.                                    
+ Usage:                                                                        
+ sempath config verbose on                                                     
+ sempath config verbose off                                                    
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py export-memory
+==================================
+                                                                               
+ Usage: __main__.py export-memory [OPTIONS] FILE_PATH                          
+                                                                               
+ Export learned aliases and memory to FILE_PATH.                               
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py find
+=========================
+                                                                               
+ Usage: __main__.py find [OPTIONS] QUERY [ROOT_DIR]                            
+                                                                               
+ Search for filesystem paths matching QUERY.                                   
+ QUERY is a vague, colloquial, fuzzy, or wildcard-based (e.g. *.txt)           
+ description of the path you're looking for. Supports configured category      
+ keyword tags (e.g. docs, pics) exact, fuzzy, and phonetic matching.           
+ ROOT_DIR (default: current directory) is the starting point for the search.   
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --root             PATH     Root directory to search (overrides ROOT_DIR    │
+│                             argument).                                      │
+│ --depth            INTEGER  Maximum folder depth to traverse. [default: 5]  │
+│ --min-confidence   FLOAT    Minimum confidence score (0.0-1.0) to return a  │
+│                             match. [default: 0.3]                           │
+│ --top-n            INTEGER  Number of results to return. [default: 5]       │
+│ --non-interactive           Disable interactive fallback (H9).              │
+│ --no-index                  Force on-the-fly traversal scan.                │
+│ --json                      Output structured JSON instead of styled text.  │
+│ --verbose                   Enable detailed under-the-hood diagnostics,     │
+│                             category matching, and handler execution logs.  │
+│ --latest                    Sort matches to return the newest path.         │
+│ --largest                   Sort matches to return the largest file.        │
+│ --ext              TEXT     Filter candidates to keep only those with       │
+│                             specified extension.                            │
+│ --help                      Show this message and exit.                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py import-memory
+==================================
+                                                                               
+ Usage: __main__.py import-memory [OPTIONS] FILE_PATH                          
+                                                                               
+ Import learned aliases and memory from FILE_PATH.                             
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py index
+==========================
+                                                                               
+ Usage: __main__.py index [OPTIONS] COMMAND [ARGS]...                          
+                                                                               
+ Manage the persistent path index.                                             
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌─ Commands ──────────────────────────────────────────────────────────────────┐
+│ create     Build a new index for PATH.                                      │
+│ list       List all indexed paths.                                          │
+│ remove     Remove the persistent index for PATH or clear ALL.               │
+│ update     Incrementally update the index for PATH.                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py index create
+=================================
+                                                                               
+ Usage: __main__.py index create [OPTIONS] [PATH]                              
+                                                                               
+ Build a new index for PATH.                                                   
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --depth  INTEGER  Maximum folder depth to traverse.                         │
+│ --help            Show this message and exit.                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py index list
+===============================
+                                                                               
+ Usage: __main__.py index list [OPTIONS]                                       
+                                                                               
+ List all indexed paths.                                                       
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py index remove
+=================================
+                                                                               
+ Usage: __main__.py index remove [OPTIONS] [PATH]                              
+                                                                               
+ Remove the persistent index for PATH or clear ALL.                            
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --all   Clear the entire index database.                                    │
+│ --help  Show this message and exit.                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMAND: __main__.py index update
+=================================
+                                                                               
+ Usage: __main__.py index update [OPTIONS] [PATH]                              
+                                                                               
+ Incrementally update the index for PATH.                                      
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --depth  INTEGER  Maximum folder depth to traverse.                         │
+│ --help            Show this message and exit.                               │
+└─────────────────────────────────────────────────────────────────────────────┘

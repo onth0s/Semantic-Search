@@ -131,6 +131,7 @@ sempath alias list
 sempath alias remove NAME
 sempath alias clear
 sempath alias undo
+sempath config verbose VALUE
 sempath export-memory FILE_PATH
 sempath import-memory FILE_PATH
 ```
@@ -231,6 +232,13 @@ Failure:
 
 Bundled defaults live in `config.yaml`; user config at
 `%APPDATA%\sempath\config.yaml` is deep-merged over those defaults.
+
+### CLI Verbose Command
+You can persistently toggle verbose logging via the CLI command:
+```bash
+sempath config verbose [on|off|true|false]
+```
+This saves the configuration locally under `%APPDATA%\sempath\config.yaml` to override any system/package defaults.
 
 ```yaml
 handlers:
