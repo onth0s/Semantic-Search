@@ -33,9 +33,41 @@ from src.config import load_config
 from src.utils.console import console, err_console
 
 # ---------------------------------------------------------------------------
+def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> None:
+    """Callback to print comprehensive help for all commands and subcommands recursively."""
+    if not value or ctx.resilient_parsing:
+        return
+
+    def _print_command_help(cmd: click.Command, parent_ctx: click.Context, prefix_args: list[str]) -> None:
+        cmd_ctx = cmd.context_class(cmd, parent=parent_ctx, info_name=" ".join(prefix_args))
+
+        full_name = " ".join(prefix_args)
+        console.print(f"\n[bold green]COMMAND: {full_name}[/]")
+        console.print("=" * (len(full_name) + 9))
+        console.print(cmd.get_help(cmd_ctx))
+
+        if isinstance(cmd, click.Group):
+            sub_names = sorted(cmd.list_commands(cmd_ctx))
+            for name in sub_names:
+                sub_cmd = cmd.get_command(cmd_ctx, name)
+                if sub_cmd:
+                    _print_command_help(sub_cmd, cmd_ctx, prefix_args + [name])
+
+    _print_command_help(ctx.command, ctx, [ctx.info_name])
+    ctx.exit()
+
+
 # CLI group
 @rich_click.group()
 @rich_click.version_option(__version__, prog_name="sempath")
+@click.option(
+    "--help-full",
+    is_flag=True,
+    is_eager=True,
+    expose_value=False,
+    callback=print_full_help,
+    help="Show comprehensive help for every command and subcommand, then exit.",
+)
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """sempath — find filesystem paths by vague, colloquial, fuzzy, or wildcard descriptions."""

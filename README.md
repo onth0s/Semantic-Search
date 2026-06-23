@@ -109,6 +109,17 @@ handlers:
 
 ## CLI
 
+To view standard help and the main options, run:
+```bash
+sempath --help
+```
+
+To view comprehensive help showing all options, arguments, and descriptions for **every possible command and subcommand** recursively, run:
+```bash
+sempath --help-full
+```
+
+### Usage
 ```bash
 sempath find [OPTIONS] QUERY [ROOT_DIR]
 sempath index create [OPTIONS] [PATH]
