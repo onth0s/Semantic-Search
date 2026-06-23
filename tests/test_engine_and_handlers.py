@@ -120,7 +120,7 @@ class TestEmbeddingHandler:
         # Mock cosine similarity return (highest score for second candidate)
         mock_scores = MagicMock()
         mock_scores.argmax.return_value = 1
-        mock_scores.__getitem__.side_effect = lambda idx: [0.1, 0.95][idx]
+        mock_scores.__getitem__.side_effect = lambda idx: [0.1, 0.95, 0.1, 0.95][idx]
 
         mock_cos_sim = MagicMock()
         mock_cos_sim.__getitem__.return_value = mock_scores

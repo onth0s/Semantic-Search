@@ -87,19 +87,22 @@ class EmbeddingHandler(BaseHandler):
                 err_console.print(f"[bold red]Error loading embedding model:[/] {exc}")
                 return None
 
-        # Embed relative path from search root so parent folder names contribute
-        # e.g. "3D-to-reGEN-to-VID/Katsuragi Misato" instead of just "Misato"
+        # We embed both:
+        # 1. The relative path from search root (giving parent folder context)
+        # 2. The stem alone (preserving high similarity matches for target names without dilution)
         ctx = click.get_current_context(silent=True)
         search_root = ctx.obj.get("root", Path(".")) if ctx else Path(".")
 
-        def _candidate_text(p: Path) -> str:
+        def _candidate_rel_text(p: Path) -> str:
             try:
                 rel = p.relative_to(search_root)
             except ValueError:
                 rel = p
             return re.sub(r"[\\/._\-]+", " ", str(rel)).strip()
 
-        candidate_texts = [_candidate_text(p) for p in candidates]
+        rel_texts = [_candidate_rel_text(p) for p in candidates]
+        stem_texts = [p.stem for p in candidates]
+
         try:
             from sempath.heuristics import translate_wildcards
 
@@ -107,17 +110,23 @@ class EmbeddingHandler(BaseHandler):
             query_emb = self._model.encode(
                 translated_query, convert_to_tensor=True, show_progress_bar=False
             )
-            candidate_embs = self._model.encode(
-                candidate_texts, convert_to_tensor=True, show_progress_bar=False
+
+            # Encode all candidate texts (both relative paths and stems) in one batch
+            combined_texts = rel_texts + stem_texts
+            combined_embs = self._model.encode(
+                combined_texts, convert_to_tensor=True, show_progress_bar=False
             )
 
-            # Compute cosine similarities
-            cosine_scores = util.cos_sim(query_emb, candidate_embs)[0]
+            # Compute similarities
+            scores = util.cos_sim(query_emb, combined_embs)[0]
 
             results = []
+            num_candidates = len(candidates)
             for i, p in enumerate(candidates):
-                score = float(cosine_scores[i])
-                results.append((p, score))
+                score_rel = float(scores[i])
+                score_stem = float(scores[num_candidates + i])
+                # Take the max score to keep the best of both folder context and bare name
+                results.append((p, max(score_rel, score_stem)))
             return results
 
         except Exception as exc:
