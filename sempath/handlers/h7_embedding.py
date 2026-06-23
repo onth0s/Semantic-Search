@@ -107,8 +107,17 @@ class EmbeddingHandler(BaseHandler):
             from sempath.heuristics import translate_wildcards
 
             translated_query = translate_wildcards(query)
+            # BAAI/bge models require a query instruction prefix to score
+            # correctly in asymmetric search.
+            if "bge" in model_name.lower():
+                emb_query = (
+                    f"Represent this sentence for searching relevant passages: {translated_query}"
+                )
+            else:
+                emb_query = translated_query
+
             query_emb = self._model.encode(
-                translated_query, convert_to_tensor=True, show_progress_bar=False
+                emb_query, convert_to_tensor=True, show_progress_bar=False
             )
 
             # Encode all candidate texts (both relative paths and stems) in one batch
