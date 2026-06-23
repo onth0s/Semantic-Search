@@ -7,171 +7,11 @@ canonical filter parameters and a cleaned search string.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from datetime import timedelta
 
-# Default categories configuration mirroring config.yaml
-DEFAULT_CATEGORIES = {
-    "image": {
-        "keywords": [
-            "pic",
-            "pics",
-            "picture",
-            "pictures",
-            "photo",
-            "photos",
-            "image",
-            "images",
-            "img",
-            "imgs",
-            "png",
-            "pngs",
-            "jpg",
-            "jpgs",
-            "jpeg",
-            "jpegs",
-            "webp",
-            "gif",
-            "gifs",
-            "bmp",
-            "bmps",
-        ],
-        "extensions": ["png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "ico", "svg"],
-    },
-    "document": {
-        "keywords": [
-            "doc",
-            "docs",
-            "document",
-            "documents",
-            "pdf",
-            "pdfs",
-            "text",
-            "txt",
-            "txts",
-            "csv",
-            "csvs",
-            "md",
-            "markdown",
-            "markdowns",
-        ],
-        "extensions": [
-            "pdf",
-            "docx",
-            "doc",
-            "txt",
-            "rtf",
-            "odt",
-            "xls",
-            "xlsx",
-            "ppt",
-            "pptx",
-            "csv",
-            "md",
-            "markdown",
-        ],
-    },
-    "code": {
-        "keywords": [
-            "code",
-            "script",
-            "scripts",
-            "source",
-            "py",
-            "python",
-            "js",
-            "javascript",
-            "ts",
-            "typescript",
-            "html",
-            "css",
-            "json",
-            "yaml",
-            "yml",
-            "toml",
-        ],
-        "extensions": [
-            "py",
-            "js",
-            "ts",
-            "html",
-            "css",
-            "json",
-            "yaml",
-            "yml",
-            "toml",
-            "sh",
-            "bat",
-            "ps1",
-            "rs",
-            "go",
-            "cpp",
-            "c",
-            "h",
-        ],
-    },
-    "audio": {
-        "keywords": [
-            "audio",
-            "audios",
-            "sound",
-            "sounds",
-            "music",
-            "mp3",
-            "mp3s",
-            "wav",
-            "wavs",
-            "flac",
-            "flacs",
-            "song",
-            "songs",
-            "tune",
-            "tunes",
-        ],
-        "extensions": ["mp3", "wav", "flac", "m4a", "ogg", "aac"],
-    },
-    "video": {
-        "keywords": [
-            "video",
-            "videos",
-            "vid",
-            "vids",
-            "movie",
-            "movies",
-            "film",
-            "films",
-            "mp4",
-            "mp4s",
-            "mkv",
-            "mkvs",
-            "avi",
-            "avis",
-            "mov",
-            "movs",
-        ],
-        "extensions": ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"],
-    },
-    "archive": {
-        "keywords": [
-            "archive",
-            "archives",
-            "compressed",
-            "compression",
-            "zip",
-            "zips",
-            "rar",
-            "rars",
-            "7z",
-            "7zs",
-            "tar",
-            "tars",
-        ],
-        "extensions": ["zip", "rar", "tar", "gz", "7z", "tgz"],
-    },
-    "backup_blend": {
-        "keywords": ["blend1", "blend1s", "backup", "backups"],
-        "extensions": ["blend*"],
-    },
-}
+import jellyfish
+from rapidfuzz import fuzz
 
 # Regexes
 TEMPORAL_RE = re.compile(
@@ -256,22 +96,29 @@ def translate_wildcards(query: str) -> str:
         translated = result
 
     # Log translation details
-    import click
+    from sempath.utils.logging import verbose_log
 
-    ctx = click.get_current_context(silent=True)
-    verbose = ctx.obj.get("verbose", False) if ctx else False
-    if verbose:
-        from src.utils.console import err_console
-
-        err_console.print(
-            f"[dim]Wildcard translation: '[bold cyan]{query}[/]' -> "
-            f"'[bold yellow]{translated}[/]'[/]"
-        )
+    verbose_log(
+        f"[dim]Wildcard translation: '[bold cyan]{query}[/]' -> '[bold yellow]{translated}[/]'[/]"
+    )
 
     return translated
 
 
-def extract_heuristics(query: str, config: dict | None = None) -> dict:
+@dataclass
+class HeuristicsResult:
+    clean_query: str
+    extensions: list[str] | None = None
+    age_limit: int | None = None
+    directory_only: bool = False
+    file_only: bool = False
+    latest: bool = False
+    largest: bool = False
+    matched_categories: list[str] = field(default_factory=list)
+    matched_category_keywords: dict[str, list[str]] = field(default_factory=dict)
+
+
+def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResult:
     """Extract temporal, type, ordering, size, and directory/file intents from query.
 
     Returns:
@@ -283,6 +130,8 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
             - 'largest': boolean indicating if 'largest'/'biggest' was requested.
             - 'directory_only': boolean indicating if query is looking for a directory.
             - 'file_only': boolean indicating if query is looking for a file.
+            - 'matched_categories': list of matched categories.
+            - 'matched_category_keywords': dict of matched category keywords.
     """
     clean_query = query
     modified_within_seconds = None
@@ -294,23 +143,23 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
 
     # Load categories config
     if config is None:
-        from src.config import load_config
+        from sempath.config import load_config
 
         try:
             config = load_config()
         except Exception:
             config = {}
 
-    categories = config.get("heuristics", {}).get("categories", DEFAULT_CATEGORIES)
+    from sempath.config import DEFAULT_CONFIG
+
+    default_categories = DEFAULT_CONFIG.get("heuristics", {}).get("categories", {})
+    categories = config.get("heuristics", {}).get("categories", default_categories)
     category_fuzzy_threshold = config.get("heuristics", {}).get("category_fuzzy_threshold")
     if category_fuzzy_threshold is None:
         # Default to 80 to prevent false matches (e.g. song -> json at 75)
         category_fuzzy_threshold = 80
 
-    import click
-
-    ctx = click.get_current_context(silent=True)
-    verbose = ctx.obj.get("verbose", False) if ctx else False
+    from sempath.utils.logging import verbose_log
 
     # Temporal match
     temp_match = TEMPORAL_RE.search(clean_query)
@@ -368,17 +217,11 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
         "by",
         "from",
     }
-    import re as regex
-
-    stopwords_re = regex.compile(rf"\b({'|'.join(stopwords_set)})\b", regex.IGNORECASE)
+    stopwords_re = re.compile(rf"\b({'|'.join(stopwords_set)})\b", re.IGNORECASE)
     clean_query = stopwords_re.sub(" ", clean_query)
-    clean_query = regex.sub(r"\s+", " ", clean_query).strip()
+    clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
     # Category matching
-    import jellyfish
-    from rapidfuzz import fuzz
-
-    from src.utils.console import err_console
 
     # Sort keywords by length in descending order
     keyword_pairs = []
@@ -394,19 +237,18 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
 
     # 1. Exact token matching
     for kw, cat_name in keyword_pairs:
-        pattern = regex.compile(rf"\b{regex.escape(kw)}\b", regex.IGNORECASE)
+        pattern = re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE)
         if pattern.search(clean_query):
             matched_categories.add(cat_name)
             matched_category_keywords.setdefault(cat_name, []).append(kw.lower())
             clean_query = pattern.sub(" ", clean_query)
-            if verbose:
-                err_console.print(
-                    f"[dim]Exact category match: [bold cyan]{kw}[/] "
-                    f"in query matches category [bold green]{cat_name}[/].[/]"
-                )
+            verbose_log(
+                f"[dim]Exact category match: [bold cyan]{kw}[/] "
+                f"in query matches category [bold green]{cat_name}[/].[/]"
+            )
 
     # 2. Fuzzy and phonetic matching on remaining tokens
-    tokens_to_check = regex.findall(r"\b[a-zA-Z0-9_-]+\b", clean_query)
+    tokens_to_check = re.findall(r"\b[a-zA-Z0-9_-]+\b", clean_query)
     for token in tokens_to_check:
         if len(token) < 3:
             continue
@@ -420,14 +262,13 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
             if token.lower() == kw.lower():
                 matched_categories.add(cat_name)
                 matched_category_keywords.setdefault(cat_name, []).append(token.lower())
-                pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
+                pattern = re.compile(rf"\b{re.escape(token)}\b", re.IGNORECASE)
                 clean_query = pattern.sub(" ", clean_query)
-                if verbose:
-                    err_console.print(
-                        f"[dim]Exact category match (token): [bold cyan]{token}[/] "
-                        f"matches keyword [bold cyan]{kw}[/] in category "
-                        f"[bold green]{cat_name}[/].[/]"
-                    )
+                verbose_log(
+                    f"[dim]Exact category match (token): [bold cyan]{token}[/] "
+                    f"matches keyword [bold cyan]{kw}[/] in category "
+                    f"[bold green]{cat_name}[/].[/]"
+                )
                 break
 
             # Fuzzy check (only if keyword >= 4 chars and token >= 4 chars, unless threshold < 70)
@@ -436,14 +277,13 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
                 if r >= category_fuzzy_threshold:
                     matched_categories.add(cat_name)
                     matched_category_keywords.setdefault(cat_name, []).append(token.lower())
-                    pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
+                    pattern = re.compile(rf"\b{re.escape(token)}\b", re.IGNORECASE)
                     clean_query = pattern.sub(" ", clean_query)
-                    if verbose:
-                        err_console.print(
-                            f"[dim]Fuzzy category match: token [bold cyan]{token}[/] "
-                            f"matches keyword [bold cyan]{kw}[/] (ratio: {r:.1f} >= "
-                            f"{category_fuzzy_threshold}) in category [bold green]{cat_name}[/].[/]"
-                        )
+                    verbose_log(
+                        f"[dim]Fuzzy category match: token [bold cyan]{token}[/] "
+                        f"matches keyword [bold cyan]{kw}[/] (ratio: {r:.1f} >= "
+                        f"{category_fuzzy_threshold}) in category [bold green]{cat_name}[/].[/]"
+                    )
                     break
 
             # Phonetic check (only if keyword >= 4 chars, token >= 4 chars, and both alphabetic)
@@ -459,15 +299,14 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
                     ):
                         matched_categories.add(cat_name)
                         matched_category_keywords.setdefault(cat_name, []).append(token.lower())
-                        pattern = regex.compile(rf"\b{regex.escape(token)}\b", regex.IGNORECASE)
+                        pattern = re.compile(rf"\b{re.escape(token)}\b", re.IGNORECASE)
                         clean_query = pattern.sub(" ", clean_query)
-                        if verbose:
-                            err_console.print(
-                                f"[dim]Phonetic category match: token [bold cyan]{token}[/] "
-                                f"matches keyword [bold cyan]{kw}[/] phonetically "
-                                f"(Metaphone: {code_token}) in category "
-                                f"[bold green]{cat_name}[/].[/]"
-                            )
+                        verbose_log(
+                            f"[dim]Phonetic category match: token [bold cyan]{token}[/] "
+                            f"matches keyword [bold cyan]{kw}[/] phonetically "
+                            f"(Metaphone: {code_token}) in category "
+                            f"[bold green]{cat_name}[/].[/]"
+                        )
                         break
                 except Exception:
                     pass
@@ -483,16 +322,16 @@ def extract_heuristics(query: str, config: dict | None = None) -> dict:
         extensions = sorted(extensions)
 
     # Clean up whitespace runs again
-    clean_query = regex.sub(r"\s+", " ", clean_query).strip()
+    clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
-    return {
-        "clean_query": clean_query,
-        "modified_within_seconds": modified_within_seconds,
-        "extensions": extensions,
-        "latest": latest,
-        "largest": largest,
-        "directory_only": directory_only,
-        "file_only": file_only,
-        "matched_categories": list(matched_categories),
-        "matched_category_keywords": matched_category_keywords,
-    }
+    return HeuristicsResult(
+        clean_query=clean_query,
+        extensions=extensions,
+        age_limit=modified_within_seconds,
+        directory_only=directory_only,
+        file_only=file_only,
+        latest=latest,
+        largest=largest,
+        matched_categories=list(matched_categories),
+        matched_category_keywords=matched_category_keywords,
+    )

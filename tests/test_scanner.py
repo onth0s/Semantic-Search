@@ -1,10 +1,10 @@
-"""Unit tests for src.scanner — directory walking and filtering."""
+"""Unit tests for sempath.scanner — directory walking and filtering."""
 
 from pathlib import Path
 
 import pytest
 
-from src.scanner import scan_directory
+from sempath.scanner import scan_directory
 
 
 @pytest.fixture

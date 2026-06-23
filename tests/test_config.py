@@ -1,9 +1,9 @@
-"""Tests for src.config — load_config, DEFAULT_CONFIG, and expand_env_vars."""
+"""Tests for sempath.config — load_config, DEFAULT_CONFIG, and expand_env_vars."""
 
 from pathlib import Path
 from unittest.mock import patch
 
-from src.config import DEFAULT_CONFIG, expand_env_vars, load_config
+from sempath.config import DEFAULT_CONFIG, expand_env_vars, load_config
 
 
 class TestLoadConfigDefaults:
@@ -142,7 +142,7 @@ class TestSaveConfigMinimal:
         """save_config writes a minimal file rather than copying all defaults."""
         import yaml
 
-        from src.config import save_config
+        from sempath.config import save_config
 
         config_path = tmp_path / "saved_config.yaml"
 

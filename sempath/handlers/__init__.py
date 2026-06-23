@@ -1,14 +1,14 @@
 """Handler registry mapping handler names to their classes."""
 
-from src.handlers.h1_exact import ExactMatchHandler
-from src.handlers.h2_case_insensitive import CaseInsensitiveHandler
-from src.handlers.h3_token_normalized import TokenNormalizedHandler
-from src.handlers.h4_fuzzy import FuzzyMatchHandler
-from src.handlers.h5_phonetic import PhoneticMatchHandler
-from src.handlers.h6_alias import AliasHandler
-from src.handlers.h7_embedding import EmbeddingHandler
-from src.handlers.h8_llm import LLMHandler
-from src.handlers.h9_interactive import InteractiveHandler
+from sempath.handlers.h1_exact import ExactMatchHandler
+from sempath.handlers.h2_case_insensitive import CaseInsensitiveHandler
+from sempath.handlers.h3_token_normalized import TokenNormalizedHandler
+from sempath.handlers.h4_fuzzy import FuzzyMatchHandler
+from sempath.handlers.h5_phonetic import PhoneticMatchHandler
+from sempath.handlers.h6_alias import AliasHandler
+from sempath.handlers.h7_embedding import EmbeddingHandler
+from sempath.handlers.h8_llm import LLMHandler
+from sempath.handlers.h9_interactive import InteractiveHandler
 
 HANDLER_REGISTRY: dict[str, type] = {
     "h1": ExactMatchHandler,

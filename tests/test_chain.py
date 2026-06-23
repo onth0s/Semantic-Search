@@ -1,9 +1,9 @@
-"""Tests for src.chain — build_chain and handler chain wiring."""
+"""Tests for sempath.chain — build_chain and handler chain wiring."""
 
 from pathlib import Path
 
-from src.chain import build_chain
-from src.handlers.base import BaseHandler
+from sempath.chain import build_chain
+from sempath.handlers.base import BaseHandler
 
 
 def _count_chain_length(head: BaseHandler) -> int:

@@ -9,11 +9,16 @@ queries. Returns a MatchResult with confidence 0.95 on match.
 
 from __future__ import annotations
 
+import fnmatch
+import os
 import re
 from pathlib import Path
 
-from src.handlers.base import BaseHandler
-from src.models import MatchResult
+import jellyfish
+from rapidfuzz import fuzz
+
+from sempath.handlers.base import BaseHandler
+from sempath.models import MatchResult
 
 
 class AliasHandler(BaseHandler):
@@ -31,14 +36,11 @@ class AliasHandler(BaseHandler):
         key_lower = key.lower().strip()
 
         # Glob match if query or key has wildcard
-        import fnmatch
 
-        if "*" in query_lower or "?" in query_lower:
-            if fnmatch.fnmatch(key_lower, query_lower):
-                return True
-        if "*" in key_lower or "?" in key_lower:
-            if fnmatch.fnmatch(query_lower, key_lower):
-                return True
+        if ("*" in query_lower or "?" in query_lower) and fnmatch.fnmatch(key_lower, query_lower):
+            return True
+        if ("*" in key_lower or "?" in key_lower) and fnmatch.fnmatch(query_lower, key_lower):
+            return True
 
         # 1. Exact case-insensitive match
         if query_lower == key_lower:
@@ -54,13 +56,11 @@ class AliasHandler(BaseHandler):
                 pass
 
         # 3. Fuzzy match (rapidfuzz)
-        from rapidfuzz import fuzz
 
         if fuzz.ratio(query_lower, key_lower) >= 80.0:
             return True
 
         # 4. Phonetic match (jellyfish)
-        import jellyfish
 
         try:
             q_code = jellyfish.metaphone(query_lower)
@@ -75,10 +75,10 @@ class AliasHandler(BaseHandler):
     def fast_resolve(self, alias_name: str, search_root: Path) -> Path | None:
         """Fast resolve an alias name to a Path by checking learned and config aliases.
 
-        Does not require a list of candidates. Uses BFS on search_root up to depth 5 for config aliases.
+        Does not require candidates. Uses BFS on search_root up to depth 5 for config aliases.
         """
         # 1. Check learned aliases
-        from src.utils.memory import load_memory
+        from sempath.utils.memory import load_memory
 
         entries = load_memory()
         for entry in entries:
@@ -93,8 +93,6 @@ class AliasHandler(BaseHandler):
 
         # 2. Check config aliases
         aliases = self.config.get("aliases", {})
-        import fnmatch
-        import os
 
         for key, targets in aliases.items():
             if self._matches_key(alias_name, key) or any(
@@ -176,7 +174,7 @@ class AliasHandler(BaseHandler):
 
         # Fallback to candidates-based resolution
         # 1. Check learned aliases
-        from src.utils.memory import load_memory
+        from sempath.utils.memory import load_memory
 
         entries = load_memory()
         for entry in entries:
@@ -186,7 +184,6 @@ class AliasHandler(BaseHandler):
 
         # 2. Check config aliases
         aliases = self.config.get("aliases", {})
-        import fnmatch
 
         for key, targets in aliases.items():
             if self._matches_key(alias_name, key) or any(
@@ -215,112 +212,7 @@ class AliasHandler(BaseHandler):
         if not query or not candidates:
             return None
 
-        # 1. Check for sub-query routing ("<sub_query> on/in <alias>")
-        routing_match = re.search(r"^(.*?)\s+(?:on|in)\s+(\S+)\s*$", query, re.IGNORECASE)
-        if routing_match:
-            sub_query = routing_match.group(1).strip()
-            alias_name = routing_match.group(2).strip()
-
-            resolved_base_path = self._resolve_alias_path(alias_name, candidates)
-            if resolved_base_path:
-                # Find all descendants under the resolved base path
-                descendants = [
-                    p
-                    for p in candidates
-                    if p.is_relative_to(resolved_base_path) and p != resolved_base_path
-                ]
-
-                # Parse sub-query heuristics
-                from src.heuristics import extract_heuristics
-
-                heuristics = extract_heuristics(sub_query, self.config)
-                clean_q = heuristics["clean_query"]
-                exts = heuristics["extensions"]
-                age_limit = heuristics["modified_within_seconds"]
-                latest = heuristics["latest"]
-
-                filtered = descendants
-
-                # Filter by extensions
-                if exts:
-                    import fnmatch
-
-                    new_filtered = []
-                    for p in filtered:
-                        suffix = p.suffix.lower().lstrip(".")
-                        matched = False
-                        for ext in exts:
-                            if fnmatch.fnmatch(suffix, ext.lower()):
-                                matched = True
-                                break
-                        if matched:
-                            new_filtered.append(p)
-                    filtered = new_filtered
-
-                # Filter by modification time
-                if age_limit is not None:
-                    import time
-
-                    now = time.time()
-                    new_filtered = []
-                    for p in filtered:
-                        try:
-                            mtime = p.stat().st_mtime
-                            if now - mtime <= age_limit:
-                                new_filtered.append(p)
-                        except Exception:
-                            pass
-                    filtered = new_filtered
-
-                # Match by clean query if it is not empty
-                if clean_q:
-                    matched = None
-                    # Exact name match
-                    for p in filtered:
-                        if p.name == clean_q or p.stem == clean_q:
-                            matched = p
-                            break
-
-                    # Case-insensitive name match
-                    if not matched:
-                        for p in filtered:
-                            if (
-                                p.name.lower() == clean_q.lower()
-                                or p.stem.lower() == clean_q.lower()
-                            ):
-                                matched = p
-                                break
-
-                    # Fuzzy match
-                    if not matched:
-                        from rapidfuzz import fuzz
-
-                        best_ratio = -1.0
-                        for p in filtered:
-                            r = max(
-                                fuzz.ratio(clean_q.lower(), p.name.lower()),
-                                fuzz.ratio(clean_q.lower(), p.stem.lower()),
-                            )
-                            if r >= 75.0 and r > best_ratio:
-                                best_ratio = r
-                                matched = p
-
-                    if matched:
-                        return MatchResult(matched, 0.95, self.name)
-                else:
-                    # If query is empty (e.g. "latest pic on MAIN"), sort and return the best option
-                    if filtered:
-                        if latest:
-                            import contextlib
-
-                            with contextlib.suppress(Exception):
-                                filtered.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                        return MatchResult(filtered[0], 0.95, self.name)
-
-                # Fallback to returning the base path itself if no sub-query files match
-                return MatchResult(resolved_base_path, 0.95, self.name)
-
-        # 2. Try fast resolve for direct match if click context is available
+        # 1. Try fast resolve for direct match if click context is available
         import click
 
         ctx = click.get_current_context(silent=True)
@@ -334,7 +226,7 @@ class AliasHandler(BaseHandler):
 
         # 3. Fallback to direct candidate-based matching (e.g. for testing)
         # 3.1 Check direct learned memory match
-        from src.utils.memory import load_memory
+        from sempath.utils.memory import load_memory
 
         entries = load_memory()
         for entry in entries:
@@ -344,7 +236,6 @@ class AliasHandler(BaseHandler):
 
         # 3.2 Check direct config alias match
         aliases = self.config.get("aliases", {})
-        import fnmatch
 
         for key, targets in aliases.items():
             if self._matches_key(query, key) or any(

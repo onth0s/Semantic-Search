@@ -1,4 +1,4 @@
-"""Unit tests for src.utils.mft_reader and MFT integration in scanner."""
+"""Unit tests for sempath.utils.mft_reader and MFT integration in scanner."""
 
 import sys
 from pathlib import Path
@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from src.scanner import scan_directory
-from src.utils.mft_reader import get_mft_index, is_admin, scan_volume_files
+from sempath.scanner import scan_directory
+from sempath.utils.mft_reader import get_mft_index, is_admin, scan_volume_files
 
 
 def test_is_admin_check():
@@ -65,8 +65,8 @@ def test_scan_directory_mft_integration(tmp_path: Path, mock_mft_paths: list[Pat
     # Mock is_admin and scan_volume_files
     with (
         patch("sys.platform", "win32"),
-        patch("src.utils.mft_reader.is_admin", return_value=True),
-        patch("src.utils.mft_reader.scan_volume_files", return_value=mock_mft_paths),
+        patch("sempath.utils.mft_reader.is_admin", return_value=True),
+        patch("sempath.utils.mft_reader.scan_volume_files", return_value=mock_mft_paths),
     ):
         candidates = scan_directory(tmp_path, depth=5, exclude_patterns=["node_modules"])
         names = {p.name for p in candidates}
@@ -94,8 +94,8 @@ def test_scan_directory_mft_depth_limit(tmp_path: Path, mock_mft_paths: list[Pat
     """scan_directory respects depth limit on MFT paths."""
     with (
         patch("sys.platform", "win32"),
-        patch("src.utils.mft_reader.is_admin", return_value=True),
-        patch("src.utils.mft_reader.scan_volume_files", return_value=mock_mft_paths),
+        patch("sempath.utils.mft_reader.is_admin", return_value=True),
+        patch("sempath.utils.mft_reader.scan_volume_files", return_value=mock_mft_paths),
     ):
         # Depth = 1: top-level only
         candidates = scan_directory(tmp_path, depth=1)

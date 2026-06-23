@@ -2,13 +2,13 @@
 
 Reads the ``handlers.enabled`` list from the config, instantiates each
 handler, and wires them into a Chain of Responsibility via
-:meth:`~src.handlers.base.BaseHandler.set_next`.
+:meth:`~sempath.handlers.base.BaseHandler.set_next`.
 """
 
 from __future__ import annotations
 
-from src.handlers import HANDLER_REGISTRY
-from src.handlers.base import BaseHandler
+from sempath.handlers import HANDLER_REGISTRY
+from sempath.handlers.base import BaseHandler
 
 
 def build_chain(config: dict) -> BaseHandler:

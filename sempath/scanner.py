@@ -39,7 +39,7 @@ def scan_directory(
 
     import sys
 
-    from src.utils.mft_reader import is_admin, scan_volume_files
+    from sempath.utils.mft_reader import is_admin, scan_volume_files
 
     # Try MFT sweep on Windows when run as Admin
     if sys.platform == "win32" and is_admin():

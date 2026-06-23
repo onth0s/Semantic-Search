@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.engine import SearchEngine
-from src.handlers.h1_exact import ExactMatchHandler
-from src.handlers.h2_case_insensitive import CaseInsensitiveHandler
-from src.handlers.h3_token_normalized import TokenNormalizedHandler
-from src.handlers.h4_fuzzy import FuzzyMatchHandler
-from src.handlers.h5_phonetic import PhoneticMatchHandler
-from src.handlers.h6_alias import AliasHandler
+from sempath.engine import SearchEngine
+from sempath.handlers.h1_exact import ExactMatchHandler
+from sempath.handlers.h2_case_insensitive import CaseInsensitiveHandler
+from sempath.handlers.h3_token_normalized import TokenNormalizedHandler
+from sempath.handlers.h4_fuzzy import FuzzyMatchHandler
+from sempath.handlers.h5_phonetic import PhoneticMatchHandler
+from sempath.handlers.h6_alias import AliasHandler
 
 
 @pytest.fixture
@@ -118,18 +118,20 @@ def test_verbose_logging(tmp_path: Path, sample_config: dict):
     ctx = MagicMock()
     ctx.obj = {"verbose": True}
 
-    with patch("click.get_current_context", return_value=ctx):
-        with patch("src.utils.console.err_console.print") as mock_print:
-            res = engine.find_path(
-                "my_project", tmp_path, no_index=True, min_confidence=0.1, verbose=True
-            )
-            assert res.status == "success"
+    with (
+        patch("click.get_current_context", return_value=ctx),
+        patch("sempath.utils.console.err_console.print") as mock_print,
+    ):
+        res = engine.find_path(
+            "my_project", tmp_path, no_index=True, min_confidence=0.1, verbose=True
+        )
+        assert res.status == "success"
 
-            # Verify that err_console.print was called with diagnostic logs
-            assert mock_print.called
-            printed_args = []
-            for call in mock_print.call_args_list:
-                if call[0]:
-                    printed_args.append(call[0][0])
-            assert any("Gathered" in arg for arg in printed_args)
-            assert any("Heuristics extracted" in arg for arg in printed_args)
+        # Verify that err_console.print was called with diagnostic logs
+        assert mock_print.called
+        printed_args = []
+        for call in mock_print.call_args_list:
+            if call[0]:
+                printed_args.append(call[0][0])
+        assert any("Gathered" in arg for arg in printed_args)
+        assert any("Heuristics extracted" in arg for arg in printed_args)

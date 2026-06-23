@@ -13,10 +13,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-import click
-
-from src.handlers.base import BaseHandler
-from src.models import MatchResult
+from sempath.handlers.base import BaseHandler
+from sempath.models import MatchResult
 
 
 class LLMHandler(BaseHandler):
@@ -37,9 +35,7 @@ class LLMHandler(BaseHandler):
         if not query or not candidates:
             return []
 
-        # Check interactive mode / verbose from Click context
-        ctx = click.get_current_context(silent=True)
-        verbose = ctx.obj.get("verbose", False) if ctx else False
+        from sempath.utils.logging import verbose_log
 
         # Load LLM configurations
         handlers_cfg = self.config.get("handlers", {})
@@ -63,7 +59,7 @@ class LLMHandler(BaseHandler):
             "markdown, or quotes."
         )
 
-        from src.heuristics import translate_wildcards
+        from sempath.heuristics import translate_wildcards
 
         translated_query = translate_wildcards(query)
 
@@ -80,8 +76,7 @@ class LLMHandler(BaseHandler):
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        if verbose:
-            click.echo(f"[dim]Sending query translation request to LLM ({provider}/{model})...[/]")
+        verbose_log(f"[dim]Sending query translation request to LLM ({provider}/{model})...[/]")
 
         try:
             req = urllib.request.Request(
@@ -94,15 +89,13 @@ class LLMHandler(BaseHandler):
                 # Clean up any surrounding quotes if returned by the LLM
                 canonical_query = canonical_query.strip("'\"")
         except Exception as exc:
-            if verbose:
-                click.echo(f"[dim]LLM query translation failed: {exc}[/]", err=True)
+            verbose_log(f"[dim]LLM query translation failed: {exc}[/]")
             return []
 
-        if verbose:
-            click.echo(f"[dim]LLM canonical translation: '{canonical_query}'[/]")
+        verbose_log(f"[dim]LLM canonical translation: '{canonical_query}'[/]")
 
         # Second Cycle execution: evaluate canonical query on H1 - H6 only
-        from src.chain import build_chain
+        from sempath.chain import build_chain
 
         fast_config = copy.deepcopy(self.config)
         enabled_handlers = fast_config.get("handlers", {}).get("enabled", [])
@@ -118,7 +111,6 @@ class LLMHandler(BaseHandler):
                     MatchResult(r.path, r.confidence, f"{self.name}({r.handler})") for r in results
                 ]
         except Exception as exc:
-            if verbose:
-                click.echo(f"[dim]Second cycle fast chain execution failed: {exc}[/]", err=True)
+            verbose_log(f"[dim]Second cycle fast chain execution failed: {exc}[/]")
 
         return []

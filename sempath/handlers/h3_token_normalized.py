@@ -9,22 +9,12 @@ MatchResult with confidence 0.9 on match.
 
 from __future__ import annotations
 
+import fnmatch
 from pathlib import Path
 
-from src.handlers.base import BaseHandler
-from src.models import MatchResult
-
-
-def _normalize_tokens_with_wildcards(text: str) -> set[str]:
-    """Normalise text into a set of lowercase alphanumeric and wildcard tokens."""
-    if not text:
-        return set()
-    import re
-
-    cleaned = re.sub(r"[^a-zA-Z0-9*?]+", " ", text).strip().lower()
-    if not cleaned:
-        return set()
-    return set(cleaned.split())
+from sempath.handlers.base import BaseHandler
+from sempath.models import MatchResult
+from sempath.utils.tokenize import normalize_tokens_with_wildcards
 
 
 def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> bool:
@@ -32,8 +22,6 @@ def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> boo
     has_wildcard = any("*" in q or "?" in q for q in query_tokens)
     if not has_wildcard:
         return query_tokens == candidate_tokens
-
-    import fnmatch
 
     q_list = list(query_tokens)
     c_list = list(candidate_tokens)
@@ -57,9 +45,8 @@ def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> boo
         for i, c_tok in enumerate(c_list):
             if i in c_idx_set:
                 continue
-            if fnmatch.fnmatch(c_tok, q_tok):
-                if search(q_idx + 1, c_idx_set.union({i})):
-                    return True
+            if fnmatch.fnmatch(c_tok, q_tok) and search(q_idx + 1, c_idx_set.union({i})):
+                return True
 
         return False
 
@@ -73,47 +60,19 @@ class TokenNormalizedHandler(BaseHandler):
 
     def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
         """Attempt a token-normalized match against candidate basenames."""
-        if not query or not candidates:
-            return None
-
-        query_tokens = _normalize_tokens_with_wildcards(query)
-        if not query_tokens:
-            return None
-
-        # Split query by path separators to see how many parts we should check
-        query_parts = [p for p in query.replace("\\", "/").split("/") if p]
-        k = len(query_parts)
-
-        matches = []
-        for p in candidates:
-            # 1. Base tokens matching name or stem
-            if _match_token_sets(query_tokens, _normalize_tokens_with_wildcards(p.name)):
-                matches.append(p)
-                continue
-            if _match_token_sets(query_tokens, _normalize_tokens_with_wildcards(p.stem)):
-                matches.append(p)
-                continue
-
-            # 2. Path suffix tokens matching (for multi-part queries)
-            if k > 1 and len(p.parts) >= k:
-                suffix_parts = p.parts[-k:]
-                suffix_str = "/".join(suffix_parts)
-                if _match_token_sets(query_tokens, _normalize_tokens_with_wildcards(suffix_str)):
-                    matches.append(p)
-
+        matches = self.match_all(query, candidates)
         if not matches:
             return None
 
         # Tie-breaker: shortest path depth first
-        best = min(matches, key=lambda p: len(p.parts))
-        return MatchResult(best, 0.9, self.name)
+        return min(matches, key=lambda m: len(m.path.parts))
 
     def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
         """Attempt a token-normalized and token-subset match against candidates."""
         if not query or not candidates:
             return []
 
-        query_tokens = _normalize_tokens_with_wildcards(query)
+        query_tokens = normalize_tokens_with_wildcards(query)
         if not query_tokens:
             return []
 
@@ -123,8 +82,8 @@ class TokenNormalizedHandler(BaseHandler):
 
         results = []
         for p in candidates:
-            p_name_tokens = _normalize_tokens_with_wildcards(p.name)
-            p_stem_tokens = _normalize_tokens_with_wildcards(p.stem)
+            p_name_tokens = normalize_tokens_with_wildcards(p.name)
+            p_stem_tokens = normalize_tokens_with_wildcards(p.stem)
 
             confidence = 0.0
 
@@ -138,7 +97,7 @@ class TokenNormalizedHandler(BaseHandler):
             elif k > 1 and len(p.parts) >= k:
                 suffix_parts = p.parts[-k:]
                 suffix_str = "/".join(suffix_parts)
-                if _match_token_sets(query_tokens, _normalize_tokens_with_wildcards(suffix_str)):
+                if _match_token_sets(query_tokens, normalize_tokens_with_wildcards(suffix_str)):
                     confidence = 0.90
 
             # 3. Token-subset fallback (only if no wildcard in query)
@@ -148,7 +107,7 @@ class TokenNormalizedHandler(BaseHandler):
                 elif k > 1 and len(p.parts) >= k:
                     suffix_parts = p.parts[-k:]
                     suffix_str = "/".join(suffix_parts)
-                    if query_tokens.issubset(_normalize_tokens_with_wildcards(suffix_str)):
+                    if query_tokens.issubset(normalize_tokens_with_wildcards(suffix_str)):
                         confidence = 0.90
 
             if confidence > 0.0:

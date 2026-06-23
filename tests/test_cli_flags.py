@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from src.cli import cli
+from sempath.cli import cli
 
 
 @pytest.fixture

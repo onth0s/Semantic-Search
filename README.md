@@ -17,7 +17,8 @@ knowing exact casing, spelling, or directory names.
 ## Current Status
 
 The current implementation includes the Click/Rich CLI, filesystem scanning,
-SQLite indexing, heuristic filters, handlers H1 through H9, learned alias memory,
+SQLite indexing, heuristic parser, a candidate filtering/sorting pipeline,
+directory content matching logic, handlers H1 through H9, learned alias memory,
 memory import/export, Windows admin USN Journal acceleration, and tests.
 
 > [!IMPORTANT]
@@ -61,27 +62,28 @@ Optional runtime integrations:
 
 ## Architecture
 
-`sempath` resolves a query in five broad steps:
+`sempath` resolves a query through a decoupled processing pipeline, orchestrated by the central `SearchEngine` (in `src/engine.py`):
 
-1. Gather candidate paths from the SQLite index, or scan on the fly with
-   `--no-index`.
-2. Apply query heuristics for extensions, temporal filters, latest/newest, and largest/biggest (stripping prepositions/stopwords for heuristics).
-3. Filter and sort candidates based on explicit flags and parsed heuristics. Supports matching directory contents (e.g., resolving files of a category inside a matched directory).
-4. Run the configured handler chain.
-5. Return a success, ambiguous near-miss result, or failure object.
+1. **Alias Routing**: Performs early bypass check for alias matches and handles sub-query routing (e.g., `"<sub query> on <alias>"`) using direct path resolution (via `src/handlers/h6_alias.py`).
+2. **Candidate Gathering**: Gathers candidate paths from the SQLite index (via `src/index.py`) or scans on the fly with `--no-index` (via `src/scanner.py`).
+3. **Heuristics Extraction**: Extracts query constraints (such as file extensions, age/temporal filters, latest, or largest) from the query string (via `src/heuristics.py`).
+4. **Pipeline Filtering & Sorting**: Filters candidates by intent (file/directory), extensions, age constraints, and sorts candidates (via `src/pipeline.py`).
+5. **Directory Matching**: Resolves queries targeting files inside a matching directory (via `src/directory_matcher.py`).
+6. **Handler Chain Execution**: Runs the candidate list through the configured handler chain of matching strategies H1 through H9 (via `src/chain.py`).
+7. **Result Dispatch**: Returns a success, ambiguous near-miss, or failure search result.
 
 ```mermaid
 graph TD
-    UserQuery["User query"] --> Heuristics["Heuristic parser"]
-    Heuristics --> Candidates["Candidate gathering"]
-    Candidates --> Index["SQLite index if enabled"]
-    Candidates --> Scan["On-the-fly scan"]
-    Scan --> MFT["Windows admin USN Journal path if available"]
-    Scan --> Walk["os.walk fallback"]
-    Index --> FilterSort["Filter and sort candidates"]
-    Walk --> FilterSort
-    MFT --> FilterSort
-    FilterSort --> Chain["Handler chain H1-H9"]
+    UserQuery["User Query"] --> Routing{"Alias Routing Match?"}
+    Routing -- Yes (Early Bypass) --> DirectResult["Direct / Scoped Alias Result"]
+    Routing -- No --> Heuristics["Heuristics Parser (src/heuristics.py)"]
+    Heuristics --> Candidates["Candidate Gathering"]
+    Candidates --> Index["SQLite Index (src/index.py)"]
+    Candidates --> Scan["On-the-fly Scan (src/scanner.py)"]
+    Index --> Pipeline["Pipeline (src/pipeline.py)"]
+    Scan --> Pipeline
+    Pipeline --> DirMatcher["Directory Matcher (src/directory_matcher.py)"]
+    DirMatcher --> Chain["Handler Chain H1-H9 (src/chain.py)"]
     Chain --> Result["SearchResult JSON/text output"]
 ```
 

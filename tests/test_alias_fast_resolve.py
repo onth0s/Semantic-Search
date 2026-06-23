@@ -3,8 +3,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from src.engine import SearchEngine
-from src.handlers.h6_alias import AliasHandler
+from sempath.engine import SearchEngine
+from sempath.handlers.h6_alias import AliasHandler
 
 
 def test_fast_resolve_learned_memory(sample_config: dict, tmp_path: Path):
@@ -23,7 +23,7 @@ def test_fast_resolve_learned_memory(sample_config: dict, tmp_path: Path):
         }
     ]
 
-    with patch("src.utils.memory.load_memory", return_value=mock_memory):
+    with patch("sempath.utils.memory.load_memory", return_value=mock_memory):
         res = handler.fast_resolve("quick_key", tmp_path)
         assert res == target_dir
 
@@ -55,8 +55,8 @@ def test_engine_early_bypass_direct(sample_config: dict, tmp_path: Path):
     target_dir = depth1 / "primary"
     target_dir.mkdir()
 
-    # If it bypasses candidate gathering, it shouldn't access the index manager's is_indexed or get_candidates.
-    # We patch them to raise an assertion error if called.
+    # If it bypasses candidate gathering, it shouldn't access the index manager's
+    # is_indexed or get_candidates. We patch them to raise an assertion error if called.
     with (
         patch.object(
             engine.index_manager,
@@ -64,7 +64,7 @@ def test_engine_early_bypass_direct(sample_config: dict, tmp_path: Path):
             side_effect=AssertionError("is_indexed should not be called"),
         ),
         patch(
-            "src.engine.scan_directory",
+            "sempath.engine.scan_directory",
             side_effect=AssertionError("scan_directory should not be called"),
         ),
     ):
@@ -75,7 +75,7 @@ def test_engine_early_bypass_direct(sample_config: dict, tmp_path: Path):
 
 
 def test_engine_early_bypass_routing(sample_config: dict, tmp_path: Path):
-    """SearchEngine.find_path updates search_root and limits search scope for routing alias queries."""
+    """SearchEngine.find_path updates search_root & limits search scope for routing queries."""
     engine = SearchEngine(sample_config)
 
     # Let's create a main alias directory and a file under it

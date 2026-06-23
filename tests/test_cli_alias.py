@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
-from src.cli import cli
+from sempath.cli import cli
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def test_alias_add_and_list(mock_memory_file: Path):
     """alias add adds an alias and alias list lists it."""
     runner = CliRunner()
 
-    with patch("src.utils.memory.get_memory_file_path", return_value=mock_memory_file):
+    with patch("sempath.utils.memory.get_memory_file_path", return_value=mock_memory_file):
         # Add alias
         res_add = runner.invoke(cli, ["alias", "add", "my_shortcut", "C:/User/Docs"])
         assert res_add.exit_code == 0
@@ -36,7 +36,7 @@ def test_alias_remove(mock_memory_file: Path):
     """alias remove deletes a learned alias."""
     runner = CliRunner()
 
-    with patch("src.utils.memory.get_memory_file_path", return_value=mock_memory_file):
+    with patch("sempath.utils.memory.get_memory_file_path", return_value=mock_memory_file):
         # Add
         runner.invoke(cli, ["alias", "add", "shortcut", "C:/Path"])
 
@@ -54,7 +54,7 @@ def test_alias_clear(mock_memory_file: Path):
     """alias clear clears all learned aliases."""
     runner = CliRunner()
 
-    with patch("src.utils.memory.get_memory_file_path", return_value=mock_memory_file):
+    with patch("sempath.utils.memory.get_memory_file_path", return_value=mock_memory_file):
         runner.invoke(cli, ["alias", "add", "sc1", "C:/P1"])
         runner.invoke(cli, ["alias", "add", "sc2", "C:/P2"])
 
@@ -71,7 +71,7 @@ def test_alias_undo(mock_memory_file: Path):
     """alias undo pops the latest learned alias."""
     runner = CliRunner()
 
-    with patch("src.utils.memory.get_memory_file_path", return_value=mock_memory_file):
+    with patch("sempath.utils.memory.get_memory_file_path", return_value=mock_memory_file):
         runner.invoke(cli, ["alias", "add", "sc1", "C:/P1"])
 
         # Undo
@@ -90,7 +90,7 @@ def test_export_import_memory(tmp_path: Path, mock_memory_file: Path):
     runner = CliRunner()
     export_file = tmp_path / "export.yaml"
 
-    with patch("src.utils.memory.get_memory_file_path", return_value=mock_memory_file):
+    with patch("sempath.utils.memory.get_memory_file_path", return_value=mock_memory_file):
         # Add alias
         runner.invoke(cli, ["alias", "add", "backup_key", "C:/Backup"])
 

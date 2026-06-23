@@ -1,11 +1,11 @@
-"""Unit tests for src.utils.memory — learned alias store and ranking."""
+"""Unit tests for sempath.utils.memory — learned alias store and ranking."""
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from src.utils.memory import (
+from sempath.utils.memory import (
     add_or_update_memory,
     calculate_decay_rank,
     load_memory,
@@ -90,7 +90,7 @@ def test_undo_last_memory(temp_memory_file: Path):
 
 def test_merge_memory_files(tmp_path: Path):
     """merge_memory_files aggregates hits and keeps latest timestamp."""
-    src = tmp_path / "src.yaml"
+    src = tmp_path / "sempath.yaml"
     dest = tmp_path / "dest.yaml"
 
     t1 = (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")

@@ -13,8 +13,8 @@ from pathlib import Path
 
 import jellyfish
 
-from src.scanner import scan_directory
-from src.utils.tokenize import normalize_tokens
+from sempath.scanner import scan_directory
+from sempath.utils.tokenize import normalize_tokens
 
 
 class IndexManager:

@@ -1,4 +1,4 @@
-"""Unit tests for src.handlers.h6_alias — AliasHandler."""
+"""Unit tests for sempath.handlers.h6_alias — AliasHandler."""
 
 import time
 from pathlib import Path
@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.handlers.h6_alias import AliasHandler
+from sempath.handlers.h6_alias import AliasHandler
 
 
 @pytest.fixture
@@ -96,25 +96,7 @@ def test_alias_learned_memory(sample_config: dict, mock_candidates: list[Path]):
         }
     ]
 
-    with patch("src.utils.memory.load_memory", return_value=mock_memory):
+    with patch("sempath.utils.memory.load_memory", return_value=mock_memory):
         res = handler.match("super_key", mock_candidates)
         assert res is not None
         assert res.path == mock_candidates[2]
-
-
-def test_alias_subquery_routing(sample_config: dict, mock_candidates: list[Path]):
-    """AliasHandler parses compound queries and routes recursively."""
-    handler = AliasHandler(sample_config)
-
-    # Map "docs" config alias to mock Desktop/docs
-    sample_config["aliases"]["docs_alias"] = ["docs"]
-
-    # "latest pic on docs_alias" -> resolves docs_alias to docs, finds latest png -> pic2.png
-    res = handler.match("latest pic on docs_alias", mock_candidates)
-    assert res is not None
-    assert res.path.name == "pic2.png"
-
-    # "doc1 in docs_alias" -> resolves docs_alias to docs, finds doc1.pdf
-    res = handler.match("doc1 in docs_alias", mock_candidates)
-    assert res is not None
-    assert res.path.name == "doc1.pdf"

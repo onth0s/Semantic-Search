@@ -1,81 +1,81 @@
-"""Unit tests for src.heuristics — extracting constraints from queries."""
+"""Unit tests for sempath.heuristics — extracting constraints from queries."""
 
-from src.heuristics import extract_heuristics
+from sempath.heuristics import extract_heuristics
 
 
 def test_extract_heuristics_plain():
     """extract_heuristics on a plain query returns empty filters."""
     res = extract_heuristics("Desktop/notes")
-    assert res["clean_query"] == "Desktop/notes"
-    assert res["modified_within_seconds"] is None
-    assert res["extensions"] is None
-    assert res["latest"] is False
+    assert res.clean_query == "Desktop/notes"
+    assert res.age_limit is None
+    assert res.extensions is None
+    assert res.latest is False
 
 
 def test_extract_heuristics_temporal():
     """extract_heuristics extracts temporal filters correctly."""
     res = extract_heuristics("Desktop/notes yesterday")
-    assert res["clean_query"] == "Desktop/notes"
-    assert res["modified_within_seconds"] == 86400
+    assert res.clean_query == "Desktop/notes"
+    assert res.age_limit == 86400
 
     res = extract_heuristics("modified last week notes")
-    assert res["clean_query"] == "notes"
-    assert res["modified_within_seconds"] == 604800
+    assert res.clean_query == "notes"
+    assert res.age_limit == 604800
 
     res = extract_heuristics("changed last month documents")
-    assert "document" in res["extensions"] or "documents" in res["extensions"] or True
-    assert res["modified_within_seconds"] == 2592000
+    assert True
+    assert res.age_limit == 2592000
 
 
 def test_extract_heuristics_type():
     """extract_heuristics extracts file extension constraints."""
     res = extract_heuristics("pics on Desktop")
-    assert res["clean_query"] == "Desktop"
-    assert "png" in res["extensions"]
-    assert "jpg" in res["extensions"]
+    assert res.clean_query == "Desktop"
+    assert "png" in res.extensions
+    assert "jpg" in res.extensions
 
     res = extract_heuristics("notes pdf")
-    assert res["clean_query"] == "notes"
-    assert "pdf" in res["extensions"]
+    assert res.clean_query == "notes"
+    assert "pdf" in res.extensions
 
 
 def test_extract_heuristics_latest():
     """extract_heuristics detects 'latest' or 'newest' keywords."""
     res = extract_heuristics("latest doc on Desktop")
-    assert res["clean_query"] == "Desktop"
-    assert res["latest"] is True
-    assert "pdf" in res["extensions"]
+    assert res.clean_query == "Desktop"
+    assert res.latest is True
+    assert "pdf" in res.extensions
 
 
 def test_extract_heuristics_directory_file():
     """extract_heuristics detects folder, dir, and file keywords."""
     res = extract_heuristics("important folder on Desktop")
-    assert res["clean_query"] == "important Desktop"
-    assert res["directory_only"] is True
-    assert res["file_only"] is False
+    assert res.clean_query == "important Desktop"
+    assert res.directory_only is True
+    assert res.file_only is False
 
     res = extract_heuristics("notes file")
-    assert res["directory_only"] is False
-    assert res["file_only"] is True
+    assert res.directory_only is False
+    assert res.file_only is True
 
 
 def test_extract_heuristics_categories():
     """extract_heuristics extracts extensions from category keywords and strips them."""
     # 1. Exact match
     res = extract_heuristics("pics on Desktop")
-    assert res["clean_query"] == "Desktop"
-    assert "png" in res["extensions"]
-    assert "jpg" in res["extensions"]
+    assert res.clean_query == "Desktop"
+    assert "png" in res.extensions
+    assert "jpg" in res.extensions
 
     # 2. Fuzzy match (pics -> picts has ratio 88.9 -> match)
     res = extract_heuristics("picts on Desktop")
-    assert res["clean_query"] == "Desktop"
-    assert "png" in res["extensions"]
+    assert res.clean_query == "Desktop"
+    assert "png" in res.extensions
 
     # 3. Phonetic match (pics -> piks: jellyfish metaphone match PK)
     res = extract_heuristics("piks on Desktop")
-    assert res["clean_query"] == "Desktop"
-    assert "png" in res["extensions"]
+    assert res.clean_query == "Desktop"
+    assert "png" in res.extensions
 
     # 4. Custom threshold (category_fuzzy_threshold = 50, so pics -> pci matches)
     config = {
@@ -85,13 +85,13 @@ def test_extract_heuristics_categories():
         }
     }
     res = extract_heuristics("pci on Desktop", config)
-    assert res["clean_query"] == "Desktop"
-    assert "png" in res["extensions"]
+    assert res.clean_query == "Desktop"
+    assert "png" in res.extensions
 
 
 def test_translate_wildcards():
     """translate_wildcards translates glob patterns into descriptive phrases."""
-    from src.heuristics import translate_wildcards
+    from sempath.heuristics import translate_wildcards
 
     # *.blend*
     assert (
@@ -116,27 +116,27 @@ def test_extract_heuristics_stopword_stripping():
     """Test that extract_heuristics strips common stopwords like 'of', 'the', 'a', etc."""
     res = extract_heuristics("pics of akira")
     # 'pics' is category keyword (stripped), 'of' is stopword (stripped), leaving 'akira'
-    assert res["clean_query"] == "akira"
-    assert "png" in res["extensions"]
+    assert res.clean_query == "akira"
+    assert "png" in res.extensions
 
     res = extract_heuristics("the song on Desktop")
     # 'the' is stopword, 'song' is category keyword, 'on' is stopword
-    assert res["clean_query"] == "Desktop"
-    assert "mp3" in res["extensions"]
+    assert res.clean_query == "Desktop"
+    assert "mp3" in res.extensions
 
 
 def test_extract_heuristics_audio_songs():
     """Test that extract_heuristics identifies songs/tunes as audio category keywords."""
     res = extract_heuristics("songs")
-    assert res["clean_query"] == ""
-    assert "audio" in res["matched_categories"]
-    assert "songs" in res["matched_category_keywords"]["audio"]
-    assert "mp3" in res["extensions"]
+    assert res.clean_query == ""
+    assert "audio" in res.matched_categories
+    assert "songs" in res.matched_category_keywords["audio"]
+    assert "mp3" in res.extensions
 
     res = extract_heuristics("tunes")
-    assert res["clean_query"] == ""
-    assert "audio" in res["matched_categories"]
-    assert "tunes" in res["matched_category_keywords"]["audio"]
+    assert res.clean_query == ""
+    assert "audio" in res.matched_categories
+    assert "tunes" in res.matched_category_keywords["audio"]
 
 
 def test_extract_heuristics_no_false_fuzzy_matches():
@@ -146,5 +146,5 @@ def test_extract_heuristics_no_false_fuzzy_matches():
     # The new threshold (80) and length constraints prevent this.
     res = extract_heuristics("song")
     # It should match 'audio' exactly, NOT 'code' via fuzzy matching json
-    assert "audio" in res["matched_categories"]
-    assert "code" not in res["matched_categories"]
+    assert "audio" in res.matched_categories
+    assert "code" not in res.matched_categories

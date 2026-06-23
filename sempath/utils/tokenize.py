@@ -36,3 +36,17 @@ def normalize_tokens(text: str) -> set[str]:
         return set()
 
     return set(cleaned.split())
+
+
+_WILD_RE = re.compile(r"[^a-zA-Z0-9*?]+")
+
+
+def normalize_tokens_with_wildcards(text: str) -> set[str]:
+    """Normalise text into a set of lowercase alphanumeric and wildcard tokens."""
+    if not text:
+        return set()
+
+    cleaned = _WILD_RE.sub(" ", text).strip().lower()
+    if not cleaned:
+        return set()
+    return set(cleaned.split())

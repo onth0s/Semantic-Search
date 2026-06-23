@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from src.handlers.h1_exact import ExactMatchHandler
-from src.handlers.h2_case_insensitive import CaseInsensitiveHandler
-from src.handlers.h3_token_normalized import TokenNormalizedHandler
-from src.handlers.h4_fuzzy import FuzzyMatchHandler
+from sempath.handlers.h1_exact import ExactMatchHandler
+from sempath.handlers.h2_case_insensitive import CaseInsensitiveHandler
+from sempath.handlers.h3_token_normalized import TokenNormalizedHandler
+from sempath.handlers.h4_fuzzy import FuzzyMatchHandler
 
 
 @pytest.fixture

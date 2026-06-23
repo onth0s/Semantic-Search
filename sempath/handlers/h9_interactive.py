@@ -12,10 +12,10 @@ from pathlib import Path
 import click
 from rapidfuzz import fuzz
 
-from src.handlers.base import BaseHandler
-from src.models import MatchResult
-from src.utils.console import err_console
-from src.utils.memory import add_or_update_memory
+from sempath.handlers.base import BaseHandler
+from sempath.models import MatchResult
+from sempath.utils.console import err_console
+from sempath.utils.memory import add_or_update_memory
 
 
 class InteractiveHandler(BaseHandler):
@@ -81,8 +81,9 @@ class InteractiveHandler(BaseHandler):
                 )
                 err_console.print("[dim](run 'sempath alias undo' to revert)[/]")
             except Exception as exc:
-                if ctx and ctx.obj.get("verbose"):
-                    err_console.print(f"[dim]Failed to save learned memory: {exc}[/]")
+                from sempath.utils.logging import verbose_log
+
+                verbose_log(f"[dim]Failed to save learned memory: {exc}[/]")
 
             return MatchResult(selected_path, 1.0, self.name)
 

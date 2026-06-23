@@ -13,9 +13,9 @@ from pathlib import Path
 
 import click
 
-from src.handlers.base import BaseHandler
-from src.models import MatchResult
-from src.utils.console import err_console
+from sempath.handlers.base import BaseHandler
+from sempath.models import MatchResult
+from sempath.utils.console import err_console
 
 
 class EmbeddingHandler(BaseHandler):
@@ -78,8 +78,9 @@ class EmbeddingHandler(BaseHandler):
         model_name = self.config.get("handlers", {}).get("h7_model", "all-MiniLM-L6-v2")
         if self._model is None:
             try:
-                if ctx and ctx.obj.get("verbose"):
-                    err_console.print(f"[dim]Loading embedding model '{model_name}'...[/]")
+                from sempath.utils.logging import verbose_log
+
+                verbose_log(f"[dim]Loading embedding model '{model_name}'...[/]")
                 self._model = SentenceTransformer(model_name)
             except Exception as exc:
                 err_console.print(f"[bold red]Error loading embedding model:[/] {exc}")
@@ -89,7 +90,7 @@ class EmbeddingHandler(BaseHandler):
         # Use p.stem as it represents the semantic filename without extension
         candidate_texts = [p.stem for p in candidates]
         try:
-            from src.heuristics import translate_wildcards
+            from sempath.heuristics import translate_wildcards
 
             translated_query = translate_wildcards(query)
             query_emb = self._model.encode(
@@ -109,8 +110,9 @@ class EmbeddingHandler(BaseHandler):
             return results
 
         except Exception as exc:
-            if ctx and ctx.obj.get("verbose"):
-                err_console.print(f"[dim]Embedding match failed: {exc}[/]")
+            from sempath.utils.logging import verbose_log
+
+            verbose_log(f"[dim]Embedding match failed: {exc}[/]")
             return None
 
     def match(self, query: str, candidates: list[Path]) -> MatchResult | None:

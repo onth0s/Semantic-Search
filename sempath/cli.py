@@ -12,7 +12,17 @@ colored and styled to match the rest of the CLI.
 
 from __future__ import annotations
 
+import json
+import shutil
+import sys
+from pathlib import Path
+
+import click
 import rich_click
+
+from sempath import __version__
+from sempath.config import load_config
+from sempath.utils.console import console, err_console
 
 rich_click.STYLE_OPTION = "bold cyan"
 rich_click.STYLE_ARGUMENT = "cyan"
@@ -20,17 +30,6 @@ rich_click.STYLE_COMMAND = "bold green"
 rich_click.STYLE_ERRORS_OPTION = "bold red"
 rich_click.STYLE_METAVAR = "dim"
 rich_click.STYLE_HELPTEXT = ""
-
-import json
-import shutil
-import sys
-from pathlib import Path
-
-import click
-
-from src import __version__
-from src.config import load_config
-from src.utils.console import console, err_console
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +122,7 @@ def cli(ctx: click.Context) -> None:
     "--verbose",
     is_flag=True,
     default=False,
-    help="Enable detailed under-the-hood diagnostics, category matching, and handler execution logs.",
+    help="Enable detailed under-the-hood diagnostics, category, and handler execution logs.",
 )
 @click.option(
     "--latest", is_flag=True, default=False, help="Sort matches to return the newest path."
@@ -201,7 +200,7 @@ def find(
         console.print(f"[dim]Depth:[/]  {depth}")
         console.print()
 
-    from src.engine import SearchEngine
+    from sempath.engine import SearchEngine
 
     try:
         engine = SearchEngine(config)
@@ -282,7 +281,7 @@ def index_create(path: Path, depth: int) -> None:
         config = load_config()
         store = config.get("index", {}).get("store", "")
         exclude = config.get("index", {}).get("exclude_patterns", [])
-        from src.index import IndexManager
+        from sempath.index import IndexManager
 
         manager = IndexManager(Path(store))
         console.print(f"[yellow]Scanning and indexing:[/] {path} (depth: {depth})...")
@@ -305,7 +304,7 @@ def index_update(path: Path, depth: int) -> None:
         config = load_config()
         store = config.get("index", {}).get("store", "")
         exclude = config.get("index", {}).get("exclude_patterns", [])
-        from src.index import IndexManager
+        from sempath.index import IndexManager
 
         manager = IndexManager(Path(store))
         console.print(f"[yellow]Updating index for:[/] {path}...")
@@ -325,7 +324,7 @@ def index_list() -> None:
     try:
         config = load_config()
         store = config.get("index", {}).get("store", "")
-        from src.index import IndexManager
+        from sempath.index import IndexManager
 
         manager = IndexManager(Path(store))
         roots = manager.get_indexed_roots()
@@ -348,7 +347,7 @@ def index_remove(path: Path, all_roots: bool) -> None:
     try:
         config = load_config()
         store = config.get("index", {}).get("store", "")
-        from src.index import IndexManager
+        from sempath.index import IndexManager
 
         manager = IndexManager(Path(store))
         if all_roots:
@@ -380,7 +379,7 @@ def alias() -> None:
 @click.argument("path", type=click.Path(path_type=Path))
 def alias_add(name: str, path: Path) -> None:
     """Add a new alias NAME pointing to PATH."""
-    from src.utils.memory import add_or_update_memory
+    from sempath.utils.memory import add_or_update_memory
 
     try:
         add_or_update_memory(name, path)
@@ -397,7 +396,7 @@ def alias_list() -> None:
     """List all configured and learned aliases."""
     from rich.table import Table
 
-    from src.utils.memory import load_memory
+    from sempath.utils.memory import load_memory
 
     table = Table(title="sempath Path Aliases")
     table.add_column("Type", style="bold magenta")
@@ -436,7 +435,7 @@ def alias_list() -> None:
 @click.argument("name")
 def alias_remove(name: str) -> None:
     """Remove alias NAME."""
-    from src.utils.memory import load_memory, save_memory
+    from sempath.utils.memory import load_memory, save_memory
 
     try:
         entries = load_memory()
@@ -454,7 +453,7 @@ def alias_remove(name: str) -> None:
 @alias.command("clear")
 def alias_clear() -> None:
     """Clear all learned aliases."""
-    from src.utils.memory import save_memory
+    from sempath.utils.memory import save_memory
 
     try:
         save_memory([])
@@ -467,7 +466,7 @@ def alias_clear() -> None:
 @alias.command("undo")
 def alias_undo() -> None:
     """Undo the last learned alias (chronological undo stack)."""
-    from src.utils.memory import undo_last_memory
+    from sempath.utils.memory import undo_last_memory
 
     try:
         popped = undo_last_memory()
@@ -492,7 +491,7 @@ def alias_undo() -> None:
 @click.argument("file_path", type=click.Path(path_type=Path))
 def export_memory(file_path: Path) -> None:
     """Export learned aliases and memory to FILE_PATH."""
-    from src.utils.memory import get_memory_file_path
+    from sempath.utils.memory import get_memory_file_path
 
     src = get_memory_file_path()
     if not src.exists():
@@ -512,7 +511,7 @@ def export_memory(file_path: Path) -> None:
 @click.argument("file_path", type=click.Path(exists=True, path_type=Path))
 def import_memory(file_path: Path) -> None:
     """Import learned aliases and memory from FILE_PATH."""
-    from src.utils.memory import merge_memory_files
+    from sempath.utils.memory import merge_memory_files
 
     try:
         merge_memory_files(file_path)
@@ -544,7 +543,7 @@ def config_verbose(value: str) -> None:
     """
     is_verbose = value.lower() in ("on", "true")
     try:
-        from src.config import save_config
+        from sempath.config import save_config
 
         save_config({"verbose": is_verbose})
         status_str = "enabled" if is_verbose else "disabled"

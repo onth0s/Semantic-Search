@@ -1,9 +1,9 @@
-"""Tests for src.cli — Click CLI interface using CliRunner."""
+"""Tests for sempath.cli — Click CLI interface using CliRunner."""
 
 import pytest
 from click.testing import CliRunner
 
-from src.cli import cli
+from sempath.cli import cli
 
 
 @pytest.fixture
@@ -125,7 +125,7 @@ class TestConfigVerbose:
         assert result.exit_code == 0
         assert "disabled" in result.output
 
-        from src.config import load_config
+        from sempath.config import load_config
 
         cfg = load_config()
         assert cfg["verbose"] is False
@@ -136,7 +136,7 @@ class TestConfigVerbose:
         assert result.exit_code == 0
         assert "enabled" in result.output
 
-        from src.config import load_config
+        from sempath.config import load_config
 
         cfg = load_config()
         assert cfg["verbose"] is True

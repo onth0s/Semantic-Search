@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from src.engine import SearchEngine
-from src.handlers.h2_case_insensitive import CaseInsensitiveHandler
-from src.handlers.h3_token_normalized import TokenNormalizedHandler
+from sempath.engine import SearchEngine
+from sempath.handlers.h2_case_insensitive import CaseInsensitiveHandler
+from sempath.handlers.h3_token_normalized import TokenNormalizedHandler
 
 
 @pytest.fixture
@@ -87,7 +87,8 @@ def test_h3_subset_matching_feet(sample_config: dict, feet_candidates: list[Path
     matched_paths = [r.path for r in results]
     # 'feet' token subset matches:
     # - About Feet (tokens: about, feet)
-    # - About Feet/Best Looking Sole/best_looking_foot_sole__feet.png (tokens: best, looking, foot, sole, feet, png)
+    # - About Feet/Best Looking Sole/best_looking_foot_sole__feet.png
+    #   (tokens: best, looking, foot, sole, feet, png)
     assert len(matched_paths) == 2
     assert Path("C:/ar-T/zzz - DONE/About Feet") in matched_paths
     assert (

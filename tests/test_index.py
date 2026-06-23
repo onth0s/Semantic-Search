@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.index import IndexManager
+from sempath.index import IndexManager
 
 
 def test_index_lifecycle(tmp_path: Path):

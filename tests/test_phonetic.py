@@ -1,10 +1,10 @@
-"""Unit tests for src.handlers.h5_phonetic — PhoneticMatchHandler."""
+"""Unit tests for sempath.handlers.h5_phonetic — PhoneticMatchHandler."""
 
 from pathlib import Path
 
 import pytest
 
-from src.handlers.h5_phonetic import PhoneticMatchHandler
+from sempath.handlers.h5_phonetic import PhoneticMatchHandler
 
 
 @pytest.fixture

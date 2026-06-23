@@ -8,8 +8,8 @@ from pathlib import Path
 _temp_appdata = tempfile.TemporaryDirectory()
 os.environ["APPDATA"] = _temp_appdata.name
 
-import pytest
-import yaml
+import pytest  # noqa: E402
+import yaml  # noqa: E402
 
 
 @pytest.fixture

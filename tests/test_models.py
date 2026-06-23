@@ -1,8 +1,8 @@
-"""Tests for src.models — MatchResult and SearchResult."""
+"""Tests for sempath.models — MatchResult and SearchResult."""
 
 from pathlib import Path
 
-from src.models import MatchResult, SearchResult
+from sempath.models import MatchResult, SearchResult
 
 
 class TestMatchResult:

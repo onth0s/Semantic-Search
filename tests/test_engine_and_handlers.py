@@ -7,10 +7,10 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.engine import SearchEngine
-from src.handlers.h7_embedding import EmbeddingHandler
-from src.handlers.h8_llm import LLMHandler
-from src.handlers.h9_interactive import InteractiveHandler
+from sempath.engine import SearchEngine
+from sempath.handlers.h7_embedding import EmbeddingHandler
+from sempath.handlers.h8_llm import LLMHandler
+from sempath.handlers.h9_interactive import InteractiveHandler
 
 
 class TestSearchEngineHeuristics:
@@ -101,7 +101,7 @@ class TestEmbeddingHandler:
             ctx.obj = {"non_interactive": True}
             with (
                 patch("click.get_current_context", return_value=ctx),
-                patch("src.handlers.h7_embedding.err_console.print") as mock_print,
+                patch("sempath.handlers.h7_embedding.err_console.print") as mock_print,
             ):
                 res = handler.match("test query", [Path("some_file.txt")])
                 assert res is None
@@ -186,7 +186,7 @@ class TestInteractiveHandler:
 
         memory_file = tmp_path / "learned_aliases.yaml"
 
-        with patch("src.utils.memory.get_memory_file_path", return_value=memory_file):
+        with patch("sempath.utils.memory.get_memory_file_path", return_value=memory_file):
             handler = InteractiveHandler(sample_config)
             ctx = MagicMock()
             ctx.obj = {"non_interactive": False, "verbose": True}
@@ -201,7 +201,7 @@ class TestInteractiveHandler:
                 assert res.confidence == 1.0
 
                 # Verify that confirmation was stored to memory
-                from src.utils.memory import load_memory
+                from sempath.utils.memory import load_memory
 
                 memory = load_memory(memory_file)
                 assert len(memory) == 1

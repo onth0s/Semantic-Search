@@ -8,10 +8,11 @@ confidence 0.95 on match.
 
 from __future__ import annotations
 
+import fnmatch
 from pathlib import Path
 
-from src.handlers.base import BaseHandler
-from src.models import MatchResult
+from sempath.handlers.base import BaseHandler
+from sempath.models import MatchResult
 
 
 class CaseInsensitiveHandler(BaseHandler):
@@ -21,50 +22,18 @@ class CaseInsensitiveHandler(BaseHandler):
 
     def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
         """Attempt a case-insensitive match against candidate basenames."""
-        if not query or not candidates:
-            return None
-
-        query_lower = query.lower()
-        query_pure = query_lower.replace("\\", "/")
-        is_glob = "*" in query or "?" in query
-        matches = []
-
-        import fnmatch
-
-        for p in candidates:
-            p_name_lower = p.name.lower()
-            p_stem_lower = p.stem.lower()
-
-            if is_glob:
-                # 1. Case-insensitive glob name match
-                if fnmatch.fnmatch(p_name_lower, query_lower) or fnmatch.fnmatch(
-                    p_stem_lower, query_lower
-                ):
-                    matches.append(p)
-                # 2. Case-insensitive glob path suffix match (if query contains path separators)
-                elif "/" in query_pure:
-                    query_parts = [part for part in query_pure.split("/") if part]
-                    k = len(query_parts)
-                    if len(p.parts) >= k:
-                        p_suffix_lower = "/".join(part.lower() for part in p.parts[-k:])
-                        if fnmatch.fnmatch(p_suffix_lower, query_pure):
-                            matches.append(p)
-            else:
-                # 1. Case-insensitive name match
-                if p_name_lower == query_lower or p_stem_lower == query_lower:
-                    matches.append(p)
-                # 2. Path suffix match (if query contains path separators)
-                elif "/" in query_pure:
-                    p_str_lower = str(p).replace("\\", "/").lower()
-                    if p_str_lower.endswith(query_pure):
-                        matches.append(p)
-
+        matches = self.match_all(query, candidates)
         if not matches:
             return None
 
+        # Filter for the exact case-insensitive matches (confidence 0.95)
+        # to preserve original behavior
+        exact_matches = [m for m in matches if m.confidence >= 0.95]
+        if not exact_matches:
+            return None
+
         # Tie-breaker: shortest path depth first
-        best = min(matches, key=lambda p: len(p.parts))
-        return MatchResult(best, 0.95, self.name)
+        return min(exact_matches, key=lambda m: len(m.path.parts))
 
     def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
         """Attempt a case-insensitive and substring match against candidate basenames."""
@@ -75,8 +44,6 @@ class CaseInsensitiveHandler(BaseHandler):
         query_pure = query_lower.replace("\\", "/")
         is_glob = "*" in query or "?" in query
         results = []
-
-        import fnmatch
 
         for p in candidates:
             p_name_lower = p.name.lower()
