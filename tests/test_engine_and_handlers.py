@@ -194,7 +194,7 @@ class TestLLMHandler:
     @patch(
         "sempath.handlers.h8_llm._check_model_available",
         side_effect=ValueError("Model 'xyz' not available"),
-    )  # noqa: E501
+    )
     def test_llm_raises_on_missing_model(self, mock_check, sample_config: dict):
         """H8 propagates ValueError when model is not available — no fallback."""
         handler = LLMHandler(sample_config)

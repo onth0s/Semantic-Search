@@ -104,9 +104,9 @@ handlers:
 | H4 Fuzzy | RapidFuzz ratio against name, stem, and path suffixes. Destructures wildcard queries by stripping `*`/`?`. |
 | H5 Phonetic | jellyfish Metaphone comparison for name, stem, and path suffixes. Destructures wildcard queries by stripping `*`/`?`. |
 | H6 Alias | Config aliases and learned aliases with exact, regex, fuzzy, and phonetic key matching. Supports wildcard targets and `"<sub query> on <alias>"` / `"<sub query> in <alias>"` routing. |
-| H7 Embedding | Optional lazy `sentence-transformers` semantic match. Prompts before loading in interactive mode. Translates wildcard queries to descriptions before encoding. Enforces a minimum similarity threshold of 0.5. |
-| H8 LLM rewrite | Sends the query to an OpenAI-compatible chat endpoint (translating wildcard queries first), then runs H1-H6 on the rewritten query. |
-| H9 Interactive | Click-based fallback that offers fuzzy-ranked candidates and stores confirmed selections as learned memory. |
+| H7 | Embedding | Optional lazy `sentence-transformers` semantic match. Prompts before loading in interactive mode. Translates wildcard queries to descriptions before encoding. Enforces a minimum similarity threshold of 0.5. |
+| H8 | LLM direct match | Direct semantic path selector. Sends candidates and query to an OpenAI-compatible endpoint (defaults to local Ollama with `minimax-m3:cloud`), returns matched relative paths. Raises on error with no fallback. |
+| H9 | Interactive | Click-based fallback that offers fuzzy-ranked candidates and stores confirmed selections as learned memory. |
 
 ## CLI
 
@@ -154,6 +154,7 @@ sempath import-memory FILE_PATH
 | `--smallest` | `false` | Sort filtered candidates by smallest file size. |
 | `--oldest` | `false` | Sort filtered candidates by oldest modification time. |
 | `--ext` | `None` | Keep candidates with the given extension. |
+| `--handlers` | `None` | Restrict executing handlers. Accepts a spec range, CSV, or single ID, e.g. `-h8`, `-h1-6`, `-h2,h4,h5`. |
 
 ## Indexing And Scanning
 
@@ -249,9 +250,10 @@ handlers:
   h4_threshold: 75
   h7_model: all-MiniLM-L6-v2
   h8_provider: ollama
-  h8_model: llama3
+  h8_model: minimax-m3:cloud
   h8_url: http://localhost:11434/v1
   h8_api_key: ""
+  h8_top_k: 6
 
 index:
   auto: true
