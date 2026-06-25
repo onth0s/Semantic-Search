@@ -135,3 +135,46 @@ def test_verbose_logging(tmp_path: Path, sample_config: dict):
                 printed_args.append(call[0][0])
         assert any("Gathered" in arg for arg in printed_args)
         assert any("Heuristics extracted" in arg for arg in printed_args)
+
+
+def test_category_keyword_file_match(tmp_path: Path, sample_config: dict):
+    # Tests that query "script md" matches SCRIPT.md
+    f1 = tmp_path / "SCRIPT.md"
+    f1.write_text("script content", encoding="utf-8")
+    f2 = tmp_path / "other.md"
+    f2.write_text("other content", encoding="utf-8")
+
+    engine = SearchEngine(sample_config)
+    res = engine.find_path("script md", tmp_path, no_index=True, min_confidence=0.1)
+    assert res.status == "success"
+    assert res.match is not None
+    assert res.match.path.name == "SCRIPT.md"
+
+
+def test_dot_separated_category_keyword_file_match(tmp_path: Path, sample_config: dict):
+    # Tests that query "script.md" matches SCRIPT.md instead of being stripped to "."
+    f1 = tmp_path / "SCRIPT.md"
+    f1.write_text("script content", encoding="utf-8")
+    f2 = tmp_path / "other.md"
+    f2.write_text("other content", encoding="utf-8")
+
+    engine = SearchEngine(sample_config)
+    res = engine.find_path("script.md", tmp_path, no_index=True, min_confidence=0.1)
+    assert res.status == "success"
+    assert res.match is not None
+    assert res.match.path.name == "SCRIPT.md"
+
+
+def test_single_category_keyword_file_match(tmp_path: Path, sample_config: dict):
+    # Tests that query "script" matches SCRIPT.md even though "script" is a
+    # keyword for category "code" and SCRIPT.md is a document (not a code file)
+    f1 = tmp_path / "SCRIPT.md"
+    f1.write_text("script content", encoding="utf-8")
+    f2 = tmp_path / "other.py"
+    f2.write_text("py code", encoding="utf-8")
+
+    engine = SearchEngine(sample_config)
+    res = engine.find_path("script", tmp_path, no_index=True, min_confidence=0.1)
+    assert res.status == "success"
+    assert res.match is not None
+    assert res.match.path.name == "SCRIPT.md"

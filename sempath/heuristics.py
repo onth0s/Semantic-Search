@@ -116,6 +116,7 @@ def translate_wildcards(query: str) -> str:
 @dataclass
 class HeuristicsResult:
     clean_query: str
+    name_query: str | None = None
     extensions: list[str] | None = None
     age_limit: int | None = None
     directory_only: bool = False
@@ -247,6 +248,12 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     clean_query = stopwords_re.sub(" ", clean_query)
     clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
+    # Singularize remaining tokens for better name matching
+    from sempath.utils.tokenize import singularize_token
+
+    # At this point, we have stripped modifiers and stopwords, but kept category keywords.
+    name_query = " ".join(singularize_token(t) for t in clean_query.split())
+
     # Category matching
 
     # Sort keywords by length in descending order
@@ -263,7 +270,9 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
 
     # 1. Exact token matching
     for kw, cat_name in keyword_pairs:
-        pattern = re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE)
+        # Use negative lookbehind and lookahead to avoid matching keywords
+        # adjacent to a dot (e.g. script.md)
+        pattern = re.compile(rf"(?<!\.)\b{re.escape(kw)}\b(?!\.)", re.IGNORECASE)
         if pattern.search(clean_query):
             matched_categories.add(cat_name)
             matched_category_keywords.setdefault(cat_name, []).append(kw.lower())
@@ -274,7 +283,8 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
             )
 
     # 2. Fuzzy and phonetic matching on remaining tokens
-    tokens_to_check = re.findall(r"\b[a-zA-Z0-9_-]+\b", clean_query)
+    # Ignore tokens that are adjacent to a dot in clean_query
+    tokens_to_check = re.findall(r"(?<!\.)\b[a-zA-Z0-9_-]+\b(?!\.)", clean_query)
     for token in tokens_to_check:
         if len(token) < 3:
             continue
@@ -288,7 +298,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
             if token.lower() == kw.lower():
                 matched_categories.add(cat_name)
                 matched_category_keywords.setdefault(cat_name, []).append(token.lower())
-                pattern = re.compile(rf"\b{re.escape(token)}\b", re.IGNORECASE)
+                pattern = re.compile(rf"(?<!\.)\b{re.escape(token)}\b(?!\.)", re.IGNORECASE)
                 clean_query = pattern.sub(" ", clean_query)
                 verbose_log(
                     f"[dim]Exact category match (token): [bold cyan]{token}[/] "
@@ -303,7 +313,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
                 if r >= category_fuzzy_threshold:
                     matched_categories.add(cat_name)
                     matched_category_keywords.setdefault(cat_name, []).append(token.lower())
-                    pattern = re.compile(rf"\b{re.escape(token)}\b", re.IGNORECASE)
+                    pattern = re.compile(rf"(?<!\.)\b{re.escape(token)}\b(?!\.)", re.IGNORECASE)
                     clean_query = pattern.sub(" ", clean_query)
                     verbose_log(
                         f"[dim]Fuzzy category match: token [bold cyan]{token}[/] "
@@ -325,7 +335,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
                     ):
                         matched_categories.add(cat_name)
                         matched_category_keywords.setdefault(cat_name, []).append(token.lower())
-                        pattern = re.compile(rf"\b{re.escape(token)}\b", re.IGNORECASE)
+                        pattern = re.compile(rf"(?<!\.)\b{re.escape(token)}\b(?!\.)", re.IGNORECASE)
                         clean_query = pattern.sub(" ", clean_query)
                         verbose_log(
                             f"[dim]Phonetic category match: token [bold cyan]{token}[/] "
@@ -351,13 +361,11 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
     # Singularize remaining tokens for better H7/H8 semantic matching
-    # (e.g. "japanese names" -> "japanese name")
-    from sempath.utils.tokenize import singularize_token
-
     clean_query = " ".join(singularize_token(t) for t in clean_query.split())
 
     return HeuristicsResult(
         clean_query=clean_query,
+        name_query=name_query,
         extensions=extensions,
         age_limit=modified_within_seconds,
         directory_only=directory_only,

@@ -136,6 +136,7 @@ class SearchEngine:
         """Search for paths matching the query under root_dir."""
         search_root = Path(root_dir).resolve()
         self.config["_raw_query"] = query  # original user query for H7/H8
+        self.config["_top_n"] = top_n
 
         # Early-bypass check for alias matching
         query, search_root, early_result = self._resolve_early_alias(query, search_root)
@@ -221,9 +222,12 @@ class SearchEngine:
         )
 
         # 5. Check for direct bypass
-        # If query is a placeholder and we sorted/filtered, return the top candidate
+        # If the original query is a literal placeholder and we sorted/filtered,
+        # return the top candidate
+        original_query_placeholder = query.strip() in ("", ".", "*")
         if (
-            clean_query in ("", ".", "*")
+            original_query_placeholder
+            and clean_query in ("", ".", "*")
             and (latest_final or largest_final or smallest_final or oldest_final or exts_final)
             and filtered_candidates
         ):
@@ -242,10 +246,36 @@ class SearchEngine:
         except ValueError as exc:
             raise ValueError(f"Error building handler chain: {exc}") from exc
 
-        match_results = chain.handle(clean_query, filtered_candidates)
+        match_results = []
+        if clean_query not in ("", ".", "*"):
+            match_results = chain.handle(clean_query, filtered_candidates)
+
+        if heuristics.name_query and heuristics.name_query != clean_query:
+            name_matches = chain.handle(heuristics.name_query, candidates)
+            existing_paths = {m.path: m for m in match_results}
+            for nm in name_matches:
+                if nm.path in existing_paths:
+                    if nm.confidence > existing_paths[nm.path].confidence:
+                        existing_paths[nm.path] = nm
+                else:
+                    existing_paths[nm.path] = nm
+            match_results = list(existing_paths.values())
 
         # Filter matches above min_confidence and sort them
         confident_matches = [m for m in match_results if m.confidence >= min_confidence]
+
+        # If no confident matches, and clean_query is a placeholder/empty (e.g.,
+        # category matching like "songs"), fall back to using the filtered candidates
+        if not confident_matches and clean_query in ("", ".", "*") and filtered_candidates:
+            match_result = MatchResult(filtered_candidates[0], 1.0, "explicit_flags")
+            near_misses = [MatchResult(p, 1.0, "explicit_flags") for p in filtered_candidates[1:]]
+            return SearchResult(
+                status="success",
+                query=query,
+                match=match_result,
+                near_misses=near_misses,
+            )
+
         # Sort primary by confidence descending, secondary by path depth ascending
         confident_matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
 

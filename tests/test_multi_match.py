@@ -200,3 +200,33 @@ def test_category_query_multi_match(tmp_path: Path, sample_config: dict):
     assert tmp_path / "v1.mp4" in all_matched
     assert tmp_path / "v2.mov" in all_matched
     assert tmp_path / "image.png" not in all_matched
+
+
+def test_exhaustive_accumulation(tmp_path: Path, sample_config: dict):
+    """Test that the handler chain keeps executing until top_n is satisfied."""
+    sample_config["handlers"]["enabled"] = ["h1", "h2", "h3"]
+    engine = SearchEngine(sample_config)
+
+    # Create files
+    f1 = tmp_path / "SCRIPT.md"
+    f1.write_text("", encoding="utf-8")
+    f2 = tmp_path / "script_extra.md"
+    f2.write_text("", encoding="utf-8")
+    f3 = tmp_path / "extra_script.md"
+    f3.write_text("", encoding="utf-8")
+
+    # If top_n = 1, it should stop at H1
+    res_1 = engine.find_path("SCRIPT.md", tmp_path, no_index=True, top_n=1)
+    assert res_1.status == "success"
+    all_matched_1 = [res_1.match.path] + [nm.path for nm in res_1.near_misses]
+    assert len(all_matched_1) == 1
+    assert f1 in all_matched_1
+
+    # If top_n = 3, it should fall through H1, H2, and H3 to collect all 3 matches
+    res_3 = engine.find_path("SCRIPT.md", tmp_path, no_index=True, top_n=3)
+    assert res_3.status == "success"
+    all_matched_3 = [res_3.match.path] + [nm.path for nm in res_3.near_misses]
+    assert len(all_matched_3) == 3
+    assert f1 in all_matched_3
+    assert f2 in all_matched_3
+    assert f3 in all_matched_3

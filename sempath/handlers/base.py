@@ -44,9 +44,31 @@ class BaseHandler(ABC):
         res = self.match(query, candidates)
         return [res] if res is not None else []
 
-    def handle(self, query: str, candidates: list[Path]) -> list[MatchResult]:
-        """Execute this handler, falling through to the next if no match."""
+    def handle(
+        self,
+        query: str,
+        candidates: list[Path],
+        collected: list[MatchResult] | None = None,
+    ) -> list[MatchResult]:
+        """Execute this handler, accumulating matches into the collected list.
+
+        Continues execution down the chain until the requested top_n clamp
+        limit is met or until slow/interactive handlers (H7, H8, H9) are reached.
+        """
         from sempath.utils.logging import verbose_log
+
+        if collected is None:
+            collected = []
+
+        # Access top_n from config or current click context if available
+        import click
+
+        ctx = click.get_current_context(silent=True)
+        top_n = 1
+        if self.config and "_top_n" in self.config:
+            top_n = self.config["_top_n"]
+        elif ctx and ctx.obj:
+            top_n = ctx.obj.get("top_n", 1)
 
         verbose_log(
             f"[dim]Evaluating handler [bold cyan]{self.name}[/] "
@@ -55,16 +77,37 @@ class BaseHandler(ABC):
 
         results = self.match_all(query, candidates)
         if results:
+            # Merge results into collected keeping higher confidence for duplicate paths
+            existing = {r.path: r for r in collected}
+            for r in results:
+                if r.path in existing:
+                    if r.confidence > existing[r.path].confidence:
+                        existing[r.path] = r
+                else:
+                    existing[r.path] = r
+            collected = list(existing.values())
+
             min_c = min(r.confidence for r in results)
             max_c = max(r.confidence for r in results)
             verbose_log(
                 f"[bold green]✔ Handler {self.name} matched {len(results)} items "
                 f"(confidence range: {min_c:.2f}-{max_c:.2f})[/]"
             )
-            return results
+        else:
+            verbose_log(f"[yellow]✗ Handler {self.name} returned no match.[/]")
 
-        verbose_log(f"[yellow]✗ Handler {self.name} returned no match.[/]")
+        # Check termination condition: met the top_n clamp limit
+        if len(collected) >= top_n:
+            return collected
 
         if self.next_handler is not None:
-            return self.next_handler.handle(query, candidates)
-        return []
+            # Cutoff before slow/interactive handlers (H7, H8, H9) if we already have matches
+            if self.next_handler.name in ("h7_embedding", "h8_llm", "h9_interactive") and collected:
+                verbose_log(
+                    f"[dim]Cutoff before slow handler '{self.next_handler.name}' "
+                    f"reached with active matches. Stopping evaluation.[/]"
+                )
+                return collected
+            return self.next_handler.handle(query, candidates, collected)
+
+        return collected
