@@ -135,6 +135,7 @@ class SearchEngine:
     ) -> SearchResult:
         """Search for paths matching the query under root_dir."""
         search_root = Path(root_dir).resolve()
+        self.config["_raw_query"] = query  # original user query for H7/H8
 
         # Early-bypass check for alias matching
         query, search_root, early_result = self._resolve_early_alias(query, search_root)

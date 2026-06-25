@@ -29,7 +29,8 @@ class EmbeddingHandler(BaseHandler):
         self, query: str, candidates: list[Path]
     ) -> list[tuple[Path, float]] | None:
         """Compute cosine similarity between query and candidate stems."""
-        if not query or not candidates:
+        raw_query = self.config.get("_raw_query", query)
+        if not raw_query or not candidates:
             return None
 
         # Check interactive mode
@@ -106,7 +107,7 @@ class EmbeddingHandler(BaseHandler):
         try:
             from sempath.heuristics import translate_wildcards
 
-            translated_query = translate_wildcards(query)
+            translated_query = translate_wildcards(raw_query)
             # BAAI/bge models require a query instruction prefix to score
             # correctly in asymmetric search.
             if "bge" in model_name.lower():

@@ -94,6 +94,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
                     "md",
                     "markdown",
                     "markdowns",
+                    "vcf",
+                    "vcfs",
                 ],
                 "extensions": [
                     "pdf",
@@ -109,6 +111,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
                     "csv",
                     "md",
                     "markdown",
+                    "vcf",
                 ],
             },
             "code": {

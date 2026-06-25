@@ -78,7 +78,8 @@ class LLMHandler(BaseHandler):
 
     def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
         """Ask the LLM to pick the best matching paths from ``candidates``."""
-        if not query or not candidates:
+        raw_query = self.config.get("_raw_query", query)
+        if not raw_query or not candidates:
             return []
 
         from sempath.utils.logging import verbose_log
@@ -127,7 +128,7 @@ class LLMHandler(BaseHandler):
         # --- Build prompt ----------------------------------------------------
         path_list = "\n".join(rel_map.keys())
         system_content = _SYSTEM_PROMPT.format(top_k=top_k)
-        user_content = f"Paths:\n{path_list}\n\nQuery: {query}"
+        user_content = f"Paths:\n{path_list}\n\nQuery: {raw_query}"
 
         payload = {
             "model": model,

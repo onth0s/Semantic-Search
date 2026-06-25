@@ -31,8 +31,8 @@ heuristics:
       keywords: [pic, pics, picture, pictures, photo, photos, image, images, img, imgs, png, pngs, jpg, jpgs, jpeg, jpegs, webp, gif, gifs, bmp, bmps]
       extensions: [png, jpg, jpeg, gif, bmp, webp, tiff, ico, svg]
     document:
-      keywords: [doc, docs, document, documents, pdf, pdfs, text, txt, txts, csv, csvs, md, markdown, markdowns]
-      extensions: [pdf, docx, doc, txt, rtf, odt, xls, xlsx, ppt, pptx, csv, md, markdown]
+      keywords: [doc, docs, document, documents, pdf, pdfs, text, txt, txts, csv, csvs, md, markdown, markdowns, vcf, vcfs]
+      extensions: [pdf, docx, doc, txt, rtf, odt, xls, xlsx, ppt, pptx, csv, md, markdown, vcf]
     code:
       keywords: [code, script, scripts, source, py, python, js, javascript, ts, typescript, html, css, json, yaml, yml, toml]
       extensions: [py, js, ts, html, css, json, yaml, yml, toml, sh, bat, ps1, rs, go, cpp, c, h]
