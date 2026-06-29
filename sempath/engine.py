@@ -251,7 +251,7 @@ class SearchEngine:
             match_results = chain.handle(clean_query, filtered_candidates)
 
         if heuristics.name_query and heuristics.name_query != clean_query:
-            name_matches = chain.handle(heuristics.name_query, candidates)
+            name_matches = chain.handle(heuristics.name_query, filtered_candidates)
             existing_paths = {m.path: m for m in match_results}
             for nm in name_matches:
                 if nm.path in existing_paths:
@@ -276,8 +276,51 @@ class SearchEngine:
                 near_misses=near_misses,
             )
 
-        # Sort primary by confidence descending, secondary by path depth ascending
-        confident_matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
+        # If a sort flag is active, use size/date as primary sort key
+        # (confidence as secondary tiebreaker).
+        if latest_final:
+
+            def _mtime_key(m: MatchResult) -> tuple:
+                try:
+                    mt = m.path.stat().st_mtime
+                except Exception:
+                    mt = 0.0
+                return (-mt, -m.confidence)
+
+            confident_matches.sort(key=_mtime_key)
+        elif largest_final:
+
+            def _size_desc_key(m: MatchResult) -> tuple:
+                try:
+                    sz = m.path.stat().st_size if m.path.is_file() else 0
+                except Exception:
+                    sz = 0
+                return (-sz, -m.confidence)
+
+            confident_matches.sort(key=_size_desc_key)
+        elif smallest_final:
+
+            def _size_asc_key(m: MatchResult) -> tuple:
+                try:
+                    sz = float(m.path.stat().st_size) if m.path.is_file() else float("inf")
+                except Exception:
+                    sz = float("inf")
+                return (sz, -m.confidence)
+
+            confident_matches.sort(key=_size_asc_key)
+        elif oldest_final:
+
+            def _mtime_asc_key(m: MatchResult) -> tuple:
+                try:
+                    mt = m.path.stat().st_mtime
+                except Exception:
+                    mt = float("inf")
+                return (mt, -m.confidence)
+
+            confident_matches.sort(key=_mtime_asc_key)
+        else:
+            # Default: sort by confidence descending, path depth ascending
+            confident_matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
 
         if confident_matches:
             top_match = confident_matches[0]

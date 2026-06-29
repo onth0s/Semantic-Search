@@ -158,6 +158,33 @@ def _parse_handler_spec(spec: str) -> list[str]:
     )
 
 
+def _human_size(size_bytes: int) -> str:
+    """Format bytes as human-readable string with 2 decimal places."""
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size_bytes < 1024:
+            return f"{size_bytes:.2f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.2f} PB"
+
+
+def _human_mtime(mtime: float) -> str:
+    """Format a modification timestamp as a human-readable date-time string."""
+    from datetime import datetime
+
+    return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+
+
+def _format_file_meta(path: Path) -> str:
+    """Return a compact '[size, date]' dimmed suffix for *path*."""
+    try:
+        st = path.stat()
+        sz = _human_size(st.st_size) if path.is_file() else "DIR"
+        dt = _human_mtime(st.st_mtime)
+        return f" [dim][{sz}, {dt}][/]"
+    except Exception:
+        return ""
+
+
 # ---------------------------------------------------------------------------
 # Result grouping
 # ---------------------------------------------------------------------------
@@ -259,7 +286,9 @@ def _print_grouped_matches(
         for nm in items:
             if printed_count >= limit:
                 break
-            nm_meta = f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else ""
+            nm_meta = _format_file_meta(nm.path) + (
+                f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else ""
+            )
             color = "cyan" if group_name != _GROUP_GENERIC else "dim cyan"
             console.print(f"  - [{color}]{nm.path}[/]{nm_meta}")
             printed_count += 1
@@ -451,51 +480,49 @@ def find(
     if json_output:
         click.echo(json.dumps(search_result.to_dict(), indent=2))
         sys.exit(0 if search_result.status == "success" else 1)
-    else:
-        if search_result.status == "success":
-            if search_result.message:
-                console.print(f"[yellow]ℹ {search_result.message}[/]")  # noqa: RUF001
 
-            # If the engine's top result is a generic/placeholder file,
-            # promote the first real match to primary and push the generic
-            # back into the pool so it appears in the grouped display.
-            primary = search_result.match
-            near_misses: list = list(search_result.near_misses)
+    if search_result.status == "success":
+        if search_result.message:
+            console.print(f"[yellow]ℹ {search_result.message}[/]")  # noqa: RUF001
 
-            if _is_generic_stem(primary.path.stem):
-                all_results = [primary, *near_misses]
-                non_generic = [r for r in all_results if not _is_generic_stem(r.path.stem)]
-                generic = [r for r in all_results if _is_generic_stem(r.path.stem)]
-                if non_generic:
-                    primary = non_generic[0]
-                    near_misses = [*non_generic[1:], *generic]
+        # If the engine's top result is a generic/placeholder file,
+        # promote the first real match to primary and push the generic
+        # back into the pool so it appears in the grouped display.
+        primary = search_result.match
+        near_misses: list = list(search_result.near_misses)
 
-            meta = (
-                f" [dim]({primary.handler}, confidence: {primary.confidence:.2f})[/]"
-                if verbose_final
-                else ""
-            )
-            console.print(
-                f"[bold green]✔ Success:[/] Found match: [bold cyan]{primary.path}[/]{meta}"
-            )
-            if near_misses and top_n_final > 1:
-                _print_grouped_matches(
-                    near_misses,
-                    limit=top_n_final - 1,
-                    verbose=verbose_final,
-                )
-            sys.exit(0)
-        elif search_result.status == "ambiguous":
-            console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
+        if _is_generic_stem(primary.path.stem):
+            all_results = [primary, *near_misses]
+            non_generic = [r for r in all_results if not _is_generic_stem(r.path.stem)]
+            generic = [r for r in all_results if _is_generic_stem(r.path.stem)]
+            if non_generic:
+                primary = non_generic[0]
+                near_misses = [*non_generic[1:], *generic]
+
+        meta = _format_file_meta(primary.path) + (
+            f" [dim]({primary.handler}, confidence: {primary.confidence:.2f})[/]"
+            if verbose_final
+            else ""
+        )
+        console.print(f"[bold green]✔ Success:[/] Found match: [bold cyan]{primary.path}[/]{meta}")
+        if near_misses and top_n_final > 1:
             _print_grouped_matches(
-                search_result.near_misses,
-                limit=top_n_final,
+                near_misses,
+                limit=top_n_final - 1,
                 verbose=verbose_final,
             )
-            sys.exit(1)
-        else:
-            console.print(f"[bold red]❌ Failed:[/] {search_result.message}")
-            sys.exit(1)
+        sys.exit(0)
+    elif search_result.status == "ambiguous":
+        console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
+        _print_grouped_matches(
+            search_result.near_misses,
+            limit=top_n_final,
+            verbose=verbose_final,
+        )
+        sys.exit(1)
+    else:
+        console.print(f"[bold red]❌ Failed:[/] {search_result.message}")
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
