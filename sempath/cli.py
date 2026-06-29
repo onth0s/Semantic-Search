@@ -488,10 +488,20 @@ def find(
         # If the engine's top result is a generic/placeholder file,
         # promote the first real match to primary and push the generic
         # back into the pool so it appears in the grouped display.
+        # However, do not demote it if the user specifically asked for a sorted item (e.g. latest).
         primary = search_result.match
         near_misses: list = list(search_result.near_misses)
 
-        if _is_generic_stem(primary.path.stem):
+        is_sorted = (
+            latest or largest or smallest or oldest
+            or re.search(
+                r"\b(latest|newest|lastest|oldest|largest|biggest|smallest|tiniest)\b",
+                query,
+                re.IGNORECASE,
+            )
+        )
+
+        if not is_sorted and _is_generic_stem(primary.path.stem):
             all_results = [primary, *near_misses]
             non_generic = [r for r in all_results if not _is_generic_stem(r.path.stem)]
             generic = [r for r in all_results if _is_generic_stem(r.path.stem)]

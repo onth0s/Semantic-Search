@@ -33,7 +33,7 @@ Last local verification: 130 tests passed on Python 3.13.1.
 
 ## Project Rules
 
-These rules are also captured in `.agents/AGENTS.md` and should stay true in
+These rules are also captured in `AGENTS.md` and should stay true in
 future code and docs changes:
 
 - The MVP targets the host machine on Windows. Cross-platform support is deferred.

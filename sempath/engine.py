@@ -134,6 +134,7 @@ class SearchEngine:
         verbose: bool = False,
     ) -> SearchResult:
         """Search for paths matching the query under root_dir."""
+
         search_root = Path(root_dir).resolve()
         self.config["_raw_query"] = query  # original user query for H7/H8
         self.config["_top_n"] = top_n
@@ -145,14 +146,7 @@ class SearchEngine:
 
         self.config["_current_search_root"] = search_root
 
-        # 1. Gather candidates (SQLite index vs on-the-fly)
-        exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
-        use_index = not no_index and self.config.get("index", {}).get("auto", True)
-
-        candidates = self._gather_candidates(search_root, depth, use_index, exclude_patterns)
-        verbose_log(f"[dim]Gathered {len(candidates)} candidates from scan/index...[/]")
-
-        # 2. Extract heuristics
+        # 1. Extract heuristics
         heuristics = extract_heuristics(query, self.config)
         clean_query = heuristics.clean_query
         h_exts = heuristics.extensions
@@ -170,6 +164,18 @@ class SearchEngine:
             f"[dim]Heuristics extracted: clean_query='{clean_query}', "
             f"extensions={exts_final}, age_limit={h_age_limit}[/]"
         )
+
+        # 2. Gather candidates (SQLite index vs on-the-fly)
+        exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
+        use_index = not no_index and self.config.get("index", {}).get("auto", True)
+
+        # If any dynamic sorting flag is used, skip the index to ensure
+        # we don't miss newly created or modified files.
+        if latest_final or largest_final or smallest_final or oldest_final:
+            use_index = False
+
+        candidates = self._gather_candidates(search_root, depth, use_index, exclude_patterns)
+        verbose_log(f"[dim]Gathered {len(candidates)} candidates from scan/index...[/]")
 
         filtered_candidates = filter_by_intent(
             candidates,
@@ -222,15 +228,13 @@ class SearchEngine:
         )
 
         # 5. Check for direct bypass
-        # If the original query is a literal placeholder and we sorted/filtered,
-        # return the top candidate
+        # If the original query is a literal placeholder or if all query terms were
+        # consumed by heuristics AND a sorting flag is active, return the top candidate directly.
         original_query_placeholder = query.strip() in ("", ".", "*")
-        if (
-            original_query_placeholder
-            and clean_query in ("", ".", "*")
-            and (latest_final or largest_final or smallest_final or oldest_final or exts_final)
-            and filtered_candidates
-        ):
+        query_fully_consumed_with_sort = clean_query in ("", ".", "*") and (
+            latest_final or largest_final or smallest_final or oldest_final
+        )
+        if (original_query_placeholder or query_fully_consumed_with_sort) and filtered_candidates:
             match_result = MatchResult(filtered_candidates[0], 1.0, "explicit_flags")
             near_misses = [MatchResult(p, 1.0, "explicit_flags") for p in filtered_candidates[1:]]
             return SearchResult(
@@ -251,7 +255,7 @@ class SearchEngine:
             match_results = chain.handle(clean_query, filtered_candidates)
 
         if heuristics.name_query and heuristics.name_query != clean_query:
-            name_matches = chain.handle(heuristics.name_query, filtered_candidates)
+            name_matches = chain.handle(heuristics.name_query, candidates)
             existing_paths = {m.path: m for m in match_results}
             for nm in name_matches:
                 if nm.path in existing_paths:
