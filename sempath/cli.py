@@ -256,13 +256,13 @@ def _print_grouped_matches(
         groups[group_lbl].append(nm)
 
     # Determine sorting order of groups:
-    # 1. Custom parent-directory groups (sorted alphabetically/by insertion)
+    # 1. Custom parent-directory groups (sorted by insertion, preserving match order)
     # 2. "Other matches"
     # 3. "Generic/placeholder files"
     all_groups = list(groups.keys())
 
     # We want "Other matches" first if present, then subfolders, then generic files at the very end.
-    subfolder_groups = sorted([g for g in all_groups if g not in (_GROUP_OTHER, _GROUP_GENERIC)])
+    subfolder_groups = [g for g in all_groups if g not in (_GROUP_OTHER, _GROUP_GENERIC)]
 
     group_order = []
     if _GROUP_OTHER in groups:
@@ -493,7 +493,10 @@ def find(
         near_misses: list = list(search_result.near_misses)
 
         is_sorted = (
-            latest or largest or smallest or oldest
+            latest
+            or largest
+            or smallest
+            or oldest
             or re.search(
                 r"\b(latest|newest|lastest|oldest|largest|biggest|smallest|tiniest)\b",
                 query,
