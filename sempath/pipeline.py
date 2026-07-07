@@ -54,6 +54,22 @@ def filter_by_age(candidates: list[Path], max_age_seconds: int | None) -> list[P
     return valid_candidates
 
 
+def get_path_mtime(p: Path) -> float:
+    """Safely get modification time of a path, defaulting to 0.0 on error."""
+    try:
+        return p.stat().st_mtime
+    except Exception:
+        return 0.0
+
+
+def get_path_size(p: Path) -> int:
+    """Safely get file size of a path, returning 0 if directory or on error."""
+    try:
+        return p.stat().st_size if p.is_file() else 0
+    except Exception:
+        return 0
+
+
 def sort_candidates(
     candidates: list[Path],
     latest: bool,
@@ -63,25 +79,9 @@ def sort_candidates(
 ) -> None:
     """Sort candidates in-place by modification time or size."""
     if latest:
-
-        def get_mtime(p: Path) -> float:
-            try:
-                return p.stat().st_mtime
-            except Exception:
-                return 0.0
-
-        candidates.sort(key=get_mtime, reverse=True)
-
+        candidates.sort(key=get_path_mtime, reverse=True)
     elif largest:
-
-        def get_size(p: Path) -> int:
-            try:
-                return p.stat().st_size if p.is_file() else 0
-            except Exception:
-                return 0
-
-        candidates.sort(key=get_size, reverse=True)
-
+        candidates.sort(key=get_path_size, reverse=True)
     elif smallest:
 
         def get_size_smallest(p: Path) -> float:
@@ -91,7 +91,6 @@ def sort_candidates(
                 return float("inf")
 
         candidates.sort(key=get_size_smallest)
-
     elif oldest:
 
         def get_mtime_oldest(p: Path) -> float:

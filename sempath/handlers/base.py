@@ -49,6 +49,7 @@ class BaseHandler(ABC):
         query: str,
         candidates: list[Path],
         collected: list[MatchResult] | None = None,
+        top_n: int = 1,
     ) -> list[MatchResult]:
         """Execute this handler, accumulating matches into the collected list.
 
@@ -59,16 +60,6 @@ class BaseHandler(ABC):
 
         if collected is None:
             collected = []
-
-        # Access top_n from config or current click context if available
-        import click
-
-        ctx = click.get_current_context(silent=True)
-        top_n = 1
-        if self.config and "_top_n" in self.config:
-            top_n = self.config["_top_n"]
-        elif ctx and ctx.obj:
-            top_n = ctx.obj.get("top_n", 1)
 
         verbose_log(
             f"[dim]Evaluating handler [bold cyan]{self.name}[/] "
@@ -108,6 +99,6 @@ class BaseHandler(ABC):
                     f"reached with active matches. Stopping evaluation.[/]"
                 )
                 return collected
-            return self.next_handler.handle(query, candidates, collected)
+            return self.next_handler.handle(query, candidates, collected, top_n=top_n)
 
         return collected

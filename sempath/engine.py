@@ -16,7 +16,14 @@ from sempath.handlers.h6_alias import AliasHandler
 from sempath.heuristics import HeuristicsResult, extract_heuristics
 from sempath.index import IndexManager
 from sempath.models import MatchResult, SearchResult
-from sempath.pipeline import filter_by_age, filter_by_extensions, filter_by_intent, sort_candidates
+from sempath.pipeline import (
+    filter_by_age,
+    filter_by_extensions,
+    filter_by_intent,
+    get_path_mtime,
+    get_path_size,
+    sort_candidates,
+)
 from sempath.scanner import scan_directory
 from sempath.utils.logging import verbose_log
 
@@ -254,10 +261,10 @@ class SearchEngine:
 
         match_results = []
         if clean_query not in ("", ".", "*"):
-            match_results = chain.handle(clean_query, filtered_candidates)
+            match_results = chain.handle(clean_query, filtered_candidates, top_n=top_n)
 
         if heuristics.name_query and heuristics.name_query != clean_query:
-            name_matches = chain.handle(heuristics.name_query, intent_candidates)
+            name_matches = chain.handle(heuristics.name_query, intent_candidates, top_n=top_n)
             existing_paths = {m.path: m for m in match_results}
             for nm in name_matches:
                 if nm.path in existing_paths:
@@ -287,21 +294,13 @@ class SearchEngine:
         if latest_final:
 
             def _mtime_key(m: MatchResult) -> tuple:
-                try:
-                    mt = m.path.stat().st_mtime
-                except Exception:
-                    mt = 0.0
-                return (-mt, -m.confidence)
+                return (-get_path_mtime(m.path), -m.confidence)
 
             confident_matches.sort(key=_mtime_key)
         elif largest_final:
 
             def _size_desc_key(m: MatchResult) -> tuple:
-                try:
-                    sz = m.path.stat().st_size if m.path.is_file() else 0
-                except Exception:
-                    sz = 0
-                return (-sz, -m.confidence)
+                return (-get_path_size(m.path), -m.confidence)
 
             confident_matches.sort(key=_size_desc_key)
         elif smallest_final:
