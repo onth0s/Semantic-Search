@@ -11,6 +11,7 @@ from pathlib import Path
 
 import click
 from rapidfuzz import fuzz
+from rich.markup import escape
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
@@ -57,7 +58,9 @@ class InteractiveHandler(BaseHandler):
 
         err_console.print("\n[bold yellow]?[/] No exact match found. Did you mean one of these?")
         for i, (path, score) in enumerate(top_candidates, start=1):
-            err_console.print(f"  {i}. [cyan]{path}[/] [dim](confidence: {score:.2f})[/]")
+            err_console.print(
+                f"  {i}. [cyan]{escape(str(path))}[/] [dim](confidence: {score:.2f})[/]"
+            )
         err_console.print(f"  {len(top_candidates) + 1}. [dim]None of the above[/]")
 
         try:
@@ -77,7 +80,7 @@ class InteractiveHandler(BaseHandler):
                 add_or_update_memory(query, selected_path)
                 err_console.print(
                     f"[bold green]Confirmed:[/] Learned alias "
-                    f"[cyan]{query}[/] -> [bold]{selected_path}[/]"
+                    f"[cyan]{escape(query)}[/] -> [bold]{escape(str(selected_path))}[/]"
                 )
                 err_console.print("[dim](run 'sempath alias undo' to revert)[/]")
             except Exception as exc:

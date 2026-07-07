@@ -177,12 +177,16 @@ class SearchEngine:
         candidates = self._gather_candidates(search_root, depth, use_index, exclude_patterns)
         verbose_log(f"[dim]Gathered {len(candidates)} candidates from scan/index...[/]")
 
-        filtered_candidates = filter_by_intent(
+        intent_candidates = filter_by_intent(
             candidates,
             directory_only=heuristics.directory_only,
             file_only=heuristics.file_only,
         )
-        filtered_candidates = filter_by_extensions(filtered_candidates, exts_final)
+
+        filtered_candidates = list(intent_candidates)
+        if not heuristics.directory_only:
+            filtered_candidates = filter_by_extensions(filtered_candidates, exts_final)
+
         filtered_candidates = filter_by_age(filtered_candidates, h_age_limit)
 
         verbose_log(
@@ -190,9 +194,7 @@ class SearchEngine:
         )
 
         # Check if filtered_candidates is empty and we matched a category
-        if not filtered_candidates:
-            msg = _build_category_failure_message(heuristics)
-            return SearchResult(status="failed", query=query, message=msg)
+        # (Removed early return to allow name_query and directory content matching to execute)
 
         # 3b. Check for Directory Content Matching
         # If a category filter is active and clean_query is not a placeholder/empty
@@ -255,7 +257,7 @@ class SearchEngine:
             match_results = chain.handle(clean_query, filtered_candidates)
 
         if heuristics.name_query and heuristics.name_query != clean_query:
-            name_matches = chain.handle(heuristics.name_query, candidates)
+            name_matches = chain.handle(heuristics.name_query, intent_candidates)
             existing_paths = {m.path: m for m in match_results}
             for nm in name_matches:
                 if nm.path in existing_paths:

@@ -20,6 +20,7 @@ from pathlib import Path
 
 import click
 import rich_click
+from rich.markup import escape
 
 from sempath import __version__
 from sempath.config import load_config
@@ -281,7 +282,7 @@ def _print_grouped_matches(
 
         # Render group header
         style = "[bold]" if group_name != _GROUP_GENERIC else "[bold dim]"
-        console.print(f"{style}{group_name}:[/]")
+        console.print(f"{style}{escape(group_name)}:[/]")
 
         for nm in items:
             if printed_count >= limit:
@@ -290,7 +291,7 @@ def _print_grouped_matches(
                 f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else ""
             )
             color = "cyan" if group_name != _GROUP_GENERIC else "dim cyan"
-            console.print(f"  - [{color}]{nm.path}[/]{nm_meta}")
+            console.print(f"  - [{color}]{escape(str(nm.path))}[/]{nm_meta}")
             printed_count += 1
 
 
@@ -449,7 +450,7 @@ def find(
 
     if verbose_final:
         console.print(f"[dim]Query:[/]  [bold cyan]{query}[/]")
-        console.print(f"[dim]Root:[/]   [bold]{search_root}[/]")
+        console.print(f"[dim]Root:[/]   [bold]{escape(str(search_root))}[/]")
         console.print(f"[dim]Depth:[/]  {depth}")
         console.print()
 
@@ -517,7 +518,8 @@ def find(
             if verbose_final
             else ""
         )
-        console.print(f"[bold green]✔ Success:[/] Found match: [bold cyan]{primary.path}[/]{meta}")
+        escaped_path = escape(str(primary.path))
+        console.print(f"[bold green]✔ Success:[/] Found match: [bold cyan]{escaped_path}[/]{meta}")
         if near_misses and top_n_final > 1:
             _print_grouped_matches(
                 near_misses,
@@ -560,7 +562,7 @@ def index_create(path: Path, depth: int) -> None:
         from sempath.index import IndexManager
 
         manager = IndexManager(Path(store))
-        console.print(f"[yellow]Scanning and indexing:[/] {path} (depth: {depth})...")
+        console.print(f"[yellow]Scanning and indexing:[/] {escape(str(path))} (depth: {depth})...")
         added, deleted = manager.create_or_update_index(path, depth=depth, exclude_patterns=exclude)
         console.print(
             f"[bold green]✔ Success:[/] Indexed root: [bold]{path}[/] "
@@ -583,7 +585,7 @@ def index_update(path: Path, depth: int) -> None:
         from sempath.index import IndexManager
 
         manager = IndexManager(Path(store))
-        console.print(f"[yellow]Updating index for:[/] {path}...")
+        console.print(f"[yellow]Updating index for:[/] {escape(str(path))}...")
         added, deleted = manager.create_or_update_index(path, depth=depth, exclude_patterns=exclude)
         console.print(
             f"[bold green]✔ Success:[/] Updated root: [bold]{path}[/] "
@@ -609,7 +611,7 @@ def index_list() -> None:
         else:
             console.print("[bold]Indexed root directories:[/]")
             for r in roots:
-                console.print(f"  - [cyan]{r}[/]")
+                console.print(f"  - [cyan]{escape(r)}[/]")
     except Exception as exc:
         err_console.print(f"[bold red]Error listing index:[/] {exc}")
         sys.exit(1)
@@ -632,9 +634,14 @@ def index_remove(path: Path, all_roots: bool) -> None:
         else:
             removed = manager.remove_root(path)
             if removed:
-                console.print(f"[bold green]✔ Success:[/] Removed root [bold]{path}[/] from index.")
+                escaped_root = escape(str(path))
+                console.print(
+                    f"[bold green]✔ Success:[/] Removed root [bold]{escaped_root}[/] from index."
+                )
             else:
-                console.print(f"[yellow]⚠[/] Path [bold]{path}[/] was not found in the index.")
+                console.print(
+                    f"[yellow]⚠[/] Path [bold]{escape(str(path))}[/] was not found in the index."
+                )
     except Exception as exc:
         err_console.print(f"[bold red]Error removing from index:[/] {exc}")
         sys.exit(1)
@@ -659,8 +666,11 @@ def alias_add(name: str, path: Path) -> None:
 
     try:
         add_or_update_memory(name, path)
+        escaped_name = escape(name)
+        escaped_path = escape(str(path))
         console.print(
-            f"[bold green]✔ Success:[/] Added alias [bold cyan]{name}[/] → [bold]{path}[/]"
+            "[bold green]✔ Success:[/] Added alias"
+            f" [bold cyan]{escaped_name}[/] → [bold]{escaped_path}[/]"
         )
     except Exception as exc:
         err_console.print(f"[bold red]Error adding alias:[/] {exc}")
@@ -749,9 +759,11 @@ def alias_undo() -> None:
         if popped is None:
             console.print("[yellow]⚠[/] No learned aliases to undo.")
         else:
+            escaped_query = escape(popped.get("query", ""))
+            escaped_path = escape(popped.get("path", ""))
             console.print(
                 f"[bold green]✔ Success:[/] Reverted last alias: "
-                f"[bold cyan]{popped.get('query')}[/] → [bold]{popped.get('path')}[/]"
+                f"[bold cyan]{escaped_query}[/] → [bold]{escaped_path}[/]"
             )
     except Exception as exc:
         err_console.print(f"[bold red]Error undoing alias:[/] {exc}")
@@ -777,7 +789,9 @@ def export_memory(file_path: Path) -> None:
     try:
         file_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, file_path)
-        console.print(f"[bold green]✔ Success:[/] Exported memory to [bold]{file_path}[/]")
+        console.print(
+            f"[bold green]✔ Success:[/] Exported memory to [bold]{escape(str(file_path))}[/]"
+        )
     except Exception as exc:
         err_console.print(f"[bold red]Error exporting memory:[/] {exc}")
         sys.exit(1)
@@ -791,7 +805,9 @@ def import_memory(file_path: Path) -> None:
 
     try:
         merge_memory_files(file_path)
-        console.print(f"[bold green]✔ Success:[/] Imported memory from [bold]{file_path}[/]")
+        console.print(
+            f"[bold green]✔ Success:[/] Imported memory from [bold]{escape(str(file_path))}[/]"
+        )
     except Exception as exc:
         err_console.print(f"[bold red]Error importing memory:[/] {exc}")
         sys.exit(1)
