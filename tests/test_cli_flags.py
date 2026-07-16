@@ -119,3 +119,49 @@ def test_negative_integer_clamp(mock_temp_dir: Path):
     # The output contains the single file path.
     txt_matches = [line for line in lines if "file" in line]
     assert len(txt_matches) == 1
+
+
+def test_find_gitignore_flags(tmp_path: Path):
+    """Test that find --gitignore flips the respect_gitignore config value."""
+    # Create a gitignored file
+    (tmp_path / ".gitignore").write_text("ignored.txt\n", encoding="utf-8")
+
+    ignored_file = tmp_path / "ignored.txt"
+    ignored_file.write_text("secret", encoding="utf-8")
+
+    runner = CliRunner()
+
+    # --- Case A: Config defaults to True (respect) ---
+    runner.invoke(cli, ["config", "gitignore", "on"])
+    # 1. Without flag: respects gitignore, so ignored.txt is NOT found
+    res1 = runner.invoke(cli, ["find", "ignored.txt", str(tmp_path)])
+    assert "ignored.txt" not in res1.output
+    # 2. With --gitignore flag: flips behavior (to ignore gitignore), so ignored.txt IS found
+    res2 = runner.invoke(cli, ["find", "--gitignore", "ignored.txt", str(tmp_path)])
+    assert res2.exit_code == 0
+    assert "ignored.txt" in res2.output
+
+    # --- Case B: Config set to False (ignore) ---
+    runner.invoke(cli, ["config", "gitignore", "off"])
+    # 3. Without flag: ignores gitignore, so ignored.txt IS found
+    res3 = runner.invoke(cli, ["find", "ignored.txt", str(tmp_path)])
+    assert res3.exit_code == 0
+    assert "ignored.txt" in res3.output
+    # 4. With --gitignore flag: flips behavior (to respect gitignore), so ignored.txt is NOT found
+    res4 = runner.invoke(cli, ["find", "--gitignore", "ignored.txt", str(tmp_path)])
+    assert "ignored.txt" not in res4.output
+
+
+def test_config_gitignore():
+    """Test that sempath config gitignore updates config properly."""
+    runner = CliRunner()
+
+    # Disable respecting gitignore globally via config
+    res_off = runner.invoke(cli, ["config", "gitignore", "off"])
+    assert res_off.exit_code == 0
+    assert "Respecting .gitignore rules has been disabled" in res_off.output
+
+    # Enable respecting gitignore globally via config
+    res_on = runner.invoke(cli, ["config", "gitignore", "on"])
+    assert res_on.exit_code == 0
+    assert "Respecting .gitignore rules has been enabled" in res_on.output

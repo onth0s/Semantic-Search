@@ -368,6 +368,12 @@ def _print_grouped_matches(
         "-h1-6 (H1 through H6), -h2,h4,h5. Default: all enabled handlers."
     ),
 )
+@click.option(
+    "--gitignore",
+    is_flag=True,
+    default=False,
+    help="Flip the configured respect_gitignore setting.",
+)
 @click.pass_context
 def find(
     ctx: click.Context,
@@ -387,6 +393,7 @@ def find(
     oldest: bool,
     ext: str | None,
     handler_spec: str | None,
+    gitignore: bool,
 ) -> None:
     """Search for filesystem paths matching QUERY.
 
@@ -472,6 +479,7 @@ def find(
             oldest=oldest,
             ext=ext,
             verbose=verbose_final,
+            respect_gitignore=gitignore,
         )
     except Exception as exc:
         err_console.print(f"[bold red]Search Engine error:[/] {exc}")
@@ -559,11 +567,14 @@ def index_create(path: Path, depth: int) -> None:
         config = load_config()
         store = config.get("index", {}).get("store", "")
         exclude = config.get("index", {}).get("exclude_patterns", [])
+        respect_gi = config.get("index", {}).get("respect_gitignore", True)
         from sempath.index import IndexManager
 
         manager = IndexManager(Path(store))
         console.print(f"[yellow]Scanning and indexing:[/] {escape(str(path))} (depth: {depth})...")
-        added, deleted = manager.create_or_update_index(path, depth=depth, exclude_patterns=exclude)
+        added, deleted = manager.create_or_update_index(
+            path, depth=depth, exclude_patterns=exclude, respect_gitignore=respect_gi
+        )
         console.print(
             f"[bold green]✔ Success:[/] Indexed root: [bold]{path}[/] "
             f"([cyan]+{added}[/] added, [magenta]-{deleted}[/] deleted)."
@@ -582,11 +593,14 @@ def index_update(path: Path, depth: int) -> None:
         config = load_config()
         store = config.get("index", {}).get("store", "")
         exclude = config.get("index", {}).get("exclude_patterns", [])
+        respect_gi = config.get("index", {}).get("respect_gitignore", True)
         from sempath.index import IndexManager
 
         manager = IndexManager(Path(store))
         console.print(f"[yellow]Updating index for:[/] {escape(str(path))}...")
-        added, deleted = manager.create_or_update_index(path, depth=depth, exclude_patterns=exclude)
+        added, deleted = manager.create_or_update_index(
+            path, depth=depth, exclude_patterns=exclude, respect_gitignore=respect_gi
+        )
         console.print(
             f"[bold green]✔ Success:[/] Updated root: [bold]{path}[/] "
             f"([cyan]+{added}[/] updated, [magenta]-{deleted}[/] removed)."
@@ -840,6 +854,29 @@ def config_verbose(value: str) -> None:
         save_config({"verbose": is_verbose})
         status_str = "enabled" if is_verbose else "disabled"
         console.print(f"[bold green]✔ Success:[/] Verbose logging has been [bold]{status_str}[/].")
+    except Exception as exc:
+        err_console.print(f"[bold red]Error updating configuration:[/] {exc}")
+        sys.exit(1)
+
+
+@config.command("gitignore")
+@click.argument("value", type=click.Choice(["on", "off", "true", "false"], case_sensitive=False))
+def config_gitignore(value: str) -> None:
+    """Enable or disable respecting .gitignore rules globally.
+
+    Usage:
+        sempath config gitignore on
+        sempath config gitignore off
+    """
+    respect = value.lower() in ("on", "true")
+    try:
+        from sempath.config import save_config
+
+        save_config({"index": {"respect_gitignore": respect}})
+        status_str = "enabled" if respect else "disabled"
+        console.print(
+            f"[bold green]✔ Success:[/] Respecting .gitignore rules has been [bold]{status_str}[/]."
+        )
     except Exception as exc:
         err_console.print(f"[bold red]Error updating configuration:[/] {exc}")
         sys.exit(1)

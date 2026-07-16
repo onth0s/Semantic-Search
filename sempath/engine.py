@@ -105,7 +105,12 @@ class SearchEngine:
         return query, search_root, None
 
     def _gather_candidates(
-        self, search_root: Path, depth: int, use_index: bool, exclude_patterns: list[str]
+        self,
+        search_root: Path,
+        depth: int,
+        use_index: bool,
+        exclude_patterns: list[str],
+        respect_gitignore: bool = True,
     ) -> list[Path]:
         """Gather candidates using SQLite index or on-the-fly scanning."""
         if use_index:
@@ -115,6 +120,7 @@ class SearchEngine:
                     search_root,
                     depth=depth,
                     exclude_patterns=exclude_patterns,
+                    respect_gitignore=respect_gitignore,
                 )
             return self.index_manager.get_candidates(search_root)
 
@@ -122,6 +128,7 @@ class SearchEngine:
             search_root,
             depth=depth,
             exclude_patterns=exclude_patterns,
+            respect_gitignore=respect_gitignore,
         )
 
     def find_path(
@@ -139,6 +146,7 @@ class SearchEngine:
         oldest: bool = False,
         ext: str | None = None,
         verbose: bool = False,
+        respect_gitignore: bool = False,
     ) -> SearchResult:
         """Search for paths matching the query under root_dir."""
 
@@ -176,12 +184,21 @@ class SearchEngine:
         exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
         use_index = not no_index and self.config.get("index", {}).get("auto", True)
 
+        config_respect = self.config.get("index", {}).get("respect_gitignore", True)
+        respect_gitignore_final = not config_respect if respect_gitignore else config_respect
+
         # If any dynamic sorting flag is used, skip the index to ensure
         # we don't miss newly created or modified files.
         if latest_final or largest_final or smallest_final or oldest_final:
             use_index = False
 
-        candidates = self._gather_candidates(search_root, depth, use_index, exclude_patterns)
+        candidates = self._gather_candidates(
+            search_root,
+            depth,
+            use_index,
+            exclude_patterns,
+            respect_gitignore=respect_gitignore_final,
+        )
         verbose_log(f"[dim]Gathered {len(candidates)} candidates from scan/index...[/]")
 
         intent_candidates = filter_by_intent(
@@ -265,6 +282,26 @@ class SearchEngine:
 
         if heuristics.name_query and heuristics.name_query != clean_query:
             name_matches = chain.handle(heuristics.name_query, intent_candidates, top_n=top_n)
+            if exts_final:
+                import fnmatch
+
+                allowed_name_matches = []
+                for nm in name_matches:
+                    suffix = nm.path.suffix.lower().lstrip(".")
+                    matches_ext = False
+                    for ext_pat in exts_final:
+                        if fnmatch.fnmatch(suffix, ext_pat.lower()):
+                            matches_ext = True
+                            break
+                    if matches_ext or nm.handler in (
+                        "h1_exact",
+                        "h2_case_insensitive",
+                        "h3_token_normalized",
+                        "h6_alias",
+                    ):
+                        allowed_name_matches.append(nm)
+                name_matches = allowed_name_matches
+
             existing_paths = {m.path: m for m in match_results}
             for nm in name_matches:
                 if nm.path in existing_paths:
