@@ -329,7 +329,9 @@ def load_config(path: Path | None = None) -> dict:
         with open(_BUNDLED_CONFIG, encoding="utf-8") as f:
             user_config = yaml.safe_load(f) or {}
 
-    merged = _deep_merge(DEFAULT_CONFIG, user_config)
+    import copy
+
+    merged = _deep_merge(copy.deepcopy(DEFAULT_CONFIG), user_config)
 
     # Ensure any new default category keywords or extensions are merged into user categories
     if "heuristics" in merged and "categories" in merged["heuristics"]:

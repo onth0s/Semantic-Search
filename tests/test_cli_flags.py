@@ -188,3 +188,21 @@ def test_find_read_content_flag(tmp_path: Path):
     assert res_content.exit_code == 0
     assert "hello.txt" in res_content.output
     assert "data.bin" not in res_content.output
+
+
+def test_find_handlers_double_dashes(tmp_path: Path):
+    """Test that find --handlers accepts double-dashed values like --h1 and --h1-3."""
+    txt_file = tmp_path / "hello.txt"
+    txt_file.write_text("Hello", encoding="utf-8")
+
+    runner = CliRunner()
+
+    # 1. Single handler specification
+    res1 = runner.invoke(cli, ["find", "--handlers", "--h1", "hello", str(tmp_path)])
+    assert res1.exit_code == 0
+    assert "hello.txt" in res1.output
+
+    # 2. Range handler specification
+    res2 = runner.invoke(cli, ["find", "--handlers", "--h1-3", "hello", str(tmp_path)])
+    assert res2.exit_code == 0
+    assert "hello.txt" in res2.output

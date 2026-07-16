@@ -129,7 +129,7 @@ def _parse_handler_spec(spec: str) -> list[str]:
         "1-6"       -> [h1, h2, h3, h4, h5, h6]   (leading h optional)
         "1,3,7"     -> [h1, h3, h7]
     """
-    spec = spec.strip()
+    spec = spec.strip().lstrip("-")
     handlers: list[str] = []
 
     # Range pattern: [h]N-[h]M
@@ -142,7 +142,7 @@ def _parse_handler_spec(spec: str) -> list[str]:
     # Comma-separated list: h1,h3,h8 or 1,3,8
     if "," in spec:
         for part in spec.split(","):
-            part = part.strip()
+            part = part.strip().lstrip("-")
             hid = part if part.startswith("h") else f"h{part}"
             if hid in _ALL_HANDLERS and hid not in handlers:
                 handlers.append(hid)
@@ -154,8 +154,8 @@ def _parse_handler_spec(spec: str) -> list[str]:
         return [hid]
 
     raise click.BadParameter(
-        f"'{spec}' is not a valid handler spec. Use e.g. h1, h8, h1-6, h2,h4,h5.",
-        param_hint="--handlers / -h",
+        f"'{spec}' is not a valid handler spec. Use e.g. --h1, --h8, --h1-6, --h2,h4,h5.",
+        param_hint="--handlers",
     )
 
 
@@ -364,8 +364,8 @@ def _print_grouped_matches(
     default=None,
     metavar="SPEC",
     help=(
-        "Restrict which handler layers run. Examples: -h8 (only H8), "
-        "-h1-6 (H1 through H6), -h2,h4,h5. Default: all enabled handlers."
+        "Restrict which handler layers run. Examples: --h8 (only H8), "
+        "--h1-6 (H1 through H6), --h2,h4,h5. Default: all enabled handlers."
     ),
 )
 @click.option(

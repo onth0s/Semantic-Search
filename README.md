@@ -155,7 +155,7 @@ sempath import-memory FILE_PATH
 | `--smallest` | `false` | Sort filtered candidates by smallest file size. |
 | `--oldest` | `false` | Sort filtered candidates by oldest modification time. |
 | `--ext` | `None` | Keep candidates with the given extension. |
-| `--handlers` | `None` | Restrict executing handlers. Accepts a spec range, CSV, or single ID, e.g. `-h8`, `-h1-6`, `-h2,h4,h5`. |
+| `--handlers` | `None` | Restrict executing handlers. Accepts a spec range, CSV, or single ID, e.g. `--h8`, `--h1-6`, `--h2,h4,h5`. |
 | `--gitignore` | `false` | Flip the configured respect_gitignore setting (e.g. ignores gitignore if enabled, or respects it if disabled). |
 | `--read-content` | `false` | Search within the actual text content of human-readable files. |
 
