@@ -374,6 +374,12 @@ def _print_grouped_matches(
     default=False,
     help="Flip the configured respect_gitignore setting.",
 )
+@click.option(
+    "--read-content",
+    is_flag=True,
+    default=False,
+    help="Search within the actual text content of human-readable files.",
+)
 @click.pass_context
 def find(
     ctx: click.Context,
@@ -394,6 +400,7 @@ def find(
     ext: str | None,
     handler_spec: str | None,
     gitignore: bool,
+    read_content: bool,
 ) -> None:
     """Search for filesystem paths matching QUERY.
 
@@ -480,6 +487,7 @@ def find(
             ext=ext,
             verbose=verbose_final,
             respect_gitignore=gitignore,
+            read_content=read_content,
         )
     except Exception as exc:
         err_console.print(f"[bold red]Search Engine error:[/] {exc}")

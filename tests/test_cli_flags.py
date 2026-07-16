@@ -165,3 +165,26 @@ def test_config_gitignore():
     res_on = runner.invoke(cli, ["config", "gitignore", "on"])
     assert res_on.exit_code == 0
     assert "Respecting .gitignore rules has been enabled" in res_on.output
+
+
+def test_find_read_content_flag(tmp_path: Path):
+    """Test that find --read-content searches within readable text files and ignores binaries."""
+    # 1. Create a readable text file
+    txt_file = tmp_path / "hello.txt"
+    txt_file.write_text("Hello VIEW3D PT_sculpt_symmetry_for_topbar world!", encoding="utf-8")
+
+    # 2. Create a binary file containing the target string but with a null byte
+    bin_file = tmp_path / "data.bin"
+    bin_file.write_bytes(b"\x00VIEW3D PT_sculpt_symmetry_for_topbar\x00")
+
+    runner = CliRunner()
+
+    # Default behaviour: disabled, so no content search is performed
+    res_default = runner.invoke(cli, ["find", "sculpt_symmetry", str(tmp_path)])
+    assert "hello.txt" not in res_default.output
+
+    # Enabled behaviour: search within content
+    res_content = runner.invoke(cli, ["find", "--read-content", "sculpt_symmetry", str(tmp_path)])
+    assert res_content.exit_code == 0
+    assert "hello.txt" in res_content.output
+    assert "data.bin" not in res_content.output

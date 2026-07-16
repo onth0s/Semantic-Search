@@ -28,6 +28,29 @@ from sempath.scanner import scan_directory
 from sempath.utils.logging import verbose_log
 
 
+def _is_text_file(path: Path) -> bool:
+    """Return True if path points to a readable text file (non-binary and < 5MB)."""
+    try:
+        if not path.is_file():
+            return False
+        if path.stat().st_size > 5 * 1024 * 1024:
+            return False
+        with open(path, "rb") as f:
+            chunk = f.read(1024)
+            if b"\x00" in chunk:
+                return False
+            try:
+                chunk.decode("utf-8")
+            except UnicodeDecodeError:
+                try:
+                    chunk.decode("latin-1")
+                except UnicodeDecodeError:
+                    return False
+        return True
+    except Exception:
+        return False
+
+
 def _build_category_failure_message(heuristics: HeuristicsResult) -> str:
     """Build a specific failure message based on matched heuristic categories."""
     msg = "No candidate paths or near-misses matched the query."
@@ -147,6 +170,7 @@ class SearchEngine:
         ext: str | None = None,
         verbose: bool = False,
         respect_gitignore: bool = False,
+        read_content: bool = False,
     ) -> SearchResult:
         """Search for paths matching the query under root_dir."""
 
@@ -278,7 +302,23 @@ class SearchEngine:
 
         match_results = []
         if clean_query not in ("", ".", "*"):
-            match_results = chain.handle(clean_query, filtered_candidates, top_n=top_n)
+            collected_initial = []
+            if read_content:
+                for p in filtered_candidates:
+                    if _is_text_file(p):
+                        try:
+                            content = p.read_text(encoding="utf-8", errors="ignore")
+                            if clean_query.lower() in content.lower():
+                                confidence = 0.85 if clean_query in content else 0.80
+                                collected_initial.append(
+                                    MatchResult(p, confidence, "content_search")
+                                )
+                        except Exception:
+                            pass
+
+            match_results = chain.handle(
+                clean_query, filtered_candidates, collected=collected_initial, top_n=top_n
+            )
 
         if heuristics.name_query and heuristics.name_query != clean_query:
             name_matches = chain.handle(heuristics.name_query, intent_candidates, top_n=top_n)
