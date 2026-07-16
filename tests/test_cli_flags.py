@@ -191,18 +191,27 @@ def test_find_read_content_flag(tmp_path: Path):
 
 
 def test_find_handlers_double_dashes(tmp_path: Path):
-    """Test that find --handlers accepts double-dashed values like --h1 and --h1-3."""
+    """Test that find --handlers and shorthand options accept double-dashed values."""
     txt_file = tmp_path / "hello.txt"
     txt_file.write_text("Hello", encoding="utf-8")
 
     runner = CliRunner()
 
-    # 1. Single handler specification
+    # 1. Single handler specification via --handlers
     res1 = runner.invoke(cli, ["find", "--handlers", "--h1", "hello", str(tmp_path)])
     assert res1.exit_code == 0
     assert "hello.txt" in res1.output
 
-    # 2. Range handler specification
+    # 2. Range handler specification via --handlers
     res2 = runner.invoke(cli, ["find", "--handlers", "--h1-3", "hello", str(tmp_path)])
     assert res2.exit_code == 0
     assert "hello.txt" in res2.output
+
+    # 3. Shorthand options directly (e.g. --h1, --h1-3)
+    res3 = runner.invoke(cli, ["find", "--h1", "hello", str(tmp_path)])
+    assert res3.exit_code == 0
+    assert "hello.txt" in res3.output
+
+    res4 = runner.invoke(cli, ["find", "--h1-3", "hello", str(tmp_path)])
+    assert res4.exit_code == 0
+    assert "hello.txt" in res4.output

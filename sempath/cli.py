@@ -80,14 +80,16 @@ class SempathGroup(rich_click.RichGroup):
         i = 0
         while i < len(args):
             arg = args[i]
+            is_val_for_handlers = i > 0 and args[i - 1] == "--handlers"
             if re.match(r"^-\d+$", arg):
                 # -5 -> --top-n 5
                 new_args.append("--top-n")
                 new_args.append(arg[1:])
-            elif re.match(r"^-h(\d[\d,\-]*)$", arg):
-                # -h8, -h1-6, -h2,h4,h5 -> --handlers <spec>
+            elif not is_val_for_handlers and re.match(r"^--?h(\d[\d,\-]*)$", arg):
+                # -h8, --h8, -h1-6, --h1-6 -> --handlers <spec>
                 new_args.append("--handlers")
-                new_args.append(arg[2:])
+                prefix_len = 3 if arg.startswith("--") else 2
+                new_args.append(arg[prefix_len:])
             else:
                 new_args.append(arg)
             i += 1
