@@ -53,4 +53,8 @@ heuristics:
 verbose: false
 exhaustive: true
 
+presets:
+  1: "h1-6"
+
+
 

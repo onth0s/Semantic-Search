@@ -10,9 +10,14 @@ from __future__ import annotations
 
 import fnmatch
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+from sempath.utils.tokenize import normalize_path_separators
+
+if TYPE_CHECKING:
+    from sempath.search_context import SearchContext
 
 
 class ExactMatchHandler(BaseHandler):
@@ -20,20 +25,30 @@ class ExactMatchHandler(BaseHandler):
 
     name: str = "h1_exact"
 
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
+    def match(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> MatchResult | None:
         """Attempt an exact string match against candidate basenames."""
-        matches = self.match_all(query, candidates)
+        matches = self.match_all(query, candidates, context=context)
         if not matches:
             return None
         # Tie-breaker: shortest path depth first
         return min(matches, key=lambda m: len(m.path.parts))
 
-    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+    def match_all(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
         """Attempt an exact string match against candidate basenames, returning all matches."""
         if not query or not candidates:
             return []
 
-        query_pure = query.replace("\\", "/")
+        query_pure = normalize_path_separators(query)
         is_glob = "*" in query or "?" in query
         matches = []
 
@@ -56,7 +71,7 @@ class ExactMatchHandler(BaseHandler):
                     matches.append(MatchResult(p, 1.0, self.name))
                 # 2. Path suffix match (if query contains path separators)
                 elif "/" in query_pure:
-                    p_str = str(p).replace("\\", "/")
+                    p_str = normalize_path_separators(str(p))
                     if p_str.endswith(query_pure):
                         matches.append(MatchResult(p, 1.0, self.name))
 

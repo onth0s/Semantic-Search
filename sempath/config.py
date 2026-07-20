@@ -22,7 +22,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "verbose": True,
     "exhaustive": True,
     "handlers": {
-        "enabled": ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9"],
+        "enabled": ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"],
         "h4_threshold": 75,
         "h7_model": "BAAI/bge-small-en-v1.5",
         "h8_provider": "ollama",
@@ -273,7 +273,7 @@ def _validate_config(config: dict) -> None:
 
     # Validate enabled handlers list
     enabled = handlers.get("enabled", [])
-    valid_handler_names = {f"h{i}" for i in range(1, 10)}
+    valid_handler_names = {f"h{i}" for i in range(1, 9)}
     for name in enabled:
         if name not in valid_handler_names:
             raise ValueError(
@@ -359,6 +359,14 @@ def load_config(path: Path | None = None) -> dict:
     index_store = merged.get("index", {}).get("store", "")
     if index_store:
         merged["index"]["store"] = str(expand_env_vars(index_store))
+
+    # Filter out h9 or other retired handlers to ensure backwards
+    # compatibility with legacy user config.yaml
+    if "handlers" in merged and "enabled" in merged["handlers"]:
+        valid_handler_names = {f"h{i}" for i in range(1, 9)}
+        merged["handlers"]["enabled"] = [
+            h for h in merged["handlers"]["enabled"] if h in valid_handler_names
+        ]
 
     _validate_config(merged)
 

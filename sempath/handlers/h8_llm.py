@@ -21,12 +21,16 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
 from sempath.utils.console import err_console
+
+if TYPE_CHECKING:
+    from sempath.search_context import SearchContext
 
 _CONFIDENCE = 0.80
 
@@ -66,19 +70,29 @@ def _check_model_available(base_url: str, model: str) -> None:
 
 
 class LLMHandler(BaseHandler):
-    """Direct LLM semantic path matcher. Confidence: {_CONFIDENCE}."""
+    """Direct LLM semantic path matcher. Confidence: 0.80."""
 
     name: str = "h8_llm"
 
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
-        results = self.match_all(query, candidates)
+    def match(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> MatchResult | None:
+        results = self.match_all(query, candidates, context=context)
         if not results:
             return None
         return results[0]
 
-    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+    def match_all(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
         """Ask the LLM to pick the best matching paths from ``candidates``."""
-        raw_query = self.config.get("_raw_query", query)
+        raw_query = context.raw_query if context else self.config.get("_raw_query", query)
         if not raw_query or not candidates:
             return []
 
@@ -97,16 +111,24 @@ class LLMHandler(BaseHandler):
         else:
             # Clamp manually based on -N option / top_n if available,
             # else fall back to h8_top_k config/default
-            ctx = click.get_current_context(silent=True)
-            top_n_val = ctx.obj.get("top_n") if (ctx and ctx.obj) else None
+            top_n_val = None
+            if context:
+                top_n_val = context.top_n
+            else:
+                ctx = click.get_current_context(silent=True)
+                top_n_val = ctx.obj.get("top_n") if (ctx and ctx.obj) else None
+
             if top_n_val is not None:
                 top_k = min(int(top_n_val), len(candidates_to_use))
             else:
                 top_k = min(int(handlers_cfg.get("h8_top_k", 6)), len(candidates_to_use))
 
         # --- Resolve search root for relative path computation ---------------
-        ctx = click.get_current_context(silent=True)
-        search_root: Path = ctx.obj.get("root", Path(".")) if ctx else Path(".")
+        if context:
+            search_root = context.search_root
+        else:
+            ctx = click.get_current_context(silent=True)
+            search_root = ctx.obj.get("root", Path(".")) if ctx else Path(".")
 
         # Build relative-path strings; fall back to absolute if not under root
         def _rel(p: Path) -> str:

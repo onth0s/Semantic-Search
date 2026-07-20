@@ -10,11 +10,16 @@ confidence equal to ``ratio * 1.0``.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rapidfuzz import fuzz
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+from sempath.utils.tokenize import normalize_path_separators
+
+if TYPE_CHECKING:
+    from sempath.search_context import SearchContext
 
 
 class FuzzyMatchHandler(BaseHandler):
@@ -25,16 +30,26 @@ class FuzzyMatchHandler(BaseHandler):
 
     name: str = "h4_fuzzy"
 
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
+    def match(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> MatchResult | None:
         """Attempt a fuzzy match against candidate basenames."""
-        matches = self.match_all(query, candidates)
+        matches = self.match_all(query, candidates, context=context)
         if not matches:
             return None
 
         # Select the highest ratio; break ties with shortest path depth
         return min(matches, key=lambda m: (-m.confidence, len(m.path.parts)))
 
-    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+    def match_all(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
         """Attempt a fuzzy match against all candidates, returning all matches above threshold."""
         if not query or not candidates:
             return []
@@ -46,7 +61,7 @@ class FuzzyMatchHandler(BaseHandler):
             return []
 
         query_lower = query_clean.lower()
-        query_pure = query_lower.replace("\\", "/")
+        query_pure = normalize_path_separators(query_lower)
         query_parts = [p for p in query_pure.split("/") if p]
         k = len(query_parts)
 

@@ -13,12 +13,16 @@ import fnmatch
 import os
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import jellyfish
 from rapidfuzz import fuzz
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+
+if TYPE_CHECKING:
+    from sempath.search_context import SearchContext
 
 
 class AliasHandler(BaseHandler):
@@ -84,12 +88,11 @@ class AliasHandler(BaseHandler):
         for entry in entries:
             if self._matches_key(alias_name, entry.get("query", "")):
                 p = Path(entry["path"])
-                if p.exists():
-                    try:
-                        if p.is_relative_to(search_root) or p == search_root:
-                            return p
-                    except ValueError:
-                        pass
+                try:
+                    if p.is_relative_to(search_root) or p == search_root:
+                        return p
+                except ValueError:
+                    pass
 
         # 2. Check config aliases
         aliases = self.config.get("aliases", {})
@@ -158,71 +161,42 @@ class AliasHandler(BaseHandler):
                     queue = next_queue
         return None
 
-    def _resolve_alias_path(self, alias_name: str, candidates: list[Path]) -> Path | None:
-        """Resolve an alias name to a Path by checking learned and config aliases."""
-        # 1. Try fast resolve if click context is available
-        import click
-
-        ctx = click.get_current_context(silent=True)
-        search_root = ctx.obj.get("root") if ctx else None
-        if not search_root:
-            search_root = self.config.get("_current_search_root")
-        if search_root:
-            res = self.fast_resolve(alias_name, Path(search_root))
-            if res:
-                return res
-
-        # Fallback to candidates-based resolution
-        # 1. Check learned aliases
-        from sempath.utils.memory import load_memory
-
-        entries = load_memory()
-        for entry in entries:
-            if self._matches_key(alias_name, entry.get("query", "")):
-                p = Path(entry["path"])
-                return p
-
-        # 2. Check config aliases
-        aliases = self.config.get("aliases", {})
-
-        for key, targets in aliases.items():
-            if self._matches_key(alias_name, key) or any(
-                self._matches_key(alias_name, target) for target in targets
-            ):
-                matched = []
-                for p in candidates:
-                    for target in targets:
-                        target_lower = target.lower()
-                        if "*" in target or "?" in target:
-                            if fnmatch.fnmatch(p.name.lower(), target_lower) or fnmatch.fnmatch(
-                                p.stem.lower(), target_lower
-                            ):
-                                matched.append(p)
-                        else:
-                            if p.name.lower() == target_lower or p.stem.lower() == target_lower:
-                                matched.append(p)
-                if matched:
-                    # Shortest depth tie-breaker
-                    return min(matched, key=lambda p: len(p.parts))
-
-        return None
-
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
+    def match(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> MatchResult | None:
         """Attempt an alias-based match against candidate paths."""
-        if not query or not candidates:
+        if not candidates:
             return None
 
-        # 1. Try fast resolve for direct match if click context is available
-        import click
+        # Determine raw query and clean query to check
+        raw_query = context.raw_query if context else self.config.get("_raw_query", query)
 
-        ctx = click.get_current_context(silent=True)
-        search_root = ctx.obj.get("root") if ctx else None
-        if not search_root:
-            search_root = self.config.get("_current_search_root")
+        # 1. Try fast resolve for direct match
+        search_root = None
+        if context:
+            search_root = context.search_root
+        else:
+            import click
+
+            ctx = click.get_current_context(silent=True)
+            search_root = ctx.obj.get("root") if ctx else None
+            if not search_root:
+                search_root = self.config.get("_current_search_root")
+
         if search_root:
-            resolved = self.fast_resolve(query, Path(search_root))
-            if resolved:
-                return MatchResult(resolved, 0.95, self.name)
+            # Check raw query first
+            if raw_query:
+                resolved = self.fast_resolve(raw_query, Path(search_root))
+                if resolved:
+                    return MatchResult(resolved, 0.95, self.name)
+            # Fall back to clean query
+            if query and query != raw_query:
+                resolved = self.fast_resolve(query, Path(search_root))
+                if resolved:
+                    return MatchResult(resolved, 0.95, self.name)
 
         # 3. Fallback to direct candidate-based matching (e.g. for testing)
         # 3.1 Check direct learned memory match
@@ -230,17 +204,33 @@ class AliasHandler(BaseHandler):
 
         entries = load_memory()
         for entry in entries:
-            if self._matches_key(query, entry.get("query", "")):
+            # Check raw query
+            if raw_query and self._matches_key(raw_query, entry.get("query", "")):
+                p = Path(entry["path"])
+                return MatchResult(p, 0.95, self.name)
+            # Check clean query
+            if query and query != raw_query and self._matches_key(query, entry.get("query", "")):
                 p = Path(entry["path"])
                 return MatchResult(p, 0.95, self.name)
 
         # 3.2 Check direct config alias match
         aliases = self.config.get("aliases", {})
-
         for key, targets in aliases.items():
-            if self._matches_key(query, key) or any(
-                self._matches_key(query, target) for target in targets
-            ):
+            # If matches raw_query or clean_query
+            matches_raw = raw_query and (
+                self._matches_key(raw_query, key)
+                or any(self._matches_key(raw_query, target) for target in targets)
+            )
+            matches_clean = (
+                query
+                and query != raw_query
+                and (
+                    self._matches_key(query, key)
+                    or any(self._matches_key(query, target) for target in targets)
+                )
+            )
+
+            if matches_raw or matches_clean:
                 matched = []
                 for p in candidates:
                     for target in targets:

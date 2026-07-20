@@ -40,6 +40,11 @@ def calculate_decay_rank(hits: int, timestamp_str: str) -> float:
     return round(decay_rank, 4)
 
 
+def _memory_sort_key(entry: dict) -> tuple[float, int, str]:
+    """Helper to return sorting key for memory entries (decay_rank, hits, query)."""
+    return (entry.get("decay_rank", 0.0), entry.get("hits", 0), entry.get("query", ""))
+
+
 def load_memory(path: Path | None = None) -> list[dict]:
     """Load and return the list of learned memory entries, sorted by decay rank."""
     filepath = path or get_memory_file_path()
@@ -60,10 +65,7 @@ def load_memory(path: Path | None = None) -> list[dict]:
             entry["decay_rank"] = calculate_decay_rank(entry["hits"], entry["timestamp"])
 
     # Sort descending by decay rank, then by hits, then alphabetically by query
-    entries.sort(
-        key=lambda e: (e.get("decay_rank", 0.0), e.get("hits", 0), e.get("query", "")),
-        reverse=True,
-    )
+    entries.sort(key=_memory_sort_key, reverse=True)
     return entries
 
 
@@ -126,10 +128,7 @@ def add_or_update_memory(query: str, target_path: str | Path, path: Path | None 
     for entry in entries:
         entry["decay_rank"] = calculate_decay_rank(entry["hits"], entry["timestamp"])
 
-    entries.sort(
-        key=lambda e: (e.get("decay_rank", 0.0), e.get("hits", 0), e.get("query", "")),
-        reverse=True,
-    )
+    entries.sort(key=_memory_sort_key, reverse=True)
     save_memory(entries, path)
 
 
@@ -199,8 +198,5 @@ def merge_memory_files(source_path: Path, dest_path: Path | None = None) -> None
     for entry in dest_entries:
         entry["decay_rank"] = calculate_decay_rank(entry["hits"], entry["timestamp"])
 
-    dest_entries.sort(
-        key=lambda e: (e.get("decay_rank", 0.0), e.get("hits", 0), e.get("query", "")),
-        reverse=True,
-    )
+    dest_entries.sort(key=_memory_sort_key, reverse=True)
     save_memory(dest_entries, dest_path)

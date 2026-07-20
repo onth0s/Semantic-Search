@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sempath.models import MatchResult
+
+if TYPE_CHECKING:
+    from sempath.search_context import SearchContext
 
 
 class BaseHandler(ABC):
@@ -27,7 +31,12 @@ class BaseHandler(ABC):
         return handler
 
     @abstractmethod
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
+    def match(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> MatchResult | None:
         """Attempt to match the query against candidates.
 
         Returns a MatchResult if a match is found, or None to pass
@@ -35,13 +44,18 @@ class BaseHandler(ABC):
         """
         ...
 
-    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+    def match_all(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
         """Attempt to match the query against candidates and return all matches.
 
         Defaults to calling match() and returning a list with a single MatchResult,
         but can be overridden by subclasses for multiple match propagation.
         """
-        res = self.match(query, candidates)
+        res = self.match(query, candidates, context=context)
         return [res] if res is not None else []
 
     def handle(
@@ -50,11 +64,12 @@ class BaseHandler(ABC):
         candidates: list[Path],
         collected: list[MatchResult] | None = None,
         top_n: int = 1,
+        context: SearchContext | None = None,
     ) -> list[MatchResult]:
         """Execute this handler, accumulating matches into the collected list.
 
         Continues execution down the chain until the requested top_n clamp
-        limit is met or until slow/interactive handlers (H7, H8, H9) are reached.
+        limit is met or until slow handlers (H7, H8) are reached.
         """
         from sempath.utils.logging import verbose_log
 
@@ -66,7 +81,7 @@ class BaseHandler(ABC):
             f"on {len(candidates)} candidates...[/]"
         )
 
-        results = self.match_all(query, candidates)
+        results = self.match_all(query, candidates, context=context)
         if results:
             # Merge results into collected keeping higher confidence for duplicate paths
             existing = {r.path: r for r in collected}
@@ -92,13 +107,36 @@ class BaseHandler(ABC):
             return collected
 
         if self.next_handler is not None:
-            # Cutoff before slow/interactive handlers (H7, H8, H9) if we already have matches
-            if self.next_handler.name in ("h7_embedding", "h8_llm", "h9_interactive") and collected:
+            # Cutoff before slow handlers (H7, H8) if we already have matches
+            if self.next_handler.name in ("h7_embedding", "h8_llm") and collected:
                 verbose_log(
                     f"[dim]Cutoff before slow handler '{self.next_handler.name}' "
                     f"reached with active matches. Stopping evaluation.[/]"
                 )
                 return collected
-            return self.next_handler.handle(query, candidates, collected, top_n=top_n)
+            return self.next_handler.handle(
+                query, candidates, collected, top_n=top_n, context=context
+            )
 
         return collected
+
+    def collect_all_matches(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
+        """Walk the entire chain and collect all matches without early termination."""
+        results = self.match_all(query, candidates, context=context)
+        if self.next_handler is not None:
+            sub_results = self.next_handler.collect_all_matches(query, candidates, context=context)
+            # Merge keeping highest confidence
+            existing = {r.path: r for r in results}
+            for r in sub_results:
+                if r.path in existing:
+                    if r.confidence > existing[r.path].confidence:
+                        existing[r.path] = r
+                else:
+                    existing[r.path] = r
+            results = list(existing.values())
+        return results

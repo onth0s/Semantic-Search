@@ -12,7 +12,6 @@ import pytest
 from sempath.engine import SearchEngine
 from sempath.handlers.h7_embedding import EmbeddingHandler
 from sempath.handlers.h8_llm import LLMHandler
-from sempath.handlers.h9_interactive import InteractiveHandler
 
 
 class TestSearchEngineHeuristics:
@@ -208,53 +207,6 @@ class TestLLMHandler:
             pytest.raises(ValueError, match="not available"),
         ):
             handler.match_all("main dir", candidates)
-
-
-class TestInteractiveHandler:
-    """Tests for H9 InteractiveHandler."""
-
-    @patch("click.prompt")
-    def test_non_interactive_skips_prompt(self, mock_prompt, sample_config: dict):
-        handler = InteractiveHandler(sample_config)
-        ctx = MagicMock()
-        ctx.obj = {"non_interactive": True}
-
-        with patch("click.get_current_context", return_value=ctx):
-            res = handler.match("desktop main", [Path("C:/User/Desktop/__MAIN")])
-
-        assert res is None
-        mock_prompt.assert_not_called()
-
-    @patch("click.prompt")
-    def test_interactive_selection_and_learning(
-        self, mock_prompt, sample_config: dict, tmp_path: Path
-    ):
-        # User selects option 1 (first near-miss candidate)
-        mock_prompt.return_value = 1
-
-        memory_file = tmp_path / "learned_aliases.yaml"
-
-        with patch("sempath.utils.memory.get_memory_file_path", return_value=memory_file):
-            handler = InteractiveHandler(sample_config)
-            ctx = MagicMock()
-            ctx.obj = {"non_interactive": False, "verbose": True}
-
-            candidates = [Path("C:/User/Desktop/__MAIN"), Path("C:/User/Downloads")]
-
-            with patch("click.get_current_context", return_value=ctx):
-                res = handler.match("desktop main", candidates)
-                assert res is not None
-                assert res.path == Path("C:/User/Desktop/__MAIN")
-                assert res.handler == "h9_interactive"
-                assert res.confidence == 1.0
-
-                # Verify that confirmation was stored to memory
-                from sempath.utils.memory import load_memory
-
-                memory = load_memory(memory_file)
-                assert len(memory) == 1
-                assert memory[0]["query"] == "desktop main"
-                assert memory[0]["path"] == "C:\\User\\Desktop\\__MAIN"
 
 
 def test_category_empty_candidates_custom_messages(sample_config: dict, tmp_path: Path):

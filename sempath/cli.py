@@ -77,11 +77,42 @@ class SempathGroup(rich_click.RichGroup):
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
         new_args = []
+
+        # Load presets from config
+        presets = {}
+        try:
+            cfg = load_config()
+            presets = cfg.get("presets", {})
+        except Exception:
+            pass
+
         i = 0
         while i < len(args):
             arg = args[i]
             is_val_for_handlers = i > 0 and args[i - 1] == "--handlers"
-            if re.match(r"^-\d+$", arg):
+
+            # Expand presets first (e.g. -p1 -> --handlers h1-6)
+            preset_name = None
+            if arg.startswith("-p") and not arg.startswith("-h") and len(arg) > 2:
+                preset_name = arg[2:]
+            elif arg.startswith("--preset-") and len(arg) > 9:
+                preset_name = arg[9:]
+
+            if preset_name is not None and (preset_name in presets or str(preset_name) in presets):
+                preset_val = presets.get(preset_name) or presets.get(str(preset_name))
+                new_args.append("--handlers")
+                new_args.append(str(preset_val))
+            elif arg in ("-p", "--preset") and i + 1 < len(args):
+                next_arg = args[i + 1]
+                if next_arg in presets or str(next_arg) in presets:
+                    preset_val = presets.get(next_arg) or presets.get(str(next_arg))
+                    new_args.append("--handlers")
+                    new_args.append(str(preset_val))
+                    i += 2
+                    continue
+                else:
+                    new_args.append(arg)
+            elif re.match(r"^-\d+$", arg):
                 # -5 -> --top-n 5
                 new_args.append("--top-n")
                 new_args.append(arg[1:])
@@ -117,7 +148,7 @@ def cli(ctx: click.Context) -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-_ALL_HANDLERS = ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9"]
+_ALL_HANDLERS = ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"]
 
 
 def _parse_handler_spec(spec: str) -> list[str]:
@@ -230,8 +261,9 @@ def _classify_match(path: Path, search_root: Path) -> str:
         # If the parent is just '.' or the path itself is '.'
         if rel_path.parent == Path("."):
             return _GROUP_OTHER
-        # Return parent directory string with forward slashes
-        return str(rel_path.parent).replace("\\", "/")
+        from sempath.utils.tokenize import normalize_path_separators
+
+        return normalize_path_separators(str(rel_path.parent))
     except Exception:
         return _GROUP_OTHER
 
@@ -423,6 +455,10 @@ def find(
     verbose_final = verbose or config.get("verbose", False)
     exhaustive = config.get("exhaustive", False)
 
+    config_respect = config.get("index", {}).get("respect_gitignore", True)
+    # gitignore option is a toggle: if True, flip the config value
+    respect_gitignore_final = not config_respect if gitignore else config_respect
+
     # --- Handler filtering ---------------------------------------------------
     if handler_spec is not None:
         try:
@@ -487,8 +523,7 @@ def find(
             smallest=smallest,
             oldest=oldest,
             ext=ext,
-            verbose=verbose_final,
-            respect_gitignore=gitignore,
+            respect_gitignore=respect_gitignore_final,
             read_content=read_content,
         )
     except Exception as exc:
@@ -546,6 +581,63 @@ def find(
             )
         sys.exit(0)
     elif search_result.status == "ambiguous":
+        # Interactive fallback (D12) if non-interactive mode is disabled
+        if not non_interactive_final and search_result.near_misses:
+            top_candidates = list(search_result.near_misses)[:5]
+            err_console.print(
+                "\n[bold yellow]?[/] No exact match found. Did you mean one of these?"
+            )
+            for idx, nm in enumerate(top_candidates, start=1):
+                nm_meta = _format_file_meta(nm.path)
+                if verbose_final:
+                    nm_meta += f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
+                err_console.print(f"  {idx}. [cyan]{escape(str(nm.path))}[/]{nm_meta}")
+            err_console.print(f"  {len(top_candidates) + 1}. [dim]None of the above[/]")
+
+            try:
+                selection = click.prompt(
+                    f"Select an option (1-{len(top_candidates) + 1})",
+                    type=int,
+                    default=len(top_candidates) + 1,
+                    show_default=True,
+                    err=True,
+                )
+            except click.Abort:
+                console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
+                _print_grouped_matches(
+                    search_result.near_misses,
+                    limit=top_n_final,
+                    verbose=verbose_final,
+                )
+                sys.exit(1)
+
+            if 1 <= selection <= len(top_candidates):
+                selected_nm = top_candidates[selection - 1]
+                try:
+                    from sempath.utils.memory import add_or_update_memory
+
+                    add_or_update_memory(query, selected_nm.path)
+                    err_console.print(
+                        f"[bold green]Confirmed:[/] Learned alias "
+                        f"[cyan]{escape(query)}[/] -> [bold]{escape(str(selected_nm.path))}[/]"
+                    )
+                    err_console.print("[dim](run 'sempath alias undo' to revert)[/]")
+                except Exception as exc:
+                    from sempath.utils.logging import verbose_log
+
+                    verbose_log(f"[dim]Failed to save learned memory: {exc}[/]")
+
+                meta = _format_file_meta(selected_nm.path) + (
+                    f" [dim]({selected_nm.handler}, confidence: {selected_nm.confidence:.2f})[/]"
+                    if verbose_final
+                    else ""
+                )
+                console.print(
+                    f"[bold green]✔ Success:[/] Found match: "
+                    f"[bold cyan]{escape(str(selected_nm.path))}[/]{meta}"
+                )
+                sys.exit(0)
+
         console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
         _print_grouped_matches(
             search_result.near_misses,
@@ -689,9 +781,10 @@ def alias_add(name: str, path: Path) -> None:
     from sempath.utils.memory import add_or_update_memory
 
     try:
-        add_or_update_memory(name, path)
+        clean_path_str = str(path).strip("'\"")
+        add_or_update_memory(name, clean_path_str)
         escaped_name = escape(name)
-        escaped_path = escape(str(path))
+        escaped_path = escape(clean_path_str)
         console.print(
             "[bold green]✔ Success:[/] Added alias"
             f" [bold cyan]{escaped_name}[/] → [bold]{escaped_path}[/]"

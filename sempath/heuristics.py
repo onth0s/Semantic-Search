@@ -43,6 +43,23 @@ FILE_INTENT_RE = re.compile(
     re.IGNORECASE,
 )
 
+STOPWORDS_SET = {
+    "of",
+    "the",
+    "a",
+    "an",
+    "in",
+    "on",
+    "at",
+    "for",
+    "with",
+    "about",
+    "to",
+    "by",
+    "from",
+}
+STOPWORDS_RE = re.compile(rf"\b({'|'.join(STOPWORDS_SET)})\b", re.IGNORECASE)
+
 
 def translate_wildcards(query: str) -> str:
     """Translate glob/wildcard patterns into descriptive English phrases for semantic search."""
@@ -50,7 +67,9 @@ def translate_wildcards(query: str) -> str:
         return query
 
     # Normalize separators
-    normalized = query.replace("\\", "/")
+    from sempath.utils.tokenize import normalize_path_separators
+
+    normalized = normalize_path_separators(query)
     parts = normalized.split("/")
 
     translated_parts = []
@@ -129,54 +148,10 @@ class HeuristicsResult:
     matched_category_keywords: dict[str, list[str]] = field(default_factory=dict)
 
 
-def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResult:
-    """Extract temporal, type, ordering, size, and directory/file intents from query.
-
-    Returns:
-        A dictionary with keys:
-            - 'clean_query': query with heuristic terms removed and stripped.
-            - 'modified_within_seconds': max age in seconds, or None.
-            - 'extensions': list of lowercase extensions, or None.
-            - 'latest': boolean indicating if 'latest'/'newest' was requested.
-            - 'largest': boolean indicating if 'largest'/'biggest' was requested.
-            - 'smallest': boolean indicating if 'smallest'/'tiniest' was requested.
-            - 'oldest': boolean indicating if 'oldest' was requested.
-            - 'directory_only': boolean indicating if query is looking for a directory.
-            - 'file_only': boolean indicating if query is looking for a file.
-            - 'matched_categories': list of matched categories.
-            - 'matched_category_keywords': dict of matched category keywords.
-    """
+def _extract_temporal(query: str) -> tuple[str, int | None]:
+    """Extract temporal keyword intent from query."""
     clean_query = query
     modified_within_seconds = None
-    extensions = None
-    latest = False
-    largest = False
-    smallest = False
-    oldest = False
-    directory_only = False
-    file_only = False
-
-    # Load categories config
-    if config is None:
-        from sempath.config import load_config
-
-        try:
-            config = load_config()
-        except Exception:
-            config = {}
-
-    from sempath.config import DEFAULT_CONFIG
-
-    default_categories = DEFAULT_CONFIG.get("heuristics", {}).get("categories", {})
-    categories = config.get("heuristics", {}).get("categories", default_categories)
-    category_fuzzy_threshold = config.get("heuristics", {}).get("category_fuzzy_threshold")
-    if category_fuzzy_threshold is None:
-        # Default to 80 to prevent false matches (e.g. song -> json at 75)
-        category_fuzzy_threshold = 80
-
-    from sempath.utils.logging import verbose_log
-
-    # Temporal match
     temp_match = TEMPORAL_RE.search(clean_query)
     if temp_match:
         term = temp_match.group(1).lower()
@@ -188,6 +163,16 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
             modified_within_seconds = int(timedelta(days=30).total_seconds())
 
         clean_query = TEMPORAL_RE.sub("", clean_query)
+    return clean_query, modified_within_seconds
+
+
+def _extract_sorting_and_intent(
+    query: str,
+) -> tuple[str, bool, bool, bool, bool, bool, bool]:
+    """Extract latest, largest, smallest, oldest, directory_only, file_only intents."""
+    clean_query = query
+    latest = largest = smallest = oldest = False
+    directory_only = file_only = False
 
     # Latest match
     latest_match = LATEST_RE.search(clean_query)
@@ -225,37 +210,16 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
         file_only = True
         clean_query = FILE_INTENT_RE.sub("", clean_query)
 
-    # Clean up whitespace runs
-    clean_query = re.sub(r"\s+", " ", clean_query).strip()
+    return clean_query, latest, largest, smallest, oldest, directory_only, file_only
 
-    # Stopword stripping for heuristic search
-    stopwords_set = {
-        "of",
-        "the",
-        "a",
-        "an",
-        "in",
-        "on",
-        "at",
-        "for",
-        "with",
-        "about",
-        "to",
-        "by",
-        "from",
-    }
-    stopwords_re = re.compile(rf"\b({'|'.join(stopwords_set)})\b", re.IGNORECASE)
-    clean_query = stopwords_re.sub(" ", clean_query)
-    clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
-    # Singularize remaining tokens for better name matching
-    from sempath.utils.tokenize import singularize_token
+def _extract_categories(
+    query: str, categories: dict, category_fuzzy_threshold: int
+) -> tuple[str, list[str], dict[str, list[str]]]:
+    """Extract keyword category matches and corresponding extensions from clean_query."""
+    from sempath.utils.logging import verbose_log
 
-    # At this point, we have stripped modifiers and stopwords, but kept category keywords.
-    name_query = " ".join(singularize_token(t) for t in clean_query.split())
-
-    # Category matching
-
+    clean_query = query
     # Sort keywords by length in descending order
     keyword_pairs = []
     for cat_name, cat_info in categories.items():
@@ -270,8 +234,6 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
 
     # 1. Exact token matching
     for kw, cat_name in keyword_pairs:
-        # Use negative lookbehind and lookahead to avoid matching keywords
-        # adjacent to a dot (e.g. script.md)
         pattern = re.compile(rf"(?<!\.)\b{re.escape(kw)}\b(?!\.)", re.IGNORECASE)
         if pattern.search(clean_query):
             matched_categories.add(cat_name)
@@ -283,14 +245,12 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
             )
 
     # 2. Fuzzy and phonetic matching on remaining tokens
-    # Ignore tokens that are adjacent to a dot in clean_query
     tokens_to_check = re.findall(r"(?<!\.)\b[a-zA-Z0-9_-]+\b(?!\.)", clean_query)
     for token in tokens_to_check:
         if len(token) < 3:
             continue
 
         for kw, cat_name in keyword_pairs:
-            # Skip multi-word/compound keywords for fuzzy/phonetic
             if " " in kw or "-" in kw or "_" in kw:
                 continue
 
@@ -347,7 +307,62 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
                 except Exception:
                     pass
 
+    return clean_query, list(matched_categories), matched_category_keywords
+
+
+def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResult:
+    """Extract temporal, type, ordering, size, and directory/file intents from query."""
+    # Load categories config
+    if config is None:
+        from sempath.config import load_config
+
+        try:
+            config = load_config()
+        except Exception:
+            config = {}
+
+    from sempath.config import DEFAULT_CONFIG
+
+    default_categories = DEFAULT_CONFIG.get("heuristics", {}).get("categories", {})
+    categories = config.get("heuristics", {}).get("categories", default_categories)
+    category_fuzzy_threshold = config.get("heuristics", {}).get("category_fuzzy_threshold", 80)
+
+    # 1. Extract temporal parameters
+    clean_query, modified_within_seconds = _extract_temporal(query)
+
+    # Replace dashes with spaces (treat as word separators)
+    clean_query = clean_query.replace("-", " ")
+
+    # 2. Extract sorting and intent parameters
+    (
+        clean_query,
+        latest,
+        largest,
+        smallest,
+        oldest,
+        directory_only,
+        file_only,
+    ) = _extract_sorting_and_intent(clean_query)
+
+    # Clean up whitespace runs
+    clean_query = re.sub(r"\s+", " ", clean_query).strip()
+
+    # 3. Strip stopwords
+    clean_query = STOPWORDS_RE.sub(" ", clean_query)
+    clean_query = re.sub(r"\s+", " ", clean_query).strip()
+
+    # Singularize remaining tokens for name matching
+    from sempath.utils.tokenize import singularize_token
+
+    name_query = " ".join(singularize_token(t) for t in clean_query.split())
+
+    # 4. Extract categories
+    clean_query, matched_categories, matched_category_keywords = _extract_categories(
+        clean_query, categories, category_fuzzy_threshold
+    )
+
     # Collect extensions
+    extensions = None
     if matched_categories:
         extensions = []
         for cat_name in matched_categories:
@@ -360,7 +375,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     # Clean up whitespace runs again
     clean_query = re.sub(r"\s+", " ", clean_query).strip()
 
-    # Singularize remaining tokens for better H7/H8 semantic matching
+    # Singularize remaining tokens for semantic matching
     clean_query = " ".join(singularize_token(t) for t in clean_query.split())
 
     return HeuristicsResult(
@@ -374,6 +389,6 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
         largest=largest,
         smallest=smallest,
         oldest=oldest,
-        matched_categories=list(matched_categories),
+        matched_categories=matched_categories,
         matched_category_keywords=matched_category_keywords,
     )

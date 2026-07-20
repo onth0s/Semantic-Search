@@ -122,9 +122,7 @@ def test_verbose_logging(tmp_path: Path, sample_config: dict):
         patch("click.get_current_context", return_value=ctx),
         patch("sempath.utils.console.err_console.print") as mock_print,
     ):
-        res = engine.find_path(
-            "my_project", tmp_path, no_index=True, min_confidence=0.1, verbose=True
-        )
+        res = engine.find_path("my_project", tmp_path, no_index=True, min_confidence=0.1)
         assert res.status == "success"
 
         # Verify that err_console.print was called with diagnostic logs

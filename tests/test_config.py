@@ -29,11 +29,11 @@ class TestLoadConfigDefaults:
         assert "h8_url" in handlers
         assert "h9_timeout" not in handlers
 
-    def test_default_config_has_all_9_handlers_enabled(self):
-        """Default config has all 9 handlers enabled (h1 through h9)."""
+    def test_default_config_has_all_8_handlers_enabled(self):
+        """Default config has all 8 handlers enabled (h1 through h8)."""
         config = load_config(None)
         enabled = config["handlers"]["enabled"]
-        expected = ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9"]
+        expected = ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"]
         assert enabled == expected
 
     def test_default_config_matches_module_constant(self):

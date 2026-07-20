@@ -17,7 +17,7 @@ def sample_config() -> dict:
     """Return a valid config dict matching the default config structure."""
     return {
         "handlers": {
-            "enabled": ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9"],
+            "enabled": ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"],
             "h4_threshold": 75,
             "h7_model": "all-MiniLM-L6-v2",
             "h8_provider": "ollama",

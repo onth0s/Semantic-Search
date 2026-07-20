@@ -35,10 +35,10 @@ class TestBuildChainAllHandlers:
         assert isinstance(head, BaseHandler)
 
     def test_chain_has_correct_length(self, sample_config: dict):
-        """Chain has correct length (9 handlers) when all are enabled."""
+        """Chain has correct length (8 handlers) when all are enabled."""
         head = build_chain(sample_config)
         length = _count_chain_length(head)
-        assert length == 9
+        assert length == 8
 
     def test_first_handler_is_h1(self, sample_config: dict):
         """First handler in chain is h1 when all are enabled."""

@@ -65,18 +65,13 @@ class SearchResult:
         if self.message:
             result["message"] = self.message
 
-        if self.near_misses:
-            result["near_misses"] = [
-                {
-                    "path": str(m.path),
-                    "confidence": m.confidence,
-                    "handler": m.handler,
-                }
-                for m in self.near_misses
-            ]
-        else:
-            # Always include near_misses for ambiguous/failed statuses
-            if self.status in ("ambiguous", "failed"):
-                result["near_misses"] = []
+        result["near_misses"] = [
+            {
+                "path": str(m.path),
+                "confidence": m.confidence,
+                "handler": m.handler,
+            }
+            for m in self.near_misses
+        ]
 
         return result

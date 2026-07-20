@@ -11,12 +11,16 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
 from sempath.utils.console import err_console
+
+if TYPE_CHECKING:
+    from sempath.search_context import SearchContext
 
 
 class EmbeddingHandler(BaseHandler):
@@ -26,18 +30,22 @@ class EmbeddingHandler(BaseHandler):
     _model = None
 
     def _compute_similarities(
-        self, query: str, candidates: list[Path]
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
     ) -> list[tuple[Path, float]] | None:
         """Compute cosine similarity between query and candidate stems."""
-        raw_query = self.config.get("_raw_query", query)
+        raw_query = context.raw_query if context else self.config.get("_raw_query", query)
         if not raw_query or not candidates:
             return None
 
         # Check interactive mode
-        ctx = click.get_current_context(silent=True)
-        non_interactive = True
-        if ctx:
-            non_interactive = ctx.obj.get("non_interactive", False)
+        non_interactive = context.non_interactive if context else True
+        if context is None:
+            ctx = click.get_current_context(silent=True)
+            if ctx:
+                non_interactive = ctx.obj.get("non_interactive", False)
 
         # Show prompt before running heavy ML matching (if interactive)
         if not non_interactive:
@@ -91,8 +99,11 @@ class EmbeddingHandler(BaseHandler):
         # We embed both:
         # 1. The relative path from search root (giving parent folder context)
         # 2. The stem alone (preserving high similarity matches for target names without dilution)
-        ctx = click.get_current_context(silent=True)
-        search_root = ctx.obj.get("root", Path(".")) if ctx else Path(".")
+        if context:
+            search_root = context.search_root
+        else:
+            ctx = click.get_current_context(silent=True)
+            search_root = ctx.obj.get("root", Path(".")) if ctx else Path(".")
 
         def _candidate_rel_text(p: Path) -> str:
             try:
@@ -145,9 +156,14 @@ class EmbeddingHandler(BaseHandler):
             verbose_log(f"[dim]Embedding match failed: {exc}[/]")
             return None
 
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
+    def match(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> MatchResult | None:
         """Attempt a semantic embedding match against candidate basenames."""
-        results = self._compute_similarities(query, candidates)
+        results = self._compute_similarities(query, candidates, context=context)
         if not results:
             return None
         # Find the best match
@@ -156,9 +172,14 @@ class EmbeddingHandler(BaseHandler):
             return None
         return MatchResult(best_candidate, best_score, self.name)
 
-    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+    def match_all(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
         """Attempt to match the query and return all matches >= 0.5 similarity."""
-        results = self._compute_similarities(query, candidates)
+        results = self._compute_similarities(query, candidates, context=context)
         if not results:
             return []
 

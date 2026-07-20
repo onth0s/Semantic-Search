@@ -8,7 +8,6 @@ from sempath.handlers.h5_phonetic import PhoneticMatchHandler
 from sempath.handlers.h6_alias import AliasHandler
 from sempath.handlers.h7_embedding import EmbeddingHandler
 from sempath.handlers.h8_llm import LLMHandler
-from sempath.handlers.h9_interactive import InteractiveHandler
 
 HANDLER_REGISTRY: dict[str, type] = {
     "h1": ExactMatchHandler,
@@ -19,7 +18,6 @@ HANDLER_REGISTRY: dict[str, type] = {
     "h6": AliasHandler,
     "h7": EmbeddingHandler,
     "h8": LLMHandler,
-    "h9": InteractiveHandler,
 }
 
 __all__ = [
@@ -29,7 +27,6 @@ __all__ = [
     "EmbeddingHandler",
     "ExactMatchHandler",
     "FuzzyMatchHandler",
-    "InteractiveHandler",
     "LLMHandler",
     "PhoneticMatchHandler",
     "TokenNormalizedHandler",

@@ -79,3 +79,8 @@ def normalize_tokens_with_wildcards(text: str) -> set[str]:
     if not cleaned:
         return set()
     return {singularize_token(t) if "*" not in t and "?" not in t else t for t in cleaned.split()}
+
+
+def normalize_path_separators(path_str: str) -> str:
+    """Normalize Windows-style backslashes to forward slashes for unified matching."""
+    return path_str.replace("\\", "/")

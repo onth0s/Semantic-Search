@@ -166,6 +166,16 @@ def test_extract_heuristics_audio_songs():
     assert "tunes" in res.matched_category_keywords["audio"]
 
 
+def test_extract_heuristics_dash_replacement():
+    """Test that dashes in queries are replaced with spaces."""
+    res = extract_heuristics("gmrti-dir")
+    assert res.clean_query == "gmrti"
+    assert res.directory_only is True
+
+    res = extract_heuristics("my-project notes")
+    assert res.clean_query == "my project note"
+
+
 def test_extract_heuristics_no_false_fuzzy_matches():
     """Test that short words/keywords (like 'song' vs 'json') are not fuzzy matched."""
     # Under previous fuzzy matching behavior, 'song' would match 'json' (code)

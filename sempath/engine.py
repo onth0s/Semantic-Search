@@ -7,12 +7,18 @@ the handler chain of responsibility.
 
 from __future__ import annotations
 
+import fnmatch
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sempath.chain import build_chain
 from sempath.config import load_config
 from sempath.directory_matcher import match_directory_content
 from sempath.handlers.h6_alias import AliasHandler
+
+if TYPE_CHECKING:
+    from sempath.handlers.base import BaseHandler
+    from sempath.search_context import SearchContext
 from sempath.heuristics import HeuristicsResult, extract_heuristics
 from sempath.index import IndexManager
 from sempath.models import MatchResult, SearchResult
@@ -137,8 +143,14 @@ class SearchEngine:
     ) -> list[Path]:
         """Gather candidates using SQLite index or on-the-fly scanning."""
         if use_index:
-            if not self.index_manager.is_indexed(search_root):
-                verbose_log(f"[dim]Auto-indexing directory: {search_root}...[/]")
+            needs_init = not self.index_manager.is_indexed(search_root)
+            needs_update = False
+            if not needs_init:
+                needs_update = self.index_manager.check_index_needs_update(search_root)
+
+            if needs_init or needs_update:
+                action_str = "Auto-indexing" if needs_init else "Updating index for"
+                verbose_log(f"[dim]{action_str} directory: {search_root}...[/]")
                 self.index_manager.create_or_update_index(
                     search_root,
                     depth=depth,
@@ -154,36 +166,155 @@ class SearchEngine:
             respect_gitignore=respect_gitignore,
         )
 
+    def _apply_filters(
+        self,
+        candidates: list[Path],
+        heuristics: HeuristicsResult,
+        exts_final: list[str],
+        h_age_limit: int | None,
+    ) -> list[Path]:
+        """Filter candidates by intent, extensions, and age."""
+        intent_candidates = filter_by_intent(
+            candidates,
+            directory_only=heuristics.directory_only,
+            file_only=heuristics.file_only,
+        )
+
+        filtered_candidates = list(intent_candidates)
+        if not heuristics.directory_only:
+            filtered_candidates = filter_by_extensions(filtered_candidates, exts_final)
+
+        filtered_candidates = filter_by_age(filtered_candidates, h_age_limit)
+        return filtered_candidates
+
+    def _execute_chain(
+        self,
+        chain: BaseHandler,
+        clean_query: str,
+        filtered_candidates: list[Path],
+        read_content: bool,
+        top_n: int,
+        context: SearchContext,
+    ) -> list[MatchResult]:
+        """Execute the handler chain on candidates, including text search if enabled."""
+        if clean_query in ("", ".", "*"):
+            return []
+
+        collected_initial = []
+        if read_content:
+            for p in filtered_candidates:
+                if _is_text_file(p):
+                    try:
+                        content = p.read_text(encoding="utf-8", errors="ignore")
+                        if clean_query.lower() in content.lower():
+                            confidence = 0.85 if clean_query in content else 0.80
+                            collected_initial.append(MatchResult(p, confidence, "content_search"))
+                    except Exception:
+                        pass
+
+        return chain.handle(
+            clean_query,
+            filtered_candidates,
+            collected=collected_initial,
+            top_n=top_n,
+            context=context,
+        )
+
+    def _merge_name_query_matches(
+        self,
+        match_results: list[MatchResult],
+        name_matches: list[MatchResult],
+    ) -> list[MatchResult]:
+        """Merge name_query matches into primary match results keeping higher confidence."""
+        existing_paths = {m.path: m for m in match_results}
+        for nm in name_matches:
+            if nm.path in existing_paths:
+                if nm.confidence > existing_paths[nm.path].confidence:
+                    existing_paths[nm.path] = nm
+            else:
+                existing_paths[nm.path] = nm
+        return list(existing_paths.values())
+
+    def _sort_confident_matches(
+        self,
+        confident_matches: list[MatchResult],
+        latest_final: bool,
+        largest_final: bool,
+        smallest_final: bool,
+        oldest_final: bool,
+    ) -> None:
+        """Sort confident matches based on size/date flags or confidence descending."""
+        if latest_final:
+
+            def _mtime_key(m: MatchResult) -> tuple:
+                return (-get_path_mtime(m.path), -m.confidence)
+
+            confident_matches.sort(key=_mtime_key)
+        elif largest_final:
+
+            def _size_desc_key(m: MatchResult) -> tuple:
+                return (-get_path_size(m.path), -m.confidence)
+
+            confident_matches.sort(key=_size_desc_key)
+        elif smallest_final:
+
+            def _size_asc_key(m: MatchResult) -> tuple:
+                try:
+                    sz = float(m.path.stat().st_size) if m.path.is_file() else float("inf")
+                except Exception:
+                    sz = float("inf")
+                return (sz, -m.confidence)
+
+            confident_matches.sort(key=_size_asc_key)
+        elif oldest_final:
+
+            def _mtime_asc_key(m: MatchResult) -> tuple:
+                try:
+                    mt = m.path.stat().st_mtime
+                except Exception:
+                    mt = float("inf")
+                return (mt, -m.confidence)
+
+            confident_matches.sort(key=_mtime_asc_key)
+        else:
+            # Default: sort by confidence descending, path depth ascending
+            confident_matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
+
     def find_path(
         self,
         query: str,
         root_dir: Path,
         depth: int = 5,
-        min_confidence: float = 0.3,
-        top_n: int = 1,
-        non_interactive: bool = False,
         no_index: bool = False,
+        respect_gitignore: bool | None = None,
+        min_confidence: float = 0.3,
+        ext: str | None = None,
         latest: bool = False,
         largest: bool = False,
         smallest: bool = False,
         oldest: bool = False,
-        ext: str | None = None,
-        verbose: bool = False,
-        respect_gitignore: bool = False,
         read_content: bool = False,
+        top_n: int = 1,
+        non_interactive: bool = False,
     ) -> SearchResult:
-        """Search for paths matching the query under root_dir."""
+        """Find the best matching file path using semantics and heuristics."""
+        from sempath.utils.logging import verbose_log
 
         search_root = Path(root_dir).resolve()
-        self.config["_raw_query"] = query  # original user query for H7/H8
-        self.config["_top_n"] = top_n
 
         # Early-bypass check for alias matching
         query, search_root, early_result = self._resolve_early_alias(query, search_root)
         if early_result:
             return early_result
 
-        self.config["_current_search_root"] = search_root
+        from sempath.search_context import SearchContext
+
+        context = SearchContext(
+            raw_query=query,
+            search_root=search_root,
+            top_n=top_n,
+            non_interactive=non_interactive,
+        )
 
         # 1. Extract heuristics
         heuristics = extract_heuristics(query, self.config)
@@ -208,8 +339,10 @@ class SearchEngine:
         exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
         use_index = not no_index and self.config.get("index", {}).get("auto", True)
 
-        config_respect = self.config.get("index", {}).get("respect_gitignore", True)
-        respect_gitignore_final = not config_respect if respect_gitignore else config_respect
+        if respect_gitignore is None:
+            respect_gitignore_final = self.config.get("index", {}).get("respect_gitignore", True)
+        else:
+            respect_gitignore_final = respect_gitignore
 
         # If any dynamic sorting flag is used, skip the index to ensure
         # we don't miss newly created or modified files.
@@ -225,24 +358,17 @@ class SearchEngine:
         )
         verbose_log(f"[dim]Gathered {len(candidates)} candidates from scan/index...[/]")
 
+        # 3. Filter candidates
+        filtered_candidates = self._apply_filters(candidates, heuristics, exts_final, h_age_limit)
         intent_candidates = filter_by_intent(
             candidates,
             directory_only=heuristics.directory_only,
             file_only=heuristics.file_only,
         )
 
-        filtered_candidates = list(intent_candidates)
-        if not heuristics.directory_only:
-            filtered_candidates = filter_by_extensions(filtered_candidates, exts_final)
-
-        filtered_candidates = filter_by_age(filtered_candidates, h_age_limit)
-
         verbose_log(
             f"[dim]Remaining candidates after applying filters: {len(filtered_candidates)}[/]"
         )
-
-        # Check if filtered_candidates is empty and we matched a category
-        # (Removed early return to allow name_query and directory content matching to execute)
 
         # 3b. Check for Directory Content Matching
         # If a category filter is active and clean_query is not a placeholder/empty
@@ -300,31 +426,16 @@ class SearchEngine:
         except ValueError as exc:
             raise ValueError(f"Error building handler chain: {exc}") from exc
 
-        match_results = []
-        if clean_query not in ("", ".", "*"):
-            collected_initial = []
-            if read_content:
-                for p in filtered_candidates:
-                    if _is_text_file(p):
-                        try:
-                            content = p.read_text(encoding="utf-8", errors="ignore")
-                            if clean_query.lower() in content.lower():
-                                confidence = 0.85 if clean_query in content else 0.80
-                                collected_initial.append(
-                                    MatchResult(p, confidence, "content_search")
-                                )
-                        except Exception:
-                            pass
+        match_results = self._execute_chain(
+            chain, clean_query, filtered_candidates, read_content, top_n, context
+        )
 
-            match_results = chain.handle(
-                clean_query, filtered_candidates, collected=collected_initial, top_n=top_n
-            )
-
+        # 7. Merge name_query matches if applicable
         if heuristics.name_query and heuristics.name_query != clean_query:
-            name_matches = chain.handle(heuristics.name_query, intent_candidates, top_n=top_n)
+            name_matches = chain.handle(
+                heuristics.name_query, intent_candidates, top_n=top_n, context=context
+            )
             if exts_final:
-                import fnmatch
-
                 allowed_name_matches = []
                 for nm in name_matches:
                     suffix = nm.path.suffix.lower().lstrip(".")
@@ -342,14 +453,7 @@ class SearchEngine:
                         allowed_name_matches.append(nm)
                 name_matches = allowed_name_matches
 
-            existing_paths = {m.path: m for m in match_results}
-            for nm in name_matches:
-                if nm.path in existing_paths:
-                    if nm.confidence > existing_paths[nm.path].confidence:
-                        existing_paths[nm.path] = nm
-                else:
-                    existing_paths[nm.path] = nm
-            match_results = list(existing_paths.values())
+            match_results = self._merge_name_query_matches(match_results, name_matches)
 
         # Filter matches above min_confidence and sort them
         confident_matches = [m for m in match_results if m.confidence >= min_confidence]
@@ -368,41 +472,9 @@ class SearchEngine:
 
         # If a sort flag is active, use size/date as primary sort key
         # (confidence as secondary tiebreaker).
-        if latest_final:
-
-            def _mtime_key(m: MatchResult) -> tuple:
-                return (-get_path_mtime(m.path), -m.confidence)
-
-            confident_matches.sort(key=_mtime_key)
-        elif largest_final:
-
-            def _size_desc_key(m: MatchResult) -> tuple:
-                return (-get_path_size(m.path), -m.confidence)
-
-            confident_matches.sort(key=_size_desc_key)
-        elif smallest_final:
-
-            def _size_asc_key(m: MatchResult) -> tuple:
-                try:
-                    sz = float(m.path.stat().st_size) if m.path.is_file() else float("inf")
-                except Exception:
-                    sz = float("inf")
-                return (sz, -m.confidence)
-
-            confident_matches.sort(key=_size_asc_key)
-        elif oldest_final:
-
-            def _mtime_asc_key(m: MatchResult) -> tuple:
-                try:
-                    mt = m.path.stat().st_mtime
-                except Exception:
-                    mt = float("inf")
-                return (mt, -m.confidence)
-
-            confident_matches.sort(key=_mtime_asc_key)
-        else:
-            # Default: sort by confidence descending, path depth ascending
-            confident_matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
+        self._sort_confident_matches(
+            confident_matches, latest_final, largest_final, smallest_final, oldest_final
+        )
 
         if confident_matches:
             top_match = confident_matches[0]
@@ -416,16 +488,13 @@ class SearchEngine:
 
         # Collect near-misses by scanning all handlers
         seen_paths = {}
-        current = chain
-        while current is not None:
-            try:
-                res_list = current.match_all(clean_query, filtered_candidates)
-                for r in res_list:
-                    if r.path not in seen_paths or r.confidence > seen_paths[r.path].confidence:
-                        seen_paths[r.path] = r
-            except Exception:
-                pass
-            current = getattr(current, "next_handler", None)
+        try:
+            res_list = chain.collect_all_matches(clean_query, filtered_candidates, context=context)
+            for r in res_list:
+                if r.path not in seen_paths or r.confidence > seen_paths[r.path].confidence:
+                    seen_paths[r.path] = r
+        except Exception:
+            pass
 
         near_misses = list(seen_paths.values())
         # Filter near-misses above a minimum relevance threshold (e.g. 0.2)

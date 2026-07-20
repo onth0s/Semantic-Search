@@ -9,11 +9,16 @@ Returns a MatchResult with confidence 0.75 on match.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import jellyfish
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+from sempath.utils.tokenize import normalize_path_separators
+
+if TYPE_CHECKING:
+    from sempath.search_context import SearchContext
 
 
 class PhoneticMatchHandler(BaseHandler):
@@ -40,16 +45,26 @@ class PhoneticMatchHandler(BaseHandler):
                 codes.add(token)
         return codes
 
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
+    def match(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> MatchResult | None:
         """Attempt a phonetic match against candidate basenames."""
-        matches = self.match_all(query, candidates)
+        matches = self.match_all(query, candidates, context=context)
         if not matches:
             return None
 
         # Tie-breaker: shortest path depth first
         return min(matches, key=lambda m: len(m.path.parts))
 
-    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+    def match_all(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
         """Attempt a phonetic match against candidate basenames, returning all matches."""
         if not query or not candidates:
             return []
@@ -63,7 +78,7 @@ class PhoneticMatchHandler(BaseHandler):
             return []
 
         # Split query by path separators to check subpath suffixes
-        query_parts = [p for p in query_clean.replace("\\", "/").split("/") if p]
+        query_parts = [p for p in normalize_path_separators(query_clean).split("/") if p]
         k = len(query_parts)
 
         results = []

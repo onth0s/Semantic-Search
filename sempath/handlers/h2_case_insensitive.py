@@ -10,9 +10,14 @@ from __future__ import annotations
 
 import fnmatch
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+from sempath.utils.tokenize import normalize_path_separators
+
+if TYPE_CHECKING:
+    from sempath.search_context import SearchContext
 
 
 class CaseInsensitiveHandler(BaseHandler):
@@ -20,9 +25,14 @@ class CaseInsensitiveHandler(BaseHandler):
 
     name: str = "h2_case_insensitive"
 
-    def match(self, query: str, candidates: list[Path]) -> MatchResult | None:
+    def match(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> MatchResult | None:
         """Attempt a case-insensitive match against candidate basenames."""
-        matches = self.match_all(query, candidates)
+        matches = self.match_all(query, candidates, context=context)
         if not matches:
             return None
 
@@ -35,13 +45,18 @@ class CaseInsensitiveHandler(BaseHandler):
         # Tie-breaker: shortest path depth first
         return min(exact_matches, key=lambda m: len(m.path.parts))
 
-    def match_all(self, query: str, candidates: list[Path]) -> list[MatchResult]:
+    def match_all(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
         """Attempt a case-insensitive and substring match against candidate basenames."""
         if not query or not candidates:
             return []
 
         query_lower = query.lower()
-        query_pure = query_lower.replace("\\", "/")
+        query_pure = normalize_path_separators(query_lower)
         is_glob = "*" in query or "?" in query
         results = []
 
@@ -71,7 +86,7 @@ class CaseInsensitiveHandler(BaseHandler):
                     confidence = 0.95
                 # 2. Path suffix match (if query contains path separators)
                 elif "/" in query_pure:
-                    p_str_lower = str(p).replace("\\", "/").lower()
+                    p_str_lower = normalize_path_separators(str(p)).lower()
                     if p_str_lower.endswith(query_pure):
                         confidence = 0.95
 
@@ -80,7 +95,7 @@ class CaseInsensitiveHandler(BaseHandler):
                     if query_lower in p_name_lower or query_lower in p_stem_lower:
                         confidence = 0.85
                     elif "/" in query_pure:
-                        p_str_lower = str(p).replace("\\", "/").lower()
+                        p_str_lower = normalize_path_separators(str(p)).lower()
                         if query_pure in p_str_lower:
                             confidence = 0.85
 

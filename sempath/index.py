@@ -7,8 +7,10 @@ to avoid expensive disk walks on future invocations.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import time
+from contextlib import closing, contextmanager
 from pathlib import Path
 
 import jellyfish
@@ -26,38 +28,85 @@ class IndexManager:
         self.db_path = self.db_dir / "index.db"
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get a connection to the SQLite database."""
-        conn = sqlite3.connect(self.db_path)
-        # Return rows as dictionary-like objects
+    @contextmanager
+    def _connection(self):
+        """Context manager to yield a connection.
+
+        Ensures WAL mode, busy timeout, transaction handling, and auto-closure.
+        """
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=30000")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            with closing(conn), conn:
+                yield conn
+        except sqlite3.OperationalError as e:
+            raise e
 
     def _init_db(self) -> None:
         """Initialize the database schema."""
-        with self._get_connection() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS indexed_roots (
-                    path TEXT PRIMARY KEY,
-                    indexed_at REAL NOT NULL
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS paths (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    path TEXT UNIQUE NOT NULL,
-                    basename TEXT NOT NULL,
-                    parent_dir TEXT NOT NULL,
-                    mtime REAL NOT NULL,
-                    size INTEGER NOT NULL,
-                    is_dir INTEGER NOT NULL,
-                    tokens TEXT NOT NULL,
-                    phonetic TEXT NOT NULL
-                )
-            """)
-            # Indexes for faster queries
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_paths_parent ON paths (parent_dir)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_paths_path ON paths (path)")
+        with self._connection() as conn:
+            self._check_and_create_schema(conn)
+
+    def _check_and_create_schema(self, conn: sqlite3.Connection) -> None:
+        """Check if schema is valid, and recreate tables if invalid or outdated."""
+        schema_valid = True
+        try:
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name IN ('paths', 'indexed_roots')"
+            ).fetchall()
+            if len(tables) < 2:
+                schema_valid = False
+            else:
+                cursor = conn.execute("PRAGMA table_info(paths)")
+                columns = {row["name"] for row in cursor.fetchall()}
+                expected = {
+                    "id",
+                    "path",
+                    "basename",
+                    "parent_dir",
+                    "mtime",
+                    "size",
+                    "is_dir",
+                    "tokens",
+                    "phonetic",
+                }
+                if not expected.issubset(columns):
+                    schema_valid = False
+        except Exception:
+            schema_valid = False
+
+        if not schema_valid:
+            conn.execute("DROP TABLE IF EXISTS paths")
+            conn.execute("DROP TABLE IF EXISTS indexed_roots")
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS indexed_roots (
+                path TEXT PRIMARY KEY,
+                indexed_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS paths (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT UNIQUE NOT NULL,
+                basename TEXT NOT NULL,
+                parent_dir TEXT NOT NULL,
+                mtime REAL NOT NULL,
+                size INTEGER NOT NULL,
+                is_dir INTEGER NOT NULL,
+                tokens TEXT NOT NULL,
+                phonetic TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_paths_parent ON paths (parent_dir)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_paths_path ON paths (path)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_paths_basename ON paths (basename)")
 
     def _compute_phonetic_codes(self, text: str) -> str:
         """Compute space-separated Metaphone codes for alphanumeric tokens."""
@@ -78,15 +127,13 @@ class IndexManager:
         """Check if root_path or any of its ancestors are already indexed."""
         resolved_root = Path(root_path).resolve()
         resolved_str = str(resolved_root)
-        with self._get_connection() as conn:
-            # Check if this exact root is indexed
+        with self._connection() as conn:
             row = conn.execute(
                 "SELECT 1 FROM indexed_roots WHERE path = ?", (resolved_str,)
             ).fetchone()
             if row:
                 return True
 
-            # Check if an ancestor is indexed
             roots = conn.execute("SELECT path FROM indexed_roots").fetchall()
             for r in roots:
                 r_path = Path(r["path"])
@@ -96,13 +143,13 @@ class IndexManager:
 
     def get_indexed_roots(self) -> list[str]:
         """Return a list of all indexed root directories."""
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             rows = conn.execute("SELECT path FROM indexed_roots ORDER BY path").fetchall()
             return [row["path"] for row in rows]
 
     def clear_index(self) -> None:
         """Clear all paths and roots from the database."""
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             conn.execute("DELETE FROM paths")
             conn.execute("DELETE FROM indexed_roots")
 
@@ -110,23 +157,49 @@ class IndexManager:
         """Remove a root directory and all its descendants from the index."""
         resolved_root = Path(root_path).resolve()
         resolved_str = str(resolved_root)
-        prefix = resolved_str + "\\"
-        with self._get_connection() as conn:
-            # Check if the root exists
+        prefix = resolved_str if resolved_str.endswith(os.sep) else resolved_str + os.sep
+        with self._connection() as conn:
             row = conn.execute(
                 "SELECT 1 FROM indexed_roots WHERE path = ?", (resolved_str,)
             ).fetchone()
             if not row:
                 return False
 
-            # Delete descendants and root
             conn.execute("DELETE FROM indexed_roots WHERE path = ?", (resolved_str,))
-            # Delete paths that are subpaths of resolved_root
             conn.execute(
                 "DELETE FROM paths WHERE path = ? OR SUBSTR(path, 1, ?) = ?",
                 (resolved_str, len(prefix), prefix),
             )
             return True
+
+    def _count_physical_files(self, root_path: Path) -> int:
+        """Count physical files and directories recursively in a fast manner."""
+        count = 1  # Include the root directory itself
+        try:
+            for _, dirs, files in os.walk(root_path):
+                count += len(dirs) + len(files)
+        except Exception:
+            pass
+        return count
+
+    def check_index_needs_update(self, root_path: Path) -> bool:
+        """Compare database count against physical files/dirs count to see if update is needed."""
+        resolved_root = Path(root_path).resolve()
+        if not resolved_root.exists():
+            return True
+
+        resolved_str = str(resolved_root)
+        prefix = resolved_str if resolved_str.endswith(os.sep) else resolved_str + os.sep
+
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM paths WHERE path = ? OR SUBSTR(path, 1, ?) = ?",
+                (resolved_str, len(prefix), prefix),
+            ).fetchone()
+            db_count = row[0] if row else 0
+
+        physical_count = self._count_physical_files(resolved_root)
+        return db_count != physical_count
 
     def create_or_update_index(
         self,
@@ -142,7 +215,7 @@ class IndexManager:
         """
         resolved_root = Path(root_path).resolve()
         resolved_str = str(resolved_root)
-        prefix = resolved_str + "\\"
+        prefix = resolved_str if resolved_str.endswith(os.sep) else resolved_str + os.sep
 
         # Scan the physical directory
         candidates = scan_directory(
@@ -156,7 +229,7 @@ class IndexManager:
 
         current_time = time.time()
 
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             # Get existing paths in the index under resolved_root
             existing_rows = conn.execute(
                 "SELECT path, mtime, size FROM paths WHERE path = ? OR SUBSTR(path, 1, ?) = ?",
@@ -221,10 +294,10 @@ class IndexManager:
         """Fetch all candidates belonging to root_path from the SQLite database."""
         resolved_root = Path(root_path).resolve()
         resolved_str = str(resolved_root)
-        prefix = resolved_str + "\\"
+        prefix = resolved_str if resolved_str.endswith(os.sep) else resolved_str + os.sep
         candidates = []
 
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             rows = conn.execute(
                 "SELECT path FROM paths WHERE path = ? OR SUBSTR(path, 1, ?) = ? ORDER BY path",
                 (resolved_str, len(prefix), prefix),

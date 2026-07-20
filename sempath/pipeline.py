@@ -70,6 +70,22 @@ def get_path_size(p: Path) -> int:
         return 0
 
 
+def _size_for_smallest(p: Path) -> float:
+    """Helper to return path size, defaulting to infinity for dirs or errors."""
+    try:
+        return float(p.stat().st_size) if p.is_file() else float("inf")
+    except Exception:
+        return float("inf")
+
+
+def _mtime_for_oldest(p: Path) -> float:
+    """Helper to return path mtime, defaulting to infinity on error."""
+    try:
+        return p.stat().st_mtime
+    except Exception:
+        return float("inf")
+
+
 def sort_candidates(
     candidates: list[Path],
     latest: bool,
@@ -83,20 +99,6 @@ def sort_candidates(
     elif largest:
         candidates.sort(key=get_path_size, reverse=True)
     elif smallest:
-
-        def get_size_smallest(p: Path) -> float:
-            try:
-                return float(p.stat().st_size) if p.is_file() else float("inf")
-            except Exception:
-                return float("inf")
-
-        candidates.sort(key=get_size_smallest)
+        candidates.sort(key=_size_for_smallest)
     elif oldest:
-
-        def get_mtime_oldest(p: Path) -> float:
-            try:
-                return p.stat().st_mtime
-            except Exception:
-                return float("inf")
-
-        candidates.sort(key=get_mtime_oldest)
+        candidates.sort(key=_mtime_for_oldest)
