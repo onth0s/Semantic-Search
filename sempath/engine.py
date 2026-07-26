@@ -371,8 +371,8 @@ class SearchEngine:
         )
 
         # 3b. Check for Directory Content Matching
-        # If a category filter is active and clean_query is not a placeholder/empty
-        if exts_final and clean_query not in ("", ".", "*"):
+        # If a category filter or file intent filter is active and clean_query is not a placeholder/empty
+        if (exts_final or heuristics.file_only) and clean_query not in ("", ".", "*"):
             matched_dir, descendants = match_directory_content(
                 clean_query=clean_query,
                 search_root=search_root,
@@ -485,6 +485,28 @@ class SearchEngine:
                 match=top_match,
                 near_misses=other_matches,
             )
+
+        # Fallback Directory Content Match if standard matching yielded no confident matches
+        if clean_query not in ("", ".", "*"):
+            matched_dir, descendants = match_directory_content(
+                clean_query=clean_query,
+                search_root=search_root,
+                candidates=candidates,
+                filtered_candidates=filtered_candidates,
+                config=self.config,
+            )
+            if matched_dir and descendants:
+                match_result = MatchResult(descendants[0], 0.95, "directory_content_match")
+                near_misses = [
+                    MatchResult(p, 0.95, "directory_content_match") for p in descendants[1:]
+                ]
+                return SearchResult(
+                    status="success",
+                    query=query,
+                    match=match_result,
+                    near_misses=near_misses,
+                    message=f"Matching files inside directory: {matched_dir.resolve()}",
+                )
 
         # Collect near-misses by scanning all handlers
         seen_paths = {}
