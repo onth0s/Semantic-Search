@@ -371,7 +371,7 @@ class SearchEngine:
         )
 
         # 3b. Check for Directory Content Matching
-        # If a category filter or file intent filter is active and clean_query is not a placeholder/empty
+        # If a category filter or file intent filter is active and clean_query is not empty
         if (exts_final or heuristics.file_only) and clean_query not in ("", ".", "*"):
             matched_dir, descendants = match_directory_content(
                 clean_query=clean_query,

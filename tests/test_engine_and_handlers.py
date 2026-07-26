@@ -326,3 +326,25 @@ def test_embedding_handler_similarity_threshold(sample_config: dict):
             # Test match_all should also return empty list
             res_all = handler.match_all("song", candidates)
             assert len(res_all) == 0
+
+
+def test_directory_content_match_fallback_file_intent(sample_config: dict, tmp_path: Path):
+    """Verify directory content matching resolves files inside a matched directory.
+
+    Works even if filtered_candidates is empty due to file_only intent.
+    """
+
+    config = dict(sample_config)
+    config["handlers"] = dict(sample_config["handlers"])
+    config["handlers"]["enabled"] = ["h1", "h2", "h3", "h4", "h5", "h6", "h7"]
+
+    dangan_dir = tmp_path / "Danganronpa 1 - Dining Room"
+    dangan_dir.mkdir()
+    blend_file = dangan_dir / "dining-room_003.blend"
+    blend_file.write_text("blend content")
+
+    engine = SearchEngine(config)
+    res = engine.find_path("danga-file", tmp_path, no_index=True, non_interactive=True)
+    assert res.status == "success"
+    assert res.match is not None
+    assert res.match.path.resolve() == blend_file.resolve()

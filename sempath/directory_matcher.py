@@ -76,7 +76,11 @@ def _match_dir_name(q_tokens: list[str], dir_name: str, config: dict[str, Any] |
             if (
                 len(q_tok_lower) >= 4
                 and len(p_tok_lower) >= 4
-                and fuzz.ratio(q_tok_lower, p_tok_lower) >= 80
+                and (
+                    q_tok_lower in p_tok_lower
+                    or p_tok_lower in q_tok_lower
+                    or fuzz.ratio(q_tok_lower, p_tok_lower) >= 80
+                )
             ):
                 matched = True
                 break
@@ -141,12 +145,23 @@ def match_directory_content(
     descendants = []
     matched_dir = None
     for d in matching_dirs:
+        # First try filtered_candidates
         for fc in filtered_candidates:
-            try:
-                fc.relative_to(d)
-                descendants.append(fc)
-            except ValueError:
-                pass
+            if fc.is_file():
+                try:
+                    fc.relative_to(d)
+                    descendants.append(fc)
+                except ValueError:
+                    pass
+        # Fallback to candidates if filtered_candidates yielded no files for this directory
+        if not descendants:
+            for c in candidates:
+                if c.is_file():
+                    try:
+                        c.relative_to(d)
+                        descendants.append(c)
+                    except ValueError:
+                        pass
         if descendants:
             matched_dir = d
             break  # Use the first directory that has matching files

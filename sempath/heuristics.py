@@ -35,13 +35,14 @@ SMALLEST_RE = re.compile(
     re.IGNORECASE,
 )
 DIR_INTENT_RE = re.compile(
-    r"\b(dir|directory|folder|folders)\b",
+    r"(?:^|\s)(dir|directory|folder|folders)(?:\s|$)",
     re.IGNORECASE,
 )
 FILE_INTENT_RE = re.compile(
-    r"\b(file|files)\b",
+    r"(?:^|\s)(file|files)(?:\s|$)",
     re.IGNORECASE,
 )
+
 
 STOPWORDS_SET = {
     "of",
@@ -202,13 +203,13 @@ def _extract_sorting_and_intent(
     dir_match = DIR_INTENT_RE.search(clean_query)
     if dir_match:
         directory_only = True
-        clean_query = DIR_INTENT_RE.sub("", clean_query)
+        clean_query = DIR_INTENT_RE.sub(" ", clean_query).strip()
 
     # File intent match
     file_match = FILE_INTENT_RE.search(clean_query)
     if file_match:
         file_only = True
-        clean_query = FILE_INTENT_RE.sub("", clean_query)
+        clean_query = FILE_INTENT_RE.sub(" ", clean_query).strip()
 
     return clean_query, latest, largest, smallest, oldest, directory_only, file_only
 
