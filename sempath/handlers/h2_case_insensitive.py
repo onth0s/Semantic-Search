@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+from sempath.utils.path_suffixes import path_suffixes
 from sempath.utils.tokenize import normalize_path_separators
 
 if TYPE_CHECKING:
@@ -63,34 +64,21 @@ class CaseInsensitiveHandler(BaseHandler):
         for p in candidates:
             p_name_lower = p.name.lower()
             p_stem_lower = p.stem.lower()
+            p_suffixes = [s.lower() for s in path_suffixes(p, query)]
 
             confidence = 0.0
 
             if is_glob:
-                # 1. Case-insensitive glob name match
-                if fnmatch.fnmatch(p_name_lower, query_lower) or fnmatch.fnmatch(
-                    p_stem_lower, query_lower
-                ):
+                if any(fnmatch.fnmatch(s, query_pure) for s in p_suffixes):
                     confidence = 0.95
-                # 2. Case-insensitive glob path suffix match (if query contains path separators)
-                elif "/" in query_pure:
-                    query_parts = [part for part in query_pure.split("/") if part]
-                    k = len(query_parts)
-                    if len(p.parts) >= k:
-                        p_suffix_lower = "/".join(part.lower() for part in p.parts[-k:])
-                        if fnmatch.fnmatch(p_suffix_lower, query_pure):
-                            confidence = 0.95
             else:
-                # 1. Case-insensitive name match
                 if p_name_lower == query_lower or p_stem_lower == query_lower:
                     confidence = 0.95
-                # 2. Path suffix match (if query contains path separators)
                 elif "/" in query_pure:
                     p_str_lower = normalize_path_separators(str(p)).lower()
                     if p_str_lower.endswith(query_pure):
                         confidence = 0.95
 
-                # 3. Substring match fallback (non-wildcard only)
                 if confidence == 0.0:
                     if query_lower in p_name_lower or query_lower in p_stem_lower:
                         confidence = 0.85

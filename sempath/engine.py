@@ -19,6 +19,12 @@ from sempath.handlers.h6_alias import AliasHandler
 if TYPE_CHECKING:
     from sempath.handlers.base import BaseHandler
     from sempath.search_context import SearchContext
+from sempath.constants import (
+    CONTENT_SEARCH_CASE_CONFIDENCE,
+    CONTENT_SEARCH_EXACT_CONFIDENCE,
+    NEAR_MISS_MIN_CONFIDENCE,
+    TEXT_FILE_MAX_BYTES,
+)
 from sempath.heuristics import HeuristicsResult, extract_heuristics
 from sempath.index import IndexManager
 from sempath.models import MatchResult, SearchResult
@@ -39,7 +45,7 @@ def _is_text_file(path: Path) -> bool:
     try:
         if not path.is_file():
             return False
-        if path.stat().st_size > 5 * 1024 * 1024:
+        if path.stat().st_size > TEXT_FILE_MAX_BYTES:
             return False
         with open(path, "rb") as f:
             chunk = f.read(1024)
@@ -53,7 +59,7 @@ def _is_text_file(path: Path) -> bool:
                 except UnicodeDecodeError:
                     return False
         return True
-    except Exception:
+    except (OSError, PermissionError):
         return False
 
 
@@ -207,9 +213,13 @@ class SearchEngine:
                     try:
                         content = p.read_text(encoding="utf-8", errors="ignore")
                         if clean_query.lower() in content.lower():
-                            confidence = 0.85 if clean_query in content else 0.80
+                            confidence = (
+                                CONTENT_SEARCH_EXACT_CONFIDENCE
+                                if clean_query in content
+                                else CONTENT_SEARCH_CASE_CONFIDENCE
+                            )
                             collected_initial.append(MatchResult(p, confidence, "content_search"))
-                    except Exception:
+                    except (OSError, UnicodeDecodeError):
                         pass
 
         return chain.handle(
@@ -226,14 +236,9 @@ class SearchEngine:
         name_matches: list[MatchResult],
     ) -> list[MatchResult]:
         """Merge name_query matches into primary match results keeping higher confidence."""
-        existing_paths = {m.path: m for m in match_results}
-        for nm in name_matches:
-            if nm.path in existing_paths:
-                if nm.confidence > existing_paths[nm.path].confidence:
-                    existing_paths[nm.path] = nm
-            else:
-                existing_paths[nm.path] = nm
-        return list(existing_paths.values())
+        from sempath.utils.matching import merge_matches
+
+        return merge_matches(match_results, name_matches)
 
     def _sort_confident_matches(
         self,
@@ -279,6 +284,36 @@ class SearchEngine:
         else:
             # Default: sort by confidence descending, path depth ascending
             confident_matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
+
+    def _try_directory_content_match(
+        self,
+        query: str,
+        clean_query: str,
+        search_root: Path,
+        candidates: list[Path],
+        filtered_candidates: list[Path],
+    ) -> SearchResult | None:
+        """Attempt to match files inside a matching directory."""
+        if clean_query in ("", ".", "*"):
+            return None
+        matched_dir, descendants = match_directory_content(
+            clean_query=clean_query,
+            search_root=search_root,
+            candidates=candidates,
+            filtered_candidates=filtered_candidates,
+            config=self.config,
+        )
+        if matched_dir and descendants:
+            match_result = MatchResult(descendants[0], 0.95, "directory_content_match")
+            near_misses = [MatchResult(p, 0.95, "directory_content_match") for p in descendants[1:]]
+            return SearchResult(
+                status="success",
+                query=query,
+                match=match_result,
+                near_misses=near_misses,
+                message=f"Matching files inside directory: {matched_dir.resolve()}",
+            )
+        return None
 
     def find_path(
         self,
@@ -344,8 +379,6 @@ class SearchEngine:
         else:
             respect_gitignore_final = respect_gitignore
 
-        # If any dynamic sorting flag is used, skip the index to ensure
-        # we don't miss newly created or modified files.
         if latest_final or largest_final or smallest_final or oldest_final:
             use_index = False
 
@@ -371,28 +404,12 @@ class SearchEngine:
         )
 
         # 3b. Check for Directory Content Matching
-        # If a category filter or file intent filter is active and clean_query is not empty
         if (exts_final or heuristics.file_only) and clean_query not in ("", ".", "*"):
-            matched_dir, descendants = match_directory_content(
-                clean_query=clean_query,
-                search_root=search_root,
-                candidates=candidates,
-                filtered_candidates=filtered_candidates,
-                config=self.config,
+            dir_res = self._try_directory_content_match(
+                query, clean_query, search_root, candidates, filtered_candidates
             )
-
-            if matched_dir and descendants:
-                match_result = MatchResult(descendants[0], 0.95, "directory_content_match")
-                near_misses = [
-                    MatchResult(p, 0.95, "directory_content_match") for p in descendants[1:]
-                ]
-                return SearchResult(
-                    status="success",
-                    query=query,
-                    match=match_result,
-                    near_misses=near_misses,
-                    message=f"Matching files inside directory: {matched_dir.resolve()}",
-                )
+            if dir_res:
+                return dir_res
 
         # 4. Sort candidates
         sort_candidates(
@@ -404,8 +421,6 @@ class SearchEngine:
         )
 
         # 5. Check for direct bypass
-        # If the original query is a literal placeholder or if all query terms were
-        # consumed by heuristics AND a sorting flag is active, return the top candidate directly.
         original_query_placeholder = query.strip() in ("", ".", "*")
         query_fully_consumed_with_sort = clean_query in ("", ".", "*") and (
             latest_final or largest_final or smallest_final or oldest_final
@@ -455,11 +470,8 @@ class SearchEngine:
 
             match_results = self._merge_name_query_matches(match_results, name_matches)
 
-        # Filter matches above min_confidence and sort them
         confident_matches = [m for m in match_results if m.confidence >= min_confidence]
 
-        # If no confident matches, and clean_query is a placeholder/empty (e.g.,
-        # category matching like "songs"), fall back to using the filtered candidates
         if not confident_matches and clean_query in ("", ".", "*") and filtered_candidates:
             match_result = MatchResult(filtered_candidates[0], 1.0, "explicit_flags")
             near_misses = [MatchResult(p, 1.0, "explicit_flags") for p in filtered_candidates[1:]]
@@ -470,8 +482,6 @@ class SearchEngine:
                 near_misses=near_misses,
             )
 
-        # If a sort flag is active, use size/date as primary sort key
-        # (confidence as secondary tiebreaker).
         self._sort_confident_matches(
             confident_matches, latest_final, largest_final, smallest_final, oldest_final
         )
@@ -486,27 +496,12 @@ class SearchEngine:
                 near_misses=other_matches,
             )
 
-        # Fallback Directory Content Match if standard matching yielded no confident matches
-        if clean_query not in ("", ".", "*"):
-            matched_dir, descendants = match_directory_content(
-                clean_query=clean_query,
-                search_root=search_root,
-                candidates=candidates,
-                filtered_candidates=filtered_candidates,
-                config=self.config,
-            )
-            if matched_dir and descendants:
-                match_result = MatchResult(descendants[0], 0.95, "directory_content_match")
-                near_misses = [
-                    MatchResult(p, 0.95, "directory_content_match") for p in descendants[1:]
-                ]
-                return SearchResult(
-                    status="success",
-                    query=query,
-                    match=match_result,
-                    near_misses=near_misses,
-                    message=f"Matching files inside directory: {matched_dir.resolve()}",
-                )
+        # Fallback Directory Content Match
+        dir_res_fallback = self._try_directory_content_match(
+            query, clean_query, search_root, candidates, filtered_candidates
+        )
+        if dir_res_fallback:
+            return dir_res_fallback
 
         # Collect near-misses by scanning all handlers
         seen_paths = {}
@@ -515,12 +510,11 @@ class SearchEngine:
             for r in res_list:
                 if r.path not in seen_paths or r.confidence > seen_paths[r.path].confidence:
                     seen_paths[r.path] = r
-        except Exception:
-            pass
+        except Exception as exc:
+            verbose_log(f"[dim yellow]Warning during near-miss collection: {exc}[/]")
 
         near_misses = list(seen_paths.values())
-        # Filter near-misses above a minimum relevance threshold (e.g. 0.2)
-        near_misses = [m for m in near_misses if m.confidence >= 0.2]
+        near_misses = [m for m in near_misses if m.confidence >= NEAR_MISS_MIN_CONFIDENCE]
         near_misses.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
 
         if near_misses:
@@ -532,7 +526,6 @@ class SearchEngine:
             )
         else:
             msg = _build_category_failure_message(heuristics)
-
             return SearchResult(
                 status="failed",
                 query=query,

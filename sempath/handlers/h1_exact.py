@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+from sempath.utils.path_suffixes import path_suffixes
 from sempath.utils.tokenize import normalize_path_separators
 
 if TYPE_CHECKING:
@@ -53,26 +54,17 @@ class ExactMatchHandler(BaseHandler):
         matches = []
 
         for p in candidates:
+            p_suffixes = path_suffixes(p, query)
             if is_glob:
-                # 1. Glob name match
-                if fnmatch.fnmatchcase(p.name, query) or fnmatch.fnmatchcase(p.stem, query):
+                if any(fnmatch.fnmatchcase(s, query_pure) for s in p_suffixes):
                     matches.append(MatchResult(p, 1.0, self.name))
-                # 2. Glob path suffix match (if query contains path separators)
-                elif "/" in query_pure:
-                    query_parts = [part for part in query_pure.split("/") if part]
-                    k = len(query_parts)
-                    if len(p.parts) >= k:
-                        p_suffix = "/".join(part for part in p.parts[-k:])
-                        if fnmatch.fnmatchcase(p_suffix, query_pure):
-                            matches.append(MatchResult(p, 1.0, self.name))
             else:
-                # 1. Exact name match
-                if p.name == query or p.stem == query:
+                p_str = normalize_path_separators(str(p))
+                if (
+                    p.name == query
+                    or p.stem == query
+                    or ("/" in query_pure and p_str.endswith(query_pure))
+                ):
                     matches.append(MatchResult(p, 1.0, self.name))
-                # 2. Path suffix match (if query contains path separators)
-                elif "/" in query_pure:
-                    p_str = normalize_path_separators(str(p))
-                    if p_str.endswith(query_pure):
-                        matches.append(MatchResult(p, 1.0, self.name))
 
         return matches

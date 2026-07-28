@@ -12,6 +12,8 @@ from pathlib import Path
 
 import yaml
 
+from sempath.constants import DECAY_HALF_LIFE_DAYS
+
 
 def get_memory_file_path() -> Path:
     """Return the absolute Path to learned_aliases.yaml."""
@@ -28,15 +30,15 @@ def calculate_decay_rank(hits: int, timestamp_str: str) -> float:
         dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
-    except Exception:
+    except (ValueError, TypeError):
         dt = datetime.now(UTC)
 
     now = datetime.now(UTC)
     delta = now - dt
     days_elapsed = max(0.0, delta.total_seconds() / 86400.0)
 
-    # Formula: hits * 0.5 ^ (days / 7)
-    decay_rank = hits * (0.5 ** (days_elapsed / 7.0))
+    # Formula: hits * 0.5 ^ (days / DECAY_HALF_LIFE_DAYS)
+    decay_rank = hits * (0.5 ** (days_elapsed / float(DECAY_HALF_LIFE_DAYS)))
     return round(decay_rank, 4)
 
 
@@ -56,7 +58,7 @@ def load_memory(path: Path | None = None) -> list[dict]:
             entries = yaml.safe_load(f)
             if not isinstance(entries, list):
                 return []
-    except Exception:
+    except (OSError, yaml.YAMLError):
         return []
 
     # Recalculate decay rank dynamically for all entries
@@ -90,7 +92,7 @@ def save_memory(entries: list[dict], path: Path | None = None) -> None:
     try:
         with open(filepath, "w", encoding="utf-8") as f:
             yaml.safe_dump(cleaned, f, default_flow_style=False, sort_keys=False)
-    except Exception:
+    except OSError:
         pass
 
 
@@ -147,7 +149,7 @@ def undo_last_memory(path: Path | None = None) -> dict | None:
         t_str = entry.get("timestamp", "")
         try:
             dt = datetime.fromisoformat(t_str.replace("Z", "+00:00"))
-        except Exception:
+        except (ValueError, TypeError):
             continue
 
         if newest_dt is None or dt > newest_dt:
@@ -189,7 +191,7 @@ def merge_memory_files(source_path: Path, dest_path: Path | None = None) -> None
                 dt_src = datetime.fromisoformat(t_src)
                 if dt_src > dt_dest:
                     dest_entry["timestamp"] = src_entry.get("timestamp", "")
-            except Exception:
+            except (ValueError, TypeError):
                 pass
         else:
             dest_entries.append(src_entry)

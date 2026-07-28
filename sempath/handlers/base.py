@@ -72,6 +72,7 @@ class BaseHandler(ABC):
         limit is met or until slow handlers (H7, H8) are reached.
         """
         from sempath.utils.logging import verbose_log
+        from sempath.utils.matching import merge_matches
 
         if collected is None:
             collected = []
@@ -84,14 +85,7 @@ class BaseHandler(ABC):
         results = self.match_all(query, candidates, context=context)
         if results:
             # Merge results into collected keeping higher confidence for duplicate paths
-            existing = {r.path: r for r in collected}
-            for r in results:
-                if r.path in existing:
-                    if r.confidence > existing[r.path].confidence:
-                        existing[r.path] = r
-                else:
-                    existing[r.path] = r
-            collected = list(existing.values())
+            collected = merge_matches(collected, results)
 
             min_c = min(r.confidence for r in results)
             max_c = max(r.confidence for r in results)
@@ -127,16 +121,10 @@ class BaseHandler(ABC):
         context: SearchContext | None = None,
     ) -> list[MatchResult]:
         """Walk the entire chain and collect all matches without early termination."""
+        from sempath.utils.matching import merge_matches
+
         results = self.match_all(query, candidates, context=context)
         if self.next_handler is not None:
             sub_results = self.next_handler.collect_all_matches(query, candidates, context=context)
-            # Merge keeping highest confidence
-            existing = {r.path: r for r in results}
-            for r in sub_results:
-                if r.path in existing:
-                    if r.confidence > existing[r.path].confidence:
-                        existing[r.path] = r
-                else:
-                    existing[r.path] = r
-            results = list(existing.values())
+            results = merge_matches(results, sub_results)
         return results

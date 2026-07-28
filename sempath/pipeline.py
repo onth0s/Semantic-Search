@@ -49,7 +49,7 @@ def filter_by_age(candidates: list[Path], max_age_seconds: int | None) -> list[P
         try:
             if now - p.stat().st_mtime <= max_age_seconds:
                 valid_candidates.append(p)
-        except Exception:
+        except (OSError, PermissionError):
             pass
     return valid_candidates
 
@@ -58,7 +58,7 @@ def get_path_mtime(p: Path) -> float:
     """Safely get modification time of a path, defaulting to 0.0 on error."""
     try:
         return p.stat().st_mtime
-    except Exception:
+    except (OSError, PermissionError):
         return 0.0
 
 
@@ -66,7 +66,7 @@ def get_path_size(p: Path) -> int:
     """Safely get file size of a path, returning 0 if directory or on error."""
     try:
         return p.stat().st_size if p.is_file() else 0
-    except Exception:
+    except (OSError, PermissionError):
         return 0
 
 
@@ -74,7 +74,7 @@ def _size_for_smallest(p: Path) -> float:
     """Helper to return path size, defaulting to infinity for dirs or errors."""
     try:
         return float(p.stat().st_size) if p.is_file() else float("inf")
-    except Exception:
+    except (OSError, PermissionError):
         return float("inf")
 
 
@@ -82,7 +82,7 @@ def _mtime_for_oldest(p: Path) -> float:
     """Helper to return path mtime, defaulting to infinity on error."""
     try:
         return p.stat().st_mtime
-    except Exception:
+    except (OSError, PermissionError):
         return float("inf")
 
 

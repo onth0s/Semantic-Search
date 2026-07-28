@@ -6,96 +6,45 @@ directory based on heuristics.
 
 from __future__ import annotations
 
-import contextlib
-import fnmatch
 from pathlib import Path
 from typing import Any
 
-import jellyfish
-from rapidfuzz import fuzz
+from sempath.chain import build_chain
+from sempath.constants import DIR_FUZZY_THRESHOLD
+from sempath.utils.tokenize import normalize_tokens_with_wildcards
 
 
-def _match_dir_name(q_tokens: list[str], dir_name: str, config: dict[str, Any] | None) -> bool:
-    """Check if query tokens match a directory name (exact, fuzzy, phonetic, or alias)."""
-    if not q_tokens or not dir_name:
-        return False
-
-    from sempath.utils.tokenize import normalize_tokens_with_wildcards
-
+def _match_dir_name(clean_query: str, dir_name: str, config: dict[str, Any] | None) -> bool:
+    """Check if query tokens match a directory name using fast handlers H1-H6."""
+    q_tokens = normalize_tokens_with_wildcards(clean_query)
     p_tokens = normalize_tokens_with_wildcards(dir_name)
-    if not p_tokens:
+    if not q_tokens or not p_tokens:
         return False
 
-    aliases = config.get("aliases", {}) if config else {}
-    token_to_aliases = {}
-    for alias_key, alias_values in aliases.items():
-        key_norm = alias_key.lower()
-        val_norms = {v.lower() for v in alias_values}
-        all_norms = val_norms.union({key_norm})
-        for tok in all_norms:
-            token_to_aliases.setdefault(tok, set()).add(key_norm)
+    cfg = config or {}
+    enabled_fast = [
+        h
+        for h in cfg.get("handlers", {}).get("enabled", ["h1", "h2", "h3", "h4", "h5", "h6"])
+        if h in ("h1", "h2", "h3", "h4", "h5", "h6")
+    ]
+    if not enabled_fast:
+        enabled_fast = ["h1", "h2", "h3", "h4", "h5", "h6"]
+
+    fast_config = dict(cfg)
+    fast_config["handlers"] = dict(cfg.get("handlers", {}))
+    fast_config["handlers"]["enabled"] = enabled_fast
+    fast_config["handlers"]["h4_threshold"] = DIR_FUZZY_THRESHOLD
+
+    try:
+        chain = build_chain(fast_config)
+    except ValueError:
+        return False
+
+    synthetic_candidates = [Path(tok) for tok in p_tokens]
 
     for q_tok in q_tokens:
-        matched = False
-        q_tok_lower = q_tok.lower()
-
-        q_meta = None
-        if q_tok_lower.isalpha():
-            with contextlib.suppress(Exception):
-                q_meta = jellyfish.metaphone(q_tok_lower)
-
-        q_aliases = token_to_aliases.get(q_tok_lower, set())
-
-        for p_tok in p_tokens:
-            p_tok_lower = p_tok.lower()
-
-            # 1. Exact match
-            if q_tok_lower == p_tok_lower:
-                matched = True
-                break
-
-            # 2. Wildcard/glob match
-            if ("*" in q_tok_lower or "?" in q_tok_lower) and fnmatch.fnmatch(
-                p_tok_lower, q_tok_lower
-            ):
-                matched = True
-                break
-            if ("*" in p_tok_lower or "?" in p_tok_lower) and fnmatch.fnmatch(
-                q_tok_lower, p_tok_lower
-            ):
-                matched = True
-                break
-
-            # 3. Alias match
-            p_aliases = token_to_aliases.get(p_tok_lower, set())
-            if q_aliases and p_aliases and q_aliases.intersection(p_aliases):
-                matched = True
-                break
-
-            # 4. Fuzzy match (requires length >= 4)
-            if (
-                len(q_tok_lower) >= 4
-                and len(p_tok_lower) >= 4
-                and (
-                    q_tok_lower in p_tok_lower
-                    or p_tok_lower in q_tok_lower
-                    or fuzz.ratio(q_tok_lower, p_tok_lower) >= 80
-                )
-            ):
-                matched = True
-                break
-
-            # 5. Phonetic match (requires length >= 4)
-            if len(q_tok_lower) >= 4 and len(p_tok_lower) >= 4 and q_meta and p_tok_lower.isalpha():
-                try:
-                    p_meta = jellyfish.metaphone(p_tok_lower)
-                    if q_meta == p_meta and fuzz.ratio(q_tok_lower, p_tok_lower) >= 50:
-                        matched = True
-                        break
-                except Exception:
-                    pass
-
-        if not matched:
+        matches = chain.handle(q_tok, synthetic_candidates)
+        if not any(m.confidence >= 0.5 for m in matches):
             return False
 
     return True
@@ -113,10 +62,7 @@ def match_directory_content(
     Returns:
         A tuple of (matched_dir, descendants), where descendants are sorted.
     """
-    from sempath.utils.tokenize import normalize_tokens_with_wildcards
-
-    q_tokens = normalize_tokens_with_wildcards(clean_query)
-    if not q_tokens:
+    if not clean_query:
         return None, []
 
     matching_dirs = []
@@ -124,7 +70,7 @@ def match_directory_content(
     # 1. Check ancestors of search_root (including search_root itself)
     current = search_root.resolve()
     while True:
-        if _match_dir_name(q_tokens, current.name, config):
+        if _match_dir_name(clean_query, current.name, config):
             matching_dirs.append(current)
         parent = current.parent
         if parent == current:
@@ -133,7 +79,7 @@ def match_directory_content(
 
     # 2. Check candidate directories under search_root
     for p in candidates:
-        if p.is_dir() and _match_dir_name(q_tokens, p.name, config):
+        if p.is_dir() and _match_dir_name(clean_query, p.name, config):
             matching_dirs.append(p)
 
     if not matching_dirs:

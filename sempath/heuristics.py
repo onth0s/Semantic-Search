@@ -305,10 +305,15 @@ def _extract_categories(
                             f"[bold green]{cat_name}[/].[/]"
                         )
                         break
-                except Exception:
+                except (ValueError, TypeError):
                     pass
 
     return clean_query, list(matched_categories), matched_category_keywords
+
+
+def _normalize_whitespace(s: str) -> str:
+    """Normalize internal whitespace runs and strip leading/trailing spaces."""
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResult:
@@ -319,7 +324,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
 
         try:
             config = load_config()
-        except Exception:
+        except (OSError, Exception):
             config = {}
 
     from sempath.config import DEFAULT_CONFIG
@@ -346,11 +351,11 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     ) = _extract_sorting_and_intent(clean_query)
 
     # Clean up whitespace runs
-    clean_query = re.sub(r"\s+", " ", clean_query).strip()
+    clean_query = _normalize_whitespace(clean_query)
 
     # 3. Strip stopwords
     clean_query = STOPWORDS_RE.sub(" ", clean_query)
-    clean_query = re.sub(r"\s+", " ", clean_query).strip()
+    clean_query = _normalize_whitespace(clean_query)
 
     # Singularize remaining tokens for name matching
     from sempath.utils.tokenize import singularize_token
@@ -374,7 +379,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
         extensions = sorted(extensions)
 
     # Clean up whitespace runs again
-    clean_query = re.sub(r"\s+", " ", clean_query).strip()
+    clean_query = _normalize_whitespace(clean_query)
 
     # Singularize remaining tokens for semantic matching
     clean_query = " ".join(singularize_token(t) for t in clean_query.split())

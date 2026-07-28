@@ -391,7 +391,7 @@ def save_config(config_dict: dict, path: Path | None = None) -> None:
         with open(target_path, encoding="utf-8") as f:
             try:
                 raw_config = yaml.safe_load(f) or {}
-            except Exception:
+            except (yaml.YAMLError, OSError):
                 raw_config = {}
 
     # Merge updates

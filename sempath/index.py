@@ -15,6 +15,7 @@ from pathlib import Path
 
 import jellyfish
 
+from sempath.constants import INDEX_BUSY_TIMEOUT_MS, INDEX_DB_TIMEOUT
 from sempath.scanner import scan_directory
 from sempath.utils.tokenize import normalize_tokens
 
@@ -34,11 +35,11 @@ class IndexManager:
 
         Ensures WAL mode, busy timeout, transaction handling, and auto-closure.
         """
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn = sqlite3.connect(self.db_path, timeout=INDEX_DB_TIMEOUT)
         conn.row_factory = sqlite3.Row
         try:
             conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout=30000")
+            conn.execute(f"PRAGMA busy_timeout={INDEX_BUSY_TIMEOUT_MS}")
         except sqlite3.OperationalError:
             pass
         try:
@@ -78,7 +79,7 @@ class IndexManager:
                 }
                 if not expected.issubset(columns):
                     schema_valid = False
-        except Exception:
+        except (sqlite3.Error, KeyError, AttributeError):
             schema_valid = False
 
         if not schema_valid:
@@ -117,7 +118,7 @@ class IndexManager:
                     code = jellyfish.metaphone(token)
                     if code:
                         codes.append(code)
-                except Exception:
+                except (ValueError, TypeError):
                     pass
             else:
                 codes.append(token)
@@ -178,7 +179,7 @@ class IndexManager:
         try:
             for _, dirs, files in os.walk(root_path):
                 count += len(dirs) + len(files)
-        except Exception:
+        except OSError:
             pass
         return count
 
@@ -251,7 +252,7 @@ class IndexManager:
                     stat = p.stat()
                     mtime = stat.st_mtime
                     size = stat.st_size if p.is_file() else 0
-                except Exception:
+                except (OSError, PermissionError):
                     continue
 
                 is_dir = 1 if p.is_dir() else 0

@@ -197,7 +197,7 @@ def scan_volume_files(volume_letter: str, search_root: Path) -> list[Path] | Non
                     name_bytes = enum_buf.raw[name_start:name_end]
                     try:
                         name = name_bytes.decode("utf-16-le")
-                    except Exception:
+                    except (UnicodeDecodeError, struct.error):
                         name = ""
 
                     if name:

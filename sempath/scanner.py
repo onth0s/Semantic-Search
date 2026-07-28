@@ -23,7 +23,7 @@ def _is_path_ignored_by_gitignore(
     try:
         if not path.is_dir():
             curr = path.parent
-    except Exception:
+    except (OSError, ValueError):
         pass
 
     while True:
@@ -33,7 +33,7 @@ def _is_path_ignored_by_gitignore(
                 try:
                     with open(gi_file, encoding="utf-8") as f:
                         gitignore_cache[curr] = pathspec.PathSpec.from_lines("gitignore", f)
-                except Exception:
+                except (OSError, UnicodeDecodeError, pathspec.patterns.PatternError):
                     gitignore_cache[curr] = None
             else:
                 gitignore_cache[curr] = None
@@ -48,7 +48,7 @@ def _is_path_ignored_by_gitignore(
                 try:
                     if path.is_dir():
                         rel_path_str += "/"
-                except Exception:
+                except (OSError, ValueError):
                     pass
                 if spec.match_file(rel_path_str):
                     return True
@@ -129,7 +129,7 @@ def scan_directory(
                         try:
                             if p.is_dir():
                                 skipped_rel_dirs.add(str(rel_path))
-                        except Exception:
+                        except (OSError, ValueError):
                             pass
                         continue
 
