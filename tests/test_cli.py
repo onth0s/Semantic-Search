@@ -1,5 +1,7 @@
 """Tests for sempath.cli — Click CLI interface using CliRunner."""
 
+from pathlib import Path
+
 import pytest
 from click.testing import CliRunner
 
@@ -140,3 +142,22 @@ class TestConfigVerbose:
 
         cfg = load_config()
         assert cfg["verbose"] is True
+
+
+def test_find_root_dir_leading_slash_normalization(tmp_path: Path):
+    """Test that '/scratch' normalizes to local 'scratch' subdirectory."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    song = scratch / "song.mp3"
+    song.write_text("audio content", encoding="utf-8")
+
+    runner = CliRunner()
+    # Invoke with '/scratch' relative to tmp_path context
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        sub_scratch = Path("scratch")
+        sub_scratch.mkdir(exist_ok=True)
+        (sub_scratch / "track.wav").write_text("wav content")
+
+        res = runner.invoke(cli, ["find", "songs", "/scratch"])
+        assert res.exit_code == 0
+        assert "track.wav" in res.output

@@ -447,7 +447,17 @@ class SearchEngine:
 
         # 7. Merge name_query matches if applicable
         if heuristics.name_query and heuristics.name_query != clean_query:
-            name_matches = chain.handle(
+            try:
+                fast_cfg = dict(self.config)
+                fast_cfg["handlers"] = dict(self.config.get("handlers", {}))
+                fast_cfg["handlers"]["enabled"] = [
+                    h for h in fast_cfg["handlers"].get("enabled", []) if h not in ("h7", "h8")
+                ]
+                name_chain = build_chain(fast_cfg) if fast_cfg["handlers"]["enabled"] else chain
+            except Exception:
+                name_chain = chain
+
+            name_matches = name_chain.handle(
                 heuristics.name_query, intent_candidates, top_n=top_n, context=context
             )
             if exts_final:
@@ -473,8 +483,13 @@ class SearchEngine:
         confident_matches = [m for m in match_results if m.confidence >= min_confidence]
 
         if not confident_matches and clean_query in ("", ".", "*") and filtered_candidates:
-            match_result = MatchResult(filtered_candidates[0], 1.0, "explicit_flags")
-            near_misses = [MatchResult(p, 1.0, "explicit_flags") for p in filtered_candidates[1:]]
+            handler_name = (
+                "explicit_flags"
+                if (latest_final or largest_final or smallest_final or oldest_final)
+                else "category_match"
+            )
+            match_result = MatchResult(filtered_candidates[0], 1.0, handler_name)
+            near_misses = [MatchResult(p, 1.0, handler_name) for p in filtered_candidates[1:]]
             return SearchResult(
                 status="success",
                 query=query,

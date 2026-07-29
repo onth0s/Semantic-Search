@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 from rich.markup import escape
@@ -50,15 +51,32 @@ def _parse_handler_spec(spec: str) -> list[str]:
     )
 
 
+class NormalizedPath(click.Path):
+    """Click Path type that normalizes leading slashes on Windows relative paths."""
+
+    def convert(self, value: Any, param: click.Parameter | None, ctx: click.Context | None) -> Any:
+        if value is None:
+            return None
+        val_str = str(value).strip("'\"")
+
+        p = Path(val_str)
+        if not p.exists() and (val_str.startswith("/") or val_str.startswith("\\")):
+            rel_candidate = Path(val_str.lstrip("/\\"))
+            if rel_candidate.exists():
+                return super().convert(str(rel_candidate), param, ctx)
+
+        return super().convert(val_str, param, ctx)
+
+
 def register_find_command(cli_group: click.Group) -> None:
     """Register the find command on the main CLI group."""
 
     @cli_group.command()
     @click.argument("query")
-    @click.argument("root_dir", default=".", type=click.Path(exists=True, path_type=Path))
+    @click.argument("root_dir", default=".", type=NormalizedPath(exists=True, path_type=Path))
     @click.option(
         "--root",
-        type=click.Path(exists=True, path_type=Path),
+        type=NormalizedPath(exists=True, path_type=Path),
         default=None,
         help="Root directory to search (overrides ROOT_DIR argument).",
     )

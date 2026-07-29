@@ -10,7 +10,7 @@ handlers:
 index:
   auto: true               # auto-create index if none exists
   store: "%APPDATA%\\sempath\\cache"
-  respect_gitignore: true  # respect dynamic nested .gitignore rules by default
+  respect_gitignore: false  # respect dynamic nested .gitignore rules
   exclude_patterns:
     - "node_modules"
     - ".git"

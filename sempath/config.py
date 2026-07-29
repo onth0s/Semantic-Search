@@ -34,7 +34,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "index": {
         "auto": True,
         "store": "%APPDATA%\\sempath\\cache",
-        "respect_gitignore": True,
+        "respect_gitignore": False,
         "exclude_patterns": [
             "node_modules",
             ".git",
