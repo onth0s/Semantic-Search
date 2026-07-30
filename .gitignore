@@ -22,5 +22,3 @@ build/
 dist/
 *.spec
 
-# Miscellaneous
-misc/

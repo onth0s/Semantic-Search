@@ -1,0 +1,445 @@
+PS C:\Users\Leonardo\001\MWW> tree
+npm notice run npx
+npm notice run tree -I node_modules|.next
+MWW
+├── 1991 - Trashed Illusions
+│   ├── 01  - Crash Diet.mp3
+│   ├── 02  - Bring It Back Home.mp3
+│   ├── 03  - Sentimental Movie (Slash On Vocals).mp3
+│   ├── 04  - Just Another Sunday.mp3
+│   ├── 05  - Axl's Blues.mp3
+│   ├── 06  - It Tastes Good, Don't It.mp3
+│   ├── 07  - Too Fast To Live.mp3
+│   ├── 08  - It's So Easy (Slash On Vocals).mp3
+│   ├── 09  - Scrap Bar Daze.mp3
+│   ├── 10  - Booze Party.mp3
+│   ├── 11  - Jumping Jack Flash (Studio Demo).mp3
+│   ├── 12  - Jumping Jack Flash (Hellhouse Rehearsal).mp3
+│   ├── 13  - Jumping Jack Flash (Acoustic Demo).mp3
+│   ├── 14  - Heartbreak Hotel (Studio Demo).mp3
+│   └── 15  - Heartbreak Hotel (Hellhouse Rehearsal).mp3
+├── AKROSS_Con_2012 _Umika_-_Sincerity.mp3
+├── CLAUDE DEBUSSY-  CLAIR DE LUNE (320  kbps).mp3
+├── Don_Omar_Ayer_la_VI_(mp3co.biz) (2).mp3
+├── Fl Keys.flp
+├── MWW
+│   ├── 0013.mp3
+│   ├── 01 - Brand-new World.mp3
+│   ├── 01 - Oracion.mp3
+│   ├── 01 - Zetsubousei Hero Chiryouyaku.mp3
+│   ├── 01 - believe.mp3
+│   ├── 012021258731.mp3
+│   ├── 01_Wild_Ones__feat__Sia_.mp3
+│   ├── 0235736591.mp3
+│   ├── 02WhatTheHell.mp3
+│   ├── 0480167430.mp3
+│   ├── 0533832933.mp3
+│   ├── 0595490950.mp3
+│   ├── 06BackinBlack(1).mp3
+│   ├── 194971.mp3
+│   ├── 20110213.mp3
+│   ├── 209andre_3000hey_yarns.mp3
+│   ├── 25- Avril Lavigne - Rock N Roll.mp3
+│   ├── 37. Flo Rida - My House(128).mp3
+│   ├── 3756801_de_ce_plang_chitarele.mp3
+│   ├── 4521249089.mp3
+│   ├── 543069760.mp3
+│   ├── Aaron Cartier - OMG ft Night Lovell  Dylan Brady - [youtube-mp3.info].mp3
+│   ├── Avril Lavigne - Losing Grip.mp3
+│   ├── Avril Lavinge - Hot.mp3
+│   ├── Baby Ranks Ft. Daddy Yankee, Tonny Tun Tun, Wisin Y Yandel, Hector El Father - Mayor Que Yo.mp3
+│   ├── Blur - Song 2.mp3
+│   ├── Boney_M_-_Rasputin.mp3
+│   ├── Complicated.mp3
+│   ├── Dragon Ball Z Soundtrack 87.mp3
+│   ├── Dreamtale - The Dawn.flac
+│   ├── Enforcer - Diamonds.mp3
+│   ├── Faul _ Wad Ad vs Pnau Changes-(Radio edit).mp3
+│   ├── ForWhom.mp3
+│   ├── Hoobastank - The Reason.mp3
+│   ├── Kid Cudi - Pursuit Of Happiness ft. MGMT (ConvertBox7.Com).mp3
+│   ├── Looper - Mondo 77.mp3
+│   ├── Megadeth - Angry Again.mp3
+│   ├── Metallica - Orion.mp3
+│   ├── Naruto - Opening 1 [Full Song].mp3
+│   ├── Pixies - Where Is My Mind.mp3
+│   ├── Queen - Killer Queen.mp3
+│   ├── Queen_-_Somebody_To_Love.mp3
+│   ├── Queen_BohemianRhapsody.mp3
+│   ├── Rihana - Don't Stop The Music.mp3
+│   ├── Scar_tissue.mp3
+│   ├── Schubert - Impromptu No. 3_ Op. 90 (Kissin).mp3
+│   ├── Soothsayer (dedicated to Aunt Suzie).mp3
+│   ├── Survivor - Eye Of The Tiger.mp3
+│   ├── Take My Breathe Away - Berlin - Top Gun Soundtrack.mp3
+│   ├── Tik_Tok.mp3
+│   ├── UNCHARTED 4 Trailer Music - Where Is My Mind (Exte.mp3
+│   ├── VAR
+│   │   ├── 01-above-the-clouds.mp3
+│   │   ├── Narciso Yepes plays_  Guárdame las Vacas by Luis de Narváez - AUDIO - MP3.mp3
+│   │   ├── Paganini_ Caprice No. 5 (Shlomo Mintz) - AUDIO - MP3.mp3
+│   │   ├── Pollini plays Chopin Etude Op.25 No.11 _Winter Wind_ - AUDIO - MP3.mp3
+│   │   ├── The Game (Triple H) - Mötor(1).mp3
+│   │   ├── Victor de Andres_ Brindo por tí - AUDIO - MP3.mp3
+│   │   └── poema-del-alma-manolo-galvan.mp3
+│   ├── Vivaldi-4Seasons-Spring-1st.mp3
+│   ├── WhoCanItBeNow.mp3
+│   ├── YMCA.MP3
+│   ├── [Forunesia] Waiting for the rain.mp3
+│   ├── avril_lavigne___skater_boy_www.5mp.eu_.mp3
+│   ├── eurythmics-sweet dreams.mp3
+│   ├── fiesta_de_la_noche.mp3
+│   ├── jmsc
+│   │   ├── 01 - Aqua Terrarium.mp3
+│   │   ├── 01. Prime number - Kimi to Deaeru Hi.mp3
+│   │   ├── 02%20%E3%83%A6%E3%83%8B%E3%83%8F%E3%82%99%E3%83%BC%E3%82%B9(1).mp3
+│   │   ├── 03%20%E3%82%B9%E3%82%B3%E3%83%BC%E3%83%AB.mp3
+│   │   ├── Amazarashi - Kisers wa Tsugitsugi Shindeiku
+│   │   ├── Brand-new World [ZXbw1_YEJj8].mp3
+│   │   ├── LiSA - BRiGHT FLiGHT.mp3
+│   │   ├── Nagi Yanagi - Aqua Terrarium
+│   │   │   ├── 02 - mnemonic.mp3
+│   │   │   └── cover.jpg
+│   │   └── song
+│   │       ├── 01 - Kisetsu wa Tsugitsugi Shindeiku.mp3
+│   │       ├── 03 - Jigyaku-ka no Ally.mp3
+│   │       ├── Blondie - Heart Of Glass.flac
+│   │       ├── E (2).mp3
+│   │       ├── INORAN - raize.m4a
+│   │       ├── LiSA - Traumerei.mp3
+│   │       ├── LiSA - oath sign.mp3
+│   │       ├── LiSA - シルシ.mp3
+│   │       ├── Suneohair - no trick.mp3
+│   │       ├── amazarashi - あとがき.mp3
+│   │       ├── amazarashi - おもろうてやがて悲しき東口.mp3
+│   │       ├── amazarashi - よだかの星.mp3
+│   │       ├── amazarashi - アイスクリーム.mp3
+│   │       ├── amazarashi - コンビニ傘.mp3
+│   │       ├── amazarashi - セビロニハナ.mp3
+│   │       ├── amazarashi - ナモナキヒト.mp3
+│   │       ├── amazarashi - ハルルソラ.mp3
+│   │       ├── amazarashi - ポエジー.mp3
+│   │       ├── amazarashi - ポルノ映画の看板の下で.mp3
+│   │       ├── amazarashi - 初雪.m4a
+│   │       ├── amazarashi - 千年幸福論.mp3
+│   │       ├── amazarashi - 奇跡.mp3
+│   │       ├── amazarashi - 性善说.mp3
+│   │       ├── amazarashi - 理想の花.mp3
+│   │       ├── amazarashi - 空っぽの空に潰される.mp3
+│   │       ├── amazarashi - 終わりで始まり.mp3
+│   │       ├── スネオヘアー - Merry Christmas to me.mp3
+│   │       ├── スネオヘアー - Slow Dance.mp3
+│   │       ├── スネオヘアー - さらり.mp3
+│   │       ├── スネオヘアー - アオイソラ.mp3
+│   │       ├── スネオヘアー - トークバック.mp3
+│   │       ├── スネオヘアー - バースデー.mp3
+│   │       └── 户松遥 - 梦的世界.mp3
+│   ├── muzmo_ru_TULE_-_Fearless_47678424.mp3
+│   ├── o-zone-despre_tine.mp3
+│   ├── oriunde_ai_fi.mp3
+│   ├── queen-we-are-the-champions.mp3
+│   ├── snap
+│   │   ├── Schubert _Serenade_ - 128K MP3.mp3
+│   │   └── SnapTube Audio
+│   │       └── Schubert - Ave Maria - 128K MP3.mp3
+│   ├── stulba_kum_nebeto.mp3
+│   ├── tumblr_ldf6kdx9Xb1qfnq85o1.mp3
+│   ├── tumblr_lfwuxfFdrL1qa6xujo1.mp3
+│   ├── tumblr_lgaeg1wY701qckmyto1.mp3
+│   ├── tumblr_lya89678ch1rnpefmo1.mp3
+│   ├── tumblr_mad0ackAnN1qjvzu1o1.mp3
+│   ├── tumblr_mmah3f8lZE1r15wigo1.mp3
+│   ├── tumblr_mqod62nLDP1qlsotgo1.mp3
+│   ├── twenty one pilots - Ride.mp3
+│   ├── wy
+│   │   ├── 09-Abusadora.mp3
+│   │   ├── 13.-Wisin-Yandel-Ft.-Aventura-Noche-De-Sexo.mp3
+│   │   ├── 14-Besos-Mojados.mp3
+│   │   └── 19-Por-Que-Me-Tratas-Así.mp3
+│   └── y_m
+│       ├── Air - Johann Sebastian Bach.mp3
+│       ├── Chopin - Nocturne op.9 No.2.mp3
+│       └── Nocturno - Chopin.mp3
+├── Pink floyd
+│   ├── 01. Cluster One.mp3
+│   ├── 01. Hey You.mp3
+│   ├── 01. In The Flesh.mp3
+│   ├── 01. Things Left Unsaid.mp3
+│   ├── 02. Is There Anybody Out There.mp3
+│   ├── 02. It's What We Do.mp3
+│   ├── 02. The Thin Ice.mp3
+│   ├── 02. What Do You Want From Me.mp3
+│   ├── 03. Another Brick In The Wall Pt.1.mp3
+│   ├── 03. Ebb And Flow.mp3
+│   ├── 03. Nobody Home.mp3
+│   ├── 03. Poles Apart.mp3
+│   ├── 04. Marooned.mp3
+│   ├── 04. Sum.mp3
+│   ├── 04. The Happiest Days Of Our Lives.mp3
+│   ├── 04. Vera.mp3
+│   ├── 05. A Great Day For Freedom.mp3
+│   ├── 05. Another Brick In The Wall Pt.2.mp3
+│   ├── 05. Bring The Boys Back Home.mp3
+│   ├── 05. Skins.mp3
+│   ├── 06. Comfortably Numb.mp3
+│   ├── 06. Mother.mp3
+│   ├── 06. Unsung.mp3
+│   ├── 06. Wearing The Inside Out.mp3
+│   ├── 07. Anisina.mp3
+│   ├── 07. Goodbye Blue Sky.mp3
+│   ├── 07. Take It Back.mp3
+│   ├── 07. The Show Must Go On.mp3
+│   ├── 08. Coming Back To Life.mp3
+│   ├── 08. Empty Spaces.mp3
+│   ├── 08. In The Flesh.mp3
+│   ├── 08. The Lost Art Of Conversation.mp3
+│   ├── 09. Keep Talking.mp3
+│   ├── 09. On Noodle Street.mp3
+│   ├── 09. Run Like Hell.mp3
+│   ├── 09. Young Lust.mp3
+│   ├── 1 - Shine on You Crazy Diamond, Pts. 1-5.mp3
+│   ├── 10. Lost For Words.mp3
+│   ├── 10. Night Light.mp3
+│   ├── 10. One Of My Turns.mp3
+│   ├── 10. Waiting For The Worms.mp3
+│   ├── 11. Allons-YS (1).mp3
+│   ├── 11. Don't Leave Now.mp3
+│   ├── 11. High Hopes.mp3
+│   ├── 11. Stop.mp3
+│   ├── 12. Another Brick In The Wall Pt.3.mp3
+│   ├── 12. Autumn '68.mp3
+│   ├── 12. The Trial.mp3
+│   ├── 13. Allons-Y (2).mp3
+│   ├── 13. Goodbye Cruel World.mp3
+│   ├── 13. Outside The Wall.mp3
+│   ├── 14. Talkin' Hawkin'.mp3
+│   ├── 15. Calling.mp3
+│   ├── 16. Eyes To Pearls.mp3
+│   ├── 17. Surfacing.mp3
+│   ├── 18. Louder Than Words.mp3
+│   ├── 2 - Welcome to the Machine.mp3
+│   ├── 3 - Have a Cigar.mp3
+│   └── 4 - Wish You Were Here.mp3
+├── Pixies - Where Is My Mind.mp3
+├── Roi.mp3
+├── Wiz Khalifa - Black And Yellow [G-Mix] ft. Snoop D.mp3
+├── billy idol - eyes without a face (slowed & reverb) [a6u00EcpNcs].mp3
+└── old music I used to listen
+    ├── 3-14 purpurina[www hhdirecto net].mp3
+    ├── Akon Feat. David Guetta - Party Animal (Music Video) (HD).mp3
+    ├── Alberto Gambino - 04 Warrior.mp3
+    ├── Alberto Gambino - na de na.mp3
+    ├── Alberto Gambino-Sigo aqui.mp3
+    ├── Alexandra Stan - Mr. Saxobeat - LYRICS.mp3
+    ├── Beyoncé - Halo [with lyrics].mp3
+    ├── Black Eyed Peas   David Guetta - The Time (On The Dancefloor) (Hasesify bootleg 2011).mp3
+    ├── Black Eyed Peas - I Gotta Feeling.mp3
+    ├── Black Eyed Peas - My Humps.mp3
+    ├── Black Eyed Peas - Rock That Body.mp3
+    ├── Black Eyed Peas - Where Is The Love.mp3
+    ├── Compton's Most Wanted - Hood Took Me Under Lyrics.mp3
+    ├── Cypress Hill - Insane In The Brain.mp3
+    ├── David Glen Eisley - Sweet Victory Lyrics.mp3
+    ├── David Guetta   Afrojack feat. Niles Mason - Louder Than Words (Original Mix) HD.mp3
+    ├── David Guetta   Chris Willis - Love Is Gone (On Ultra Dance 11 out now).mp3
+    ├── David Guetta  Chris Willis ft Fergie - Gettin' Over.mp3
+    ├── David Guetta - Get up.mp3
+    ├── David Guetta - I wanna go crazy (featuring Will.i.am).mp3
+    ├── David Guetta - Last Train.mp3
+    ├── David Guetta - Missing You (Feat. Novel) [HQ].mp3
+    ├── David Guetta - One Love (feat. Feat Estelle) (Full   HQ).mp3
+    ├── David Guetta - Sound of letting go (featuring Chris Willis).mp3
+    ├── David Guetta - Stay - Music video.mp3
+    ├── David Guetta - Summer moon.mp3
+    ├── David Guetta - The World Is Mine.mp3
+    ├── David Guetta - This is not a love song.mp3
+    ├── David Guetta - Toyfriend (featuring Wynter Gordon).mp3
+    ├── David Guetta - When Love Takes Over Ft. Kelly Rowland [Drum Cover].mp3
+    ├── David Guetta - Winner of the Game VIDEO HQ.mp3
+    ├── David Guetta - You're Not Alone (ft Tara Mc Donald).mp3
+    ├── David Guetta -Its The Way You Love Me (Ft Kelly Rowland).mp3
+    ├── David Guetta Feat. Kid Cudi - Memories Karaoke.mp3
+    ├── David Guetta Feat. Rosie Rogers - Without You.mp3
+    ├── David Guetta Ft. Madonna - Revolver ( Lyrics ).mp3
+    ├── David Guetta feat Novel - Hero.mp3
+    ├── David Guetta feat. Akon - Life Of A Superstar [HD].mp3
+    ├── David Guetta feat. Cozi - Baby When The Light.mp3
+    ├── David Guetta vs Lady GaGa - Just Dance Memories Mashup.mp3
+    ├── David Guetta vs. The Egg - Love Don't Let Me Go.mp3
+    ├── David Guetta-Higher.mp3
+    ├── David Guetta-Time + LYRICS.mp3
+    ├── David guetta - Memories.mp3
+    ├── Dover - Let Me Out.mp3
+    ├── Dragon Ball Rap.mp3
+    ├── Dust in the wind lyrics - Kansas.mp3
+    ├── El canto del loco - Eres tonto.mp3
+    ├── El canto del loco - Volvera.mp3
+    ├── El canto del loco - Zapatillas.mp3
+    ├── Eminem - My Name Is.mp3
+    ├── Everytime We Touch - David Guetta.mp3
+    ├── Flo Rida   David Guetta - Club Can't Handle Me (Instrumental Version).mp3
+    ├── Flo Rida - Club Can't Handle Me (feat. David Guetta) (ON SCREEN LYRICS).mp3
+    ├── Grand Funk Railroad - Some Kind of Wonderful.mp3
+    ├── Highway To Hell Lyrics.mp3
+    ├── I Kissed a Girl - Katy Parry [WITH LYRICS].mp3
+    ├── IYAZ - Last Forever (Prod By David Guetta) [NEW 2011] + download.mp3
+    ├── Inna - HOT (Radio Edit) + Lyrics.mp3
+    ├── Isley Brothers - Between The Sheets.mp3
+    ├── Jennifer Lopez Feat. Pitbull On The Floor Lyrics.mp3
+    ├── KDST Boston Smokin'.mp3
+    ├── KISS - God of Thunder with Lyrics.mp3
+    ├── KISS - Heaven's on fire - Lyrics.mp3
+    ├── Katy Perry - Firework.mp3
+    ├── Katy Perry - Hot N Cold Lyrics.mp3
+    ├── Katy Perry - Teenage Dream.mp3
+    ├── Katy Perry Feat Snoop Dogg - California Girls Lyrics.mp3
+    ├── Katy Perry feat. Timbaland - If we ever meet again - Lyrics.mp3
+    ├── Kiss - (You Make Me) Rock Hard - Lyrics.mp3
+    ├── Kiss - Detroit Rock City.mp3
+    ├── Kiss Creatures Of The Night (With Lyrics).mp3
+    ├── Kiss War Machine.mp3
+    ├── Lady GaGa - Just Dance Lyrics.mp3
+    ├── Lady GaGa - Paparazzi Lyrics.mp3
+    ├── Lady GaGa Poker Face with Lyrics.mp3
+    ├── Lady Gaga - Alejandro2.mp3
+    ├── Lady Gaga - Bad Romance.mp3
+    ├── Lady Gaga - Born This Way2.mp3
+    ├── Lady Gaga Just Dance Instrumental.mp3
+    ├── Lil Jon Ft Mystikal   Krayzie Bone - I Don't Give A Fuck Dirty + Lyrics.mp3
+    ├── Linkin Park - Bleed It Out.mp3
+    ├── Linkin Park - Crawling.mp3
+    ├── Linkin Park - Given Up (OFFICIAL Video).mp3
+    ├── Linkin Park - In The End.mp3
+    ├── Linkin Park - Leave Out All The Rest.mp3
+    ├── Linkin Park - New Divide.mp3
+    ├── Linkin Park - Numb.mp3
+    ├── Linkin Park - The Catalyst (Official HD).mp3
+    ├── Linkin Park - Waiting for the End (Official HD).mp3
+    ├── Linkin Park - What I've Done.mp3
+    ├── Lynyrd Skynyrd Freebird w  Lyrics.mp3
+    ├── MIKA - We Are Golden.mp3
+    ├── Metalica - one..mp3
+    ├── Metallica - And Justice for All - Lyrics video.mp3
+    ├── Metallica - Battery Lyrics.mp3
+    ├── Metallica - Master Of Puppets With lyrics.mp3
+    ├── Metallica - Sad But True.mp3
+    ├── Metallica - Seek and Destroy - Lyrics.mp3
+    ├── Metallica - St. Anger.mp3
+    ├── Metallica - The Day That Never Comes[Video Premiere].mp3
+    ├── Metallica - The unforgiven ll.mp3
+    ├── Metallica - Turn The Page.mp3
+    ├── Metallica - Until It Sleeps.mp3
+    ├── Metallica - Welcome Home (Sanitarium).mp3
+    ├── Metallica Fuel Lyrics.mp3
+    ├── Night Ranger - Sister Christian.mp3
+    ├── OCEANA - cry,cry (lyrics).mp3
+    ├── Pink Floyd- Another Brick in the wall Song and lyrics.mp3
+    ├── Public Enemy - Rebel Without a Pause.mp3
+    ├── Queen - Another One Bites The Dust (Lyrics).mp3
+    ├── Sexy Bitch - David Guetta ft. Akon.mp3
+    ├── Shakira - Loca (Official Video).mp3
+    ├── Shakira - Sale El Sol.mp3
+    ├── Shakira - Waka Waka Official Music Video.mp3
+    ├── Stone Temple Pilots - Plush lyrics.mp3
+    ├── Taio Cruz- Dynamite.mp3
+    ├── The Black Eyed Peas - Boom Boom Pow.mp3
+    ├── The Black Eyed Peas - Just Can't Get Enough.mp3
+    ├── The Black Eyed Peas - Let's Get It Started2.mp3
+    ├── The Black Eyed Peas - Meet Me Halfway.mp3
+    ├── The Black Eyed Peas - Pump It.mp3
+    ├── The Black Eyed Peas - Shut Up.mp3
+    ├── The Black Eyed Peas - The Time (Dirty Bit) (Audio).mp3
+    ├── Time of The Season-The Zombies  Lyrics.mp3
+    ├── Toto - Hold The Line.mp3
+    ├── WHITESNAKE- HERE I GO AGAIN2.mp3
+    ├── Welcome To The Jungle Lyrics.mp3
+    ├── lady gaga feat beyonce - telephone con letra.mp3
+    ├── metallica - enter sandman.mp3
+    ├── metallica - the unforgiven.mp3
+    ├── mika rain lyrics2.mp3
+    └── tecnologic Daft Punk.mp3
+PS C:\Users\Leonardo\001\MWW> sf guns-n-roses-songs -h8 --verbose
+Handlers: h8
+Query:  guns-n-roses-songs
+Root:   .
+Depth:  5
+
+Exact category match: songs in query matches category audio.
+Heuristics extracted: clean_query='gun n rose', extensions=['aac', 'flac', 'm4a', 'mp3', 'ogg', 'wav'], age_limit=None
+Gathered 356 candidates from scan/index...
+Remaining candidates after applying filters: 341
+Evaluating handler h8_llm on 341 candidates...
+H8: checking model 'minimax-m3:cloud' is available...
+H8: querying minimax-m3:cloud at http://localhost:11434/v1/chat/completions (top_k=100)...
+H8 LLM raw response:
+1991 - Trashed Illusions\01  - Crash Diet.mp3
+1991 - Trashed Illusions\02  - Bring It Back Home.mp3
+1991 - Trashed Illusions\03  - Sentimental Movie (Slash On Vocals).mp3
+1991 - Trashed Illusions\04  - Just Another Sunday.mp3
+1991 - Trashed Illusions\05  - Axl's Blues.mp3
+1991 - Trashed Illusions\06  - It Tastes Good, Don't It.mp3
+1991 - Trashed Illusions\07  - Too Fast To Live.mp3
+1991 - Trashed Illusions\08  - It's So Easy (Slash On Vocals).mp3
+1991 - Trashed Illusions\09  - Scrap Bar Daze.mp3
+1991 - Trashed Illusions\10  - Booze Party.mp3
+1991 - Trashed Illusions\11  - Jumping Jack Flash (Studio Demo).mp3
+1991 - Trashed Illusions\12  - Jumping Jack Flash (Hellhouse Rehearsal).mp3
+1991 - Trashed Illusions\13  - Jumping Jack Flash (Acoustic Demo).mp3
+1991 - Trashed Illusions\14  - Heartbreak Hotel (Studio Demo).mp3
+1991 - Trashed Illusions\15  - Heartbreak Hotel (Hellhouse Rehearsal).mp3
+H8: matched 15 path(s)
+✔ Handler h8_llm matched 15 items (confidence range: 0.80-0.80)
+Evaluating handler h8_llm on 356 candidates...
+H8: checking model 'minimax-m3:cloud' is available...
+H8: querying minimax-m3:cloud at http://localhost:11434/v1/chat/completions (top_k=100)...
+H8 LLM raw response:
+1991 - Trashed Illusions\01  - Crash Diet.mp3
+1991 - Trashed Illusions\02  - Bring It Back Home.mp3
+1991 - Trashed Illusions\03  - Sentimental Movie (Slash On Vocals).mp3
+1991 - Trashed Illusions\04  - Just Another Sunday.mp3
+1991 - Trashed Illusions\05  - Axl's Blues.mp3
+1991 - Trashed Illusions\06  - It Tastes Good, Don't It.mp3
+1991 - Trashed Illusions\07  - Too Fast To Live.mp3
+1991 - Trashed Illusions\08  - It's So Easy (Slash On Vocals).mp3
+1991 - Trashed Illusions\09  - Scrap Bar Daze.mp3
+1991 - Trashed Illusions\10  - Booze Party.mp3
+1991 - Trashed Illusions\11  - Jumping Jack Flash (Studio Demo).mp3
+1991 - Trashed Illusions\12  - Jumping Jack Flash (Hellhouse Rehearsal).mp3
+1991 - Trashed Illusions\13  - Jumping Jack Flash (Acoustic Demo).mp3
+1991 - Trashed Illusions\14  - Heartbreak Hotel (Studio Demo).mp3
+1991 - Trashed Illusions\15  - Heartbreak Hotel (Hellhouse Rehearsal).mp3
+1991 - Trashed Illusions
+H8: matched 16 path(s)
+✔ Handler h8_llm matched 16 items (confidence range: 0.80-0.80)
+✔ Success: Found match: C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\01  - Crash Diet.mp3 [10.41 MB, 2017-12-10
+06:42] (h8_llm, confidence: 0.80)
+1991 - Trashed Illusions:
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\02  - Bring It Back Home.mp3 [12.44 MB, 2014-08-23 19:34]
+(h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\03  - Sentimental Movie (Slash On Vocals).mp3 [11.21 MB,
+2014-08-23 19:34] (h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\04  - Just Another Sunday.mp3 [11.06 MB, 2014-08-23 19:34]
+(h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\05  - Axl's Blues.mp3 [13.08 MB, 2014-08-23 19:34] (h8_llm,
+confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\06  - It Tastes Good, Don't It.mp3 [14.53 MB, 2014-08-23 19:34]
+(h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\07  - Too Fast To Live.mp3 [6.15 MB, 2014-08-23 19:34] (h8_llm,
+confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\08  - It's So Easy (Slash On Vocals).mp3 [9.18 MB, 2014-08-23
+19:42] (h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\09  - Scrap Bar Daze.mp3 [1.75 MB, 2014-08-23 19:34] (h8_llm,
+confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\10  - Booze Party.mp3 [8.61 MB, 2014-08-24 11:50] (h8_llm,
+confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\11  - Jumping Jack Flash (Studio Demo).mp3 [8.68 MB, 2014-08-24
+11:57] (h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\12  - Jumping Jack Flash (Hellhouse Rehearsal).mp3 [7.98 MB,
+2014-08-24 11:58] (h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\13  - Jumping Jack Flash (Acoustic Demo).mp3 [9.25 MB, 2014-08-24
+11:58] (h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\14  - Heartbreak Hotel (Studio Demo).mp3 [9.74 MB, 2014-08-24
+11:58] (h8_llm, confidence: 0.80)
+  - C:\Users\Leonardo\001\MWW\1991 - Trashed Illusions\15  - Heartbreak Hotel (Hellhouse Rehearsal).mp3 [9.38 MB,
+2014-08-24 11:59] (h8_llm, confidence: 0.80)
+PS C:\Users\Leonardo\001\MWW>
