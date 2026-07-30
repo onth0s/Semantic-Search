@@ -224,6 +224,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
 # Paths
 # ---------------------------------------------------------------------------
 
+# NOTE: _BUNDLED_CONFIG is the project-root config.yaml used in development.
+# In production (installed wheel), only the sempath/ package is shipped and
+# this file won't exist — the loader falls through to DEFAULT_CONFIG.
 _BUNDLED_CONFIG = Path(__file__).resolve().parent.parent / "config.yaml"
 _APPDATA_CONFIG = Path(os.environ.get("APPDATA", "")) / "sempath" / "config.yaml"
 
@@ -290,6 +293,13 @@ def _validate_config(config: dict) -> None:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+def get_index_store_path(config: dict | None = None) -> Path:
+    """Return the resolved index store path from config, expanding env vars."""
+    resolved = config or load_config()
+    store = resolved.get("index", {}).get("store", str(_APPDATA_CONFIG.parent / "cache"))
+    return Path(str(expand_env_vars(store)))
 
 
 def load_config(path: Path | None = None) -> dict:

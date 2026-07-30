@@ -18,7 +18,7 @@ knowing exact casing, spelling, or directory names.
 
 The current implementation includes the Click/Rich CLI, filesystem scanning,
 SQLite indexing, heuristic parser, a candidate filtering/sorting pipeline,
-directory content matching logic, handlers H1 through H9, learned alias memory,
+directory content matching logic, handlers H1 through H8, learned alias memory,
 memory import/export, Windows admin USN Journal acceleration, and tests.
 
 > [!IMPORTANT]
@@ -69,7 +69,7 @@ Optional runtime integrations:
 3. **Heuristics Extraction**: Extracts query constraints (such as file extensions, age/temporal filters, sorting intents like latest/oldest, or largest/smallest) from the query string (via `sempath/heuristics.py`).
 4. **Pipeline Filtering & Sorting**: Filters candidates by intent (file/directory), extensions, age constraints, and sorts candidates (via `sempath/pipeline.py`).
 5. **Directory Matching**: Resolves queries targeting files inside a matching directory (via `sempath/directory_matcher.py`).
-6. **Handler Chain Execution**: Runs the candidate list through the configured handler chain of matching strategies H1 through H9 (via `sempath/chain.py`).
+6. **Handler Chain Execution**: Runs the candidate list through the configured handler chain of matching strategies H1 through H8 (via `sempath/chain.py`).
 7. **Result Dispatch**: Returns a success, ambiguous near-miss, or failure search result.
 
 ```mermaid
@@ -83,7 +83,7 @@ graph TD
     Index --> Pipeline["Pipeline (sempath/pipeline.py)"]
     Scan --> Pipeline
     Pipeline --> DirMatcher["Directory Matcher (sempath/directory_matcher.py)"]
-    DirMatcher --> Chain["Handler Chain H1-H9 (sempath/chain.py)"]
+    DirMatcher --> Chain["Handler Chain H1-H8 (sempath/chain.py)"]
     Chain --> Result["SearchResult JSON/text output"]
 ```
 
@@ -93,7 +93,7 @@ The default handler order is configured in `config.yaml`:
 
 ```yaml
 handlers:
-  enabled: [h1, h2, h3, h4, h5, h6, h7, h8, h9]
+  enabled: [h1, h2, h3, h4, h5, h6, h7, h8]
 ```
 
 | Handler | Implemented behavior |
@@ -106,7 +106,6 @@ handlers:
 | H6 Alias | Config aliases and learned aliases with exact, regex, fuzzy, and phonetic key matching. Supports wildcard targets and `"<sub query> on <alias>"` / `"<sub query> in <alias>"` routing. |
 | H7 | Embedding | Optional lazy `sentence-transformers` semantic match. Prompts before loading in interactive mode. Translates wildcard queries to descriptions before encoding. Enforces a minimum similarity threshold of 0.5. |
 | H8 | LLM direct match | Direct semantic path selector. Sends candidates and query to an OpenAI-compatible endpoint (defaults to local Ollama with `minimax-m3:cloud`), returns matched relative paths. Bounded to a maximum of 100 candidates to prevent timeout. Under exhaustive mode, LLM clamping is unbounded up to candidate count; otherwise manually clamped via `-N` or `h8_top_k`. |
-| H9 | Interactive | Click-based fallback that offers fuzzy-ranked candidates and stores confirmed selections as learned memory. |
 
 ## CLI
 
@@ -146,7 +145,7 @@ sempath import-memory FILE_PATH
 | `--depth` | `5` | Maximum folder depth to traverse. |
 | `--min-confidence` | `0.3` | Minimum confidence score needed for success. |
 | `--top-n` | `5` | Number of near misses to print in text output. (Can be clamped via `-[integer]` suffix, e.g. `sempath find "pic" -3`). |
-| `--non-interactive` | `false` | Disable H9 interactive fallback and skip the H7 confirmation prompt. |
+| `--non-interactive` | `false` | Skip the H7 semantic model confirmation prompt. |
 | `--no-index` | `false` | Force on-the-fly scanning instead of SQLite index use. |
 | `--json` | `false` | Emit structured JSON. |
 | `--verbose` | `false` | Enable detailed under-the-hood diagnostics, category matching, and handler execution logs. |
@@ -264,7 +263,7 @@ This saves the configuration locally under `%APPDATA%\sempath\config.yaml` to ov
 
 ```yaml
 handlers:
-  enabled: [h1, h2, h3, h4, h5, h6, h7, h8, h9]
+  enabled: [h1, h2, h3, h4, h5, h6, h7, h8]
   h4_threshold: 75
   h7_model: all-MiniLM-L6-v2
   h8_provider: ollama
@@ -294,7 +293,7 @@ aliases:
 
 ## Roadmap Snapshot
 
-- Completed: scaffolding, config loading, models, scanner, H1-H9 handlers,
+- Completed: scaffolding, config loading, models, scanner, H1-H8 handlers,
   heuristics, explicit flags, learned memory, SQLite indexing, memory
   import/export, CLI commands, Windows USN Journal scan path, and tests.
 - Optional/runtime-dependent: H7 requires the `semantic` extra; H8 requires a

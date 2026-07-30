@@ -8,6 +8,7 @@ to avoid expensive disk walks on future invocations.
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import time
 from contextlib import closing, contextmanager
@@ -19,12 +20,24 @@ from sempath.constants import INDEX_BUSY_TIMEOUT_MS, INDEX_DB_TIMEOUT
 from sempath.scanner import scan_directory
 from sempath.utils.tokenize import normalize_tokens
 
+_ENV_VAR_RE = re.compile(r"%([^%]+)%")
+
+
+def _expand_env_vars(path_str: str) -> str:
+    def _replace(match: re.Match) -> str:
+        return os.environ.get(match.group(1), match.group(0))
+
+    return _ENV_VAR_RE.sub(_replace, path_str)
+
 
 class IndexManager:
     """Manages the SQLite database index for paths."""
 
     def __init__(self, db_dir: Path) -> None:
-        self.db_dir = Path(db_dir)
+        dir_str = str(db_dir)
+        if "%" in dir_str:
+            dir_str = _expand_env_vars(dir_str)
+        self.db_dir = Path(dir_str)
         self.db_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.db_dir / "index.db"
         self._init_db()

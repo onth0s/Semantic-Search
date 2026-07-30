@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sempath.chain import build_chain
-from sempath.config import load_config
+from sempath.config import get_index_store_path, load_config
 from sempath.directory_matcher import match_directory_content
 from sempath.handlers.h6_alias import AliasHandler
 
@@ -97,9 +97,7 @@ class SearchEngine:
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or load_config()
-        # Initialize IndexManager using the configured store path
-        index_store = self.config.get("index", {}).get("store", "")
-        self.index_manager = IndexManager(Path(index_store))
+        self.index_manager = IndexManager(get_index_store_path(self.config))
 
     def _resolve_early_alias(
         self, query: str, search_root: Path
@@ -201,6 +199,7 @@ class SearchEngine:
         read_content: bool,
         top_n: int,
         context: SearchContext,
+        all_candidates: list[Path] | None = None,
     ) -> list[MatchResult]:
         """Execute the handler chain on candidates, including text search if enabled."""
         if clean_query in ("", ".", "*"):
@@ -208,14 +207,15 @@ class SearchEngine:
 
         collected_initial = []
         if read_content:
-            for p in filtered_candidates:
+            content_query = context.raw_query
+            for p in all_candidates or filtered_candidates:
                 if _is_text_file(p):
                     try:
                         content = p.read_text(encoding="utf-8", errors="ignore")
-                        if clean_query.lower() in content.lower():
+                        if content_query.lower() in content.lower():
                             confidence = (
                                 CONTENT_SEARCH_EXACT_CONFIDENCE
-                                if clean_query in content
+                                if content_query in content
                                 else CONTENT_SEARCH_CASE_CONFIDENCE
                             )
                             collected_initial.append(MatchResult(p, confidence, "content_search"))
@@ -405,6 +405,10 @@ class SearchEngine:
 
         # 3b. Check for Directory Content Matching
         if (exts_final or heuristics.file_only) and clean_query not in ("", ".", "*"):
+            verbose_log(
+                "[dim]Phase: early directory content match "
+                "(query has extension/file-only intent)...[/]"
+            )
             dir_res = self._try_directory_content_match(
                 query, clean_query, search_root, candidates, filtered_candidates
             )
@@ -441,8 +445,17 @@ class SearchEngine:
         except ValueError as exc:
             raise ValueError(f"Error building handler chain: {exc}") from exc
 
+        verbose_log(
+            f"[dim]Phase: main handler chain on {len(filtered_candidates)} candidates...[/]"
+        )
         match_results = self._execute_chain(
-            chain, clean_query, filtered_candidates, read_content, top_n, context
+            chain,
+            clean_query,
+            filtered_candidates,
+            read_content,
+            top_n,
+            context,
+            all_candidates=candidates,
         )
 
         # 7. Merge name_query matches if applicable
@@ -457,6 +470,10 @@ class SearchEngine:
             except Exception:
                 name_chain = chain
 
+            verbose_log(
+                f"[dim]Phase: name_query secondary chain "
+                f"(name_query='{heuristics.name_query}')...[/]"
+            )
             name_matches = name_chain.handle(
                 heuristics.name_query, intent_candidates, top_n=top_n, context=context
             )
@@ -512,6 +529,7 @@ class SearchEngine:
             )
 
         # Fallback Directory Content Match
+        verbose_log("[dim]Phase: fallback directory content match...[/]")
         dir_res_fallback = self._try_directory_content_match(
             query, clean_query, search_root, candidates, filtered_candidates
         )
@@ -519,6 +537,7 @@ class SearchEngine:
             return dir_res_fallback
 
         # Collect near-misses by scanning all handlers
+        verbose_log("[dim]Phase: near-miss collection (re-scanning all handlers)...[/]")
         seen_paths = {}
         try:
             res_list = chain.collect_all_matches(clean_query, filtered_candidates, context=context)

@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 from rich.markup import escape
 
-from sempath.config import load_config, save_config
+from sempath.config import get_index_store_path, load_config, save_config
 from sempath.index import IndexManager
 from sempath.utils.console import console, err_console
 
@@ -32,11 +32,10 @@ def register_commands(cli_group: click.Group) -> None:
         """Build a new index for PATH."""
         try:
             cfg = load_config()
-            store = cfg.get("index", {}).get("store", "")
             exclude = cfg.get("index", {}).get("exclude_patterns", [])
             respect_gi = cfg.get("index", {}).get("respect_gitignore", True)
 
-            manager = IndexManager(Path(store))
+            manager = IndexManager(get_index_store_path(cfg))
             console.print(
                 f"[yellow]Scanning and indexing:[/] {escape(str(path))} (depth: {depth})..."
             )
@@ -58,11 +57,10 @@ def register_commands(cli_group: click.Group) -> None:
         """Incrementally update the index for PATH."""
         try:
             cfg = load_config()
-            store = cfg.get("index", {}).get("store", "")
             exclude = cfg.get("index", {}).get("exclude_patterns", [])
             respect_gi = cfg.get("index", {}).get("respect_gitignore", True)
 
-            manager = IndexManager(Path(store))
+            manager = IndexManager(get_index_store_path(cfg))
             console.print(f"[yellow]Updating index for:[/] {escape(str(path))}...")
             added, deleted = manager.create_or_update_index(
                 path, depth=depth, exclude_patterns=exclude, respect_gitignore=respect_gi
@@ -80,9 +78,8 @@ def register_commands(cli_group: click.Group) -> None:
         """List all indexed paths."""
         try:
             cfg = load_config()
-            store = cfg.get("index", {}).get("store", "")
 
-            manager = IndexManager(Path(store))
+            manager = IndexManager(get_index_store_path(cfg))
             roots = manager.get_indexed_roots()
             if not roots:
                 console.print("[yellow]No roots are currently indexed.[/]")
@@ -101,9 +98,8 @@ def register_commands(cli_group: click.Group) -> None:
         """Remove the persistent index for PATH or clear ALL."""
         try:
             cfg = load_config()
-            store = cfg.get("index", {}).get("store", "")
 
-            manager = IndexManager(Path(store))
+            manager = IndexManager(get_index_store_path(cfg))
             if all_roots:
                 manager.clear_index()
                 console.print("[bold green]✔ Success:[/] Entire index database cleared.")
