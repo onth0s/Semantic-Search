@@ -121,8 +121,13 @@ class BaseHandler(ABC):
         context: SearchContext | None = None,
     ) -> list[MatchResult]:
         """Walk the entire chain and collect all matches without early termination."""
+        from sempath.utils.logging import verbose_log
         from sempath.utils.matching import merge_matches
 
+        verbose_log(
+            f"[dim]  [near-miss scan] Evaluating handler [bold cyan]{self.name}[/] "
+            f"on {len(candidates)} candidates...[/]"
+        )
         results = self.match_all(query, candidates, context=context)
         if self.next_handler is not None:
             sub_results = self.next_handler.collect_all_matches(query, candidates, context=context)

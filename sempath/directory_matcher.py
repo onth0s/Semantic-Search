@@ -11,6 +11,7 @@ from typing import Any
 
 from sempath.chain import build_chain
 from sempath.constants import DIR_FUZZY_THRESHOLD
+from sempath.utils.logging import suppress_verbose
 from sempath.utils.tokenize import normalize_tokens_with_wildcards
 
 
@@ -43,7 +44,8 @@ def _match_dir_name(clean_query: str, dir_name: str, config: dict[str, Any] | No
     synthetic_candidates = [Path(tok) for tok in p_tokens]
 
     for q_tok in q_tokens:
-        matches = chain.handle(q_tok, synthetic_candidates)
+        with suppress_verbose():
+            matches = chain.handle(q_tok, synthetic_candidates)
         if not any(m.confidence >= 0.5 for m in matches):
             return False
 

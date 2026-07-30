@@ -2,7 +2,23 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Generator
+
 import click
+
+_verbose_suppressed: ContextVar[bool] = ContextVar("_verbose_suppressed", default=False)
+
+
+@contextmanager
+def suppress_verbose() -> Generator[None, None, None]:
+    """Context manager that silences verbose_log output for its duration."""
+    token = _verbose_suppressed.set(True)
+    try:
+        yield
+    finally:
+        _verbose_suppressed.reset(token)
 
 
 def is_verbose() -> bool:
@@ -13,6 +29,8 @@ def is_verbose() -> bool:
 
 def verbose_log(message: str) -> None:
     """Print a message to the error console if the verbose flag is enabled."""
+    if _verbose_suppressed.get():
+        return
     if is_verbose():
         from sempath.utils.console import err_console
 
