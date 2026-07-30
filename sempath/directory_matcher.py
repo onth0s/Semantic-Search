@@ -11,7 +11,7 @@ from typing import Any
 
 from sempath.chain import build_chain
 from sempath.constants import DIR_FUZZY_THRESHOLD
-from sempath.utils.logging import suppress_verbose
+from sempath.utils.logging import suppress_verbose, verbose_log
 from sempath.utils.tokenize import normalize_tokens_with_wildcards
 
 
@@ -70,21 +70,35 @@ def match_directory_content(
     matching_dirs = []
 
     # 1. Check ancestors of search_root (including search_root itself)
+    verbose_log("  [dim]Checking ancestor directories...[/]")
+    ancestor_count = 0
     current = search_root.resolve()
     while True:
         if _match_dir_name(clean_query, current.name, config):
             matching_dirs.append(current)
+            ancestor_count += 1
+            verbose_log(f"  [green]✔[/] Ancestor '[cyan]{current.name}[/]' matches")
         parent = current.parent
         if parent == current:
             break
         current = parent
+    verbose_log(f"  [dim]Ancestor check complete: {ancestor_count} match(es)[/]")
 
     # 2. Check candidate directories under search_root
+    verbose_log(
+        f"  [dim]Checking [bold]{len(candidates)}[/] candidate directories for "
+        f"'[bold]{clean_query}[/]'...[/]"
+    )
+    dir_count = 0
     for p in candidates:
         if p.is_dir() and _match_dir_name(clean_query, p.name, config):
             matching_dirs.append(p)
+            dir_count += 1
+            verbose_log(f"  [green]✔[/] Directory '[cyan]{p.name}[/]' matches")
+    verbose_log(f"  [dim]Directory check complete: {dir_count} match(es)[/]")
 
     if not matching_dirs:
+        verbose_log("  [yellow]✗ No matching directories found.[/]")
         return None, []
 
     # Sort matching directories by path depth (shallowest first)
@@ -116,5 +130,9 @@ def match_directory_content(
 
     if descendants:
         descendants.sort(key=lambda p: (len(p.parts), p.name.lower()))
+        verbose_log(
+            f"  [bold green]✔ Directory content match:[/] found [bold]{len(descendants)}[/] "
+            f"descendant(s) in '[cyan]{matched_dir.name}[/]'"
+        )
 
     return matched_dir, descendants

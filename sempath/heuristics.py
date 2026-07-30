@@ -316,6 +316,52 @@ def _normalize_whitespace(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+def _match_extension_in_query(
+    query: str, categories: dict
+) -> tuple[list[str] | None, dict[str, list[str]] | None]:
+    """Check if query ends with a recognized file extension.
+
+    Returns (matched_categories, matched_category_keywords) if found,
+    or (None, None) so the caller can fall back to keyword matching.
+    """
+    import fnmatch
+
+    from sempath.utils.logging import verbose_log
+
+    ext_patterns: list[tuple[str, str]] = []
+    for cat_name, cat_info in categories.items():
+        for ext in cat_info.get("extensions", []):
+            ext_patterns.append((ext, cat_name))
+
+    if not ext_patterns:
+        return None, None
+
+    query_lower = query.lower().strip()
+    last_dot = query_lower.rfind(".")
+    if last_dot == -1 or last_dot == len(query_lower) - 1:
+        return None, None
+
+    suffix = query_lower[last_dot + 1 :]
+
+    matched_categories: list[str] = []
+    matched_keywords: dict[str, list[str]] = {}
+
+    for ext, cat_name in ext_patterns:
+        if fnmatch.fnmatch(suffix, ext.lower()):
+            if cat_name not in matched_categories:
+                matched_categories.append(cat_name)
+            matched_keywords.setdefault(cat_name, []).append(suffix)
+            verbose_log(
+                f"[dim]Extension category match: query ends with "
+                f"[bold cyan].{suffix}[/] → category [bold green]{cat_name}[/].[/]"
+            )
+
+    if matched_categories:
+        return matched_categories, matched_keywords
+
+    return None, None
+
+
 def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResult:
     """Extract temporal, type, ordering, size, and directory/file intents from query."""
     # Load categories config
@@ -362,10 +408,15 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
 
     name_query = " ".join(singularize_token(t) for t in clean_query.split())
 
-    # 4. Extract categories
-    clean_query, matched_categories, matched_category_keywords = _extract_categories(
-        clean_query, categories, category_fuzzy_threshold
-    )
+    # 4. Extract categories — extension match has priority over keyword matching
+    ext_cats, ext_kws = _match_extension_in_query(clean_query, categories)
+    if ext_cats:
+        matched_categories = ext_cats
+        matched_category_keywords = ext_kws
+    else:
+        clean_query, matched_categories, matched_category_keywords = _extract_categories(
+            clean_query, categories, category_fuzzy_threshold
+        )
 
     # Collect extensions
     extensions = None

@@ -208,19 +208,37 @@ class SearchEngine:
         collected_initial = []
         if read_content:
             content_query = context.raw_query
-            for p in all_candidates or filtered_candidates:
-                if _is_text_file(p):
-                    try:
-                        content = p.read_text(encoding="utf-8", errors="ignore")
-                        if content_query.lower() in content.lower():
-                            confidence = (
-                                CONTENT_SEARCH_EXACT_CONFIDENCE
-                                if content_query in content
-                                else CONTENT_SEARCH_CASE_CONFIDENCE
-                            )
-                            collected_initial.append(MatchResult(p, confidence, "content_search"))
-                    except (OSError, UnicodeDecodeError):
-                        pass
+            text_files = [p for p in (all_candidates or filtered_candidates) if _is_text_file(p)]
+            verbose_log(
+                f"[bold blue]>> Content scan:[/] checking [bold]{len(text_files)}[/] text files "
+                f"for '[bold]{content_query}[/]'"
+            )
+            for p in text_files:
+                try:
+                    content = p.read_text(encoding="utf-8", errors="ignore")
+                    if content_query.lower() in content.lower():
+                        confidence = (
+                            CONTENT_SEARCH_EXACT_CONFIDENCE
+                            if content_query in content
+                            else CONTENT_SEARCH_CASE_CONFIDENCE
+                        )
+                        collected_initial.append(MatchResult(p, confidence, "content_search"))
+                        verbose_log(
+                            f"  [bold green]✔[/] [cyan]{p.name}[/] contains "
+                            f"'[bold]{content_query}[/]' (confidence: [bold]{confidence:.2f}[/])"
+                        )
+                except (OSError, UnicodeDecodeError):
+                    pass
+            if collected_initial:
+                verbose_log(
+                    f"[bold green]>> Content scan complete:[/] "
+                    f"[bold]{len(collected_initial)}[/] match(es) found"
+                )
+            else:
+                verbose_log(
+                    f"[yellow]>> Content scan complete:[/] no matches found for "
+                    f"'[bold]{content_query}[/]'"
+                )
 
         return chain.handle(
             clean_query,
@@ -406,8 +424,8 @@ class SearchEngine:
         # 3b. Check for Directory Content Matching
         if (exts_final or heuristics.file_only) and clean_query not in ("", ".", "*"):
             verbose_log(
-                "[dim]Phase: early directory content match "
-                "(query has extension/file-only intent)...[/]"
+                "[bold blue]>> Phase:[/] [italic]directory content match "
+                "(query has extension / file-only intent)[/]"
             )
             dir_res = self._try_directory_content_match(
                 query, clean_query, search_root, candidates, filtered_candidates
@@ -446,7 +464,9 @@ class SearchEngine:
             raise ValueError(f"Error building handler chain: {exc}") from exc
 
         verbose_log(
-            f"[dim]Phase: main handler chain on {len(filtered_candidates)} candidates...[/]"
+            f"[bold blue]>> Phase:[/] [italic]main handler chain[/] "
+            f"([bold]{len(filtered_candidates)}[/] candidates, "
+            f"query: '[bold]{clean_query}[/]')"
         )
         match_results = self._execute_chain(
             chain,
@@ -457,6 +477,17 @@ class SearchEngine:
             context,
             all_candidates=candidates,
         )
+        if match_results:
+            verbose_log(
+                f"[bold blue]>> Chain result:[/] [bold]{len(match_results)}[/] match(es) "
+                f"(confidence range: [bold]{min(m.confidence for m in match_results):.2f}[/]-"
+                f"[bold]{max(m.confidence for m in match_results):.2f}[/])"
+            )
+        else:
+            verbose_log(
+                "[yellow]>> Chain result:[/] no matches ≥ confidence threshold, "
+                "continuing fallback search"
+            )
 
         # 7. Merge name_query matches if applicable
         if heuristics.name_query and heuristics.name_query != clean_query:
@@ -471,8 +502,8 @@ class SearchEngine:
                 name_chain = chain
 
             verbose_log(
-                f"[dim]Phase: name_query secondary chain "
-                f"(name_query='{heuristics.name_query}')...[/]"
+                f"[bold blue]>> Phase:[/] [italic]name_query secondary chain[/] "
+                f"(name_query: '[bold]{heuristics.name_query}[/]')"
             )
             name_matches = name_chain.handle(
                 heuristics.name_query, intent_candidates, top_n=top_n, context=context
@@ -529,7 +560,7 @@ class SearchEngine:
             )
 
         # Fallback Directory Content Match
-        verbose_log("[dim]Phase: fallback directory content match...[/]")
+        verbose_log("[bold blue]>> Phase:[/] [italic]fallback directory content match[/]")
         dir_res_fallback = self._try_directory_content_match(
             query, clean_query, search_root, candidates, filtered_candidates
         )
@@ -537,7 +568,9 @@ class SearchEngine:
             return dir_res_fallback
 
         # Collect near-misses by scanning all handlers
-        verbose_log("[dim]Phase: near-miss collection (re-scanning all handlers)...[/]")
+        verbose_log(
+            "[bold blue]>> Phase:[/] [italic]near-miss collection (re-scanning all handlers)[/]"
+        )
         seen_paths = {}
         try:
             res_list = chain.collect_all_matches(clean_query, filtered_candidates, context=context)
