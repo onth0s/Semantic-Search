@@ -69,25 +69,33 @@ class SempathGroup(rich_click.RichGroup):
             is_val_for_handlers = i > 0 and args[i - 1] == "--handlers"
 
             preset_name = None
-            if arg.startswith("-p") and not arg.startswith("-h") and len(arg) > 2:
+            if arg == "-p":
+                # Standalone -p followed by preset name (e.g. "-p fast" or "-p 0")
+                if i + 1 < len(args) and not args[i + 1].startswith("-"):
+                    next_arg = args[i + 1]
+                    if next_arg in presets or str(next_arg) in presets:
+                        preset_name = next_arg
+                        i += 1
+                if preset_name is None:
+                    # Default standalone -p to preset "0"
+                    preset_name = "0"
+            elif arg.startswith("-p") and not arg.startswith("-h") and len(arg) > 2:
                 preset_name = arg[2:]
             elif arg.startswith("--preset-") and len(arg) > 9:
                 preset_name = arg[9:]
+            elif arg == "--preset" and i + 1 < len(args):
+                preset_name = args[i + 1]
+                i += 1
 
-            if preset_name is not None and (preset_name in presets or str(preset_name) in presets):
-                preset_val = presets.get(preset_name) or presets.get(str(preset_name))
+            if preset_name is not None:
+                preset_val = (
+                    presets.get(preset_name)
+                    or presets.get(str(preset_name))
+                    or presets.get(0)
+                    or "h1-6"
+                )
                 new_args.append("--handlers")
                 new_args.append(str(preset_val))
-            elif arg in ("-p", "--preset") and i + 1 < len(args):
-                next_arg = args[i + 1]
-                if next_arg in presets or str(next_arg) in presets:
-                    preset_val = presets.get(next_arg) or presets.get(str(next_arg))
-                    new_args.append("--handlers")
-                    new_args.append(str(preset_val))
-                    i += 2
-                    continue
-                else:
-                    new_args.append(arg)
             elif re.match(r"^-\d+$", arg):
                 new_args.append("--top-n")
                 new_args.append(arg[1:])

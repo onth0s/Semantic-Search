@@ -20,40 +20,7 @@ from sempath.cli.formatting import (
 from sempath.config import load_config
 from sempath.engine import SearchEngine
 from sempath.utils.console import console, err_console
-
-_ALL_HANDLERS = ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"]
-
-
-def _parse_handler_spec(spec: str) -> list[str]:
-    """Parse a handler spec string into an ordered list of handler IDs."""
-    spec = spec.strip().lstrip("-")
-    handlers: list[str] = []
-
-    # Range pattern: [h]N-[h]M
-    range_m = re.fullmatch(r"h?(\d+)-h?(\d+)", spec)
-    if range_m:
-        lo, hi = int(range_m.group(1)), int(range_m.group(2))
-        handlers = [f"h{n}" for n in range(lo, hi + 1)]
-        return [h for h in handlers if h in _ALL_HANDLERS]
-
-    # Comma-separated list: h1,h3,h8 or 1,3,8
-    if "," in spec:
-        for part in spec.split(","):
-            part = part.strip().lstrip("-")
-            hid = part if part.startswith("h") else f"h{part}"
-            if hid in _ALL_HANDLERS and hid not in handlers:
-                handlers.append(hid)
-        return handlers
-
-    # Single handler: h8 or 8
-    hid = spec if spec.startswith("h") else f"h{spec}"
-    if hid in _ALL_HANDLERS:
-        return [hid]
-
-    raise click.BadParameter(
-        f"'{spec}' is not a valid handler spec. Use e.g. --h1, --h8, --h1-6, --h2,h4,h5.",
-        param_hint="--handlers",
-    )
+from sempath.utils.handlers import parse_handler_spec as _parse_handler_spec
 
 
 class NormalizedPath(click.Path):
@@ -136,6 +103,15 @@ def register_find_command(cli_group: click.Group) -> None:
         help="Filter candidates to keep only those with specified extension.",
     )
     @click.option(
+        "-p",
+        "--preset",
+        "preset_spec",
+        type=str,
+        default=None,
+        metavar="PRESET",
+        help="Use a handler preset (e.g. -p0 for h1-6, -pfast, -pllm).",
+    )
+    @click.option(
         "--handlers",
         "handler_spec",
         type=str,
@@ -177,6 +153,7 @@ def register_find_command(cli_group: click.Group) -> None:
         smallest: bool,
         oldest: bool,
         ext: str | None,
+        preset_spec: str | None,
         handler_spec: str | None,
         gitignore: bool,
         read_content: bool,

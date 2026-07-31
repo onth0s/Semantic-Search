@@ -215,3 +215,42 @@ def test_find_handlers_double_dashes(tmp_path: Path):
     res4 = runner.invoke(cli, ["find", "--h1-3", "hello", str(tmp_path)])
     assert res4.exit_code == 0
     assert "hello.txt" in res4.output
+
+
+def test_preset_commands_and_shorthand(tmp_path: Path):
+    """Test preset CLI subcommands and -p0 shorthand resolution."""
+    txt_file = tmp_path / "hello.txt"
+    txt_file.write_text("Hello", encoding="utf-8")
+
+    runner = CliRunner()
+
+    # 1. Test preset list command
+    res_list = runner.invoke(cli, ["preset", "list"])
+    assert res_list.exit_code == 0
+    assert "sempath Handler Presets" in res_list.output
+    assert "h1-6" in res_list.output
+
+    # 2. Test preset get command
+    res_get = runner.invoke(cli, ["preset", "get", "0"])
+    assert res_get.exit_code == 0
+    assert "Preset '0': h1-6" in res_get.output
+
+    # 3. Test preset set command
+    res_set = runner.invoke(cli, ["preset", "set", "custom", "h1,h2"])
+    assert res_set.exit_code == 0
+    assert "Saved preset 'custom'" in res_set.output
+
+    # 4. Test find with -p0 shorthand
+    res_p0 = runner.invoke(cli, ["find", "-p0", "hello", str(tmp_path)])
+    assert res_p0.exit_code == 0
+    assert "hello.txt" in res_p0.output
+
+    # 5. Test find with -p custom shorthand
+    res_pc = runner.invoke(cli, ["find", "-p", "custom", "hello", str(tmp_path)])
+    assert res_pc.exit_code == 0
+    assert "hello.txt" in res_pc.output
+
+    # 6. Test preset remove command
+    res_rem = runner.invoke(cli, ["preset", "remove", "custom"])
+    assert res_rem.exit_code == 0
+    assert "Removed preset 'custom'" in res_rem.output

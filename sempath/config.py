@@ -51,6 +51,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "dl": ["Downloads", "download"],
         "docs": ["Documents", "documentation", "docs"],
     },
+    "presets": {
+        "0": "h1-6",
+        "fast": "h1-6",
+        "llm": "h8",
+        "all": "h1-8",
+    },
     "heuristics": {
         "categories": {
             "image": {
