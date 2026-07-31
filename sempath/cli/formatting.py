@@ -62,6 +62,24 @@ def _format_file_meta(path: Path) -> str:
         return ""
 
 
+def _format_snippet(snippet_text: str, query: str | None = None) -> str:
+    """Escape and format snippet text without dimming, highlighting literal query matches."""
+    if not query or not query.strip() or query.strip() in (".", "*"):
+        return escape(snippet_text)
+
+    # Case-insensitive replacement of query matches with bold yellow/amber highlight
+    pattern = re.compile(re.escape(query), re.IGNORECASE)
+    parts = []
+    last_idx = 0
+    for match in pattern.finditer(snippet_text):
+        parts.append(escape(snippet_text[last_idx : match.start()]))
+        matched_str = escape(match.group(0))
+        parts.append(f"[bold yellow]{matched_str}[/]")
+        last_idx = match.end()
+    parts.append(escape(snippet_text[last_idx:]))
+    return "".join(parts)
+
+
 def _classify_match(path: Path, search_root: Path) -> str:
     """Return the display group label for a near-miss match."""
     if _is_generic_stem(path.stem):
@@ -83,6 +101,7 @@ def _print_grouped_matches(
     matches: list,
     limit: int,
     verbose: bool,
+    query: str | None = None,
 ) -> None:
     """Print *matches* (up to *limit*) sorted into display groups."""
     from collections import defaultdict
@@ -133,7 +152,6 @@ def _print_grouped_matches(
             console.print(f"  - [{color}]{escape(str(nm.path))}[/]{nm_meta}")
             if nm.snippets:
                 for line_num, snippet_text in nm.snippets:
-                    console.print(
-                        f"    [dim]└─ L{line_num}:[/] [dim green]{escape(snippet_text)}[/]"
-                    )
+                    formatted_snippet = _format_snippet(snippet_text, query)
+                    console.print(f"    [dim]└─ L{line_num}:[/] {formatted_snippet}")
             printed_count += 1

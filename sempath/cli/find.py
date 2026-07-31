@@ -11,7 +11,12 @@ from typing import Any
 import click
 from rich.markup import escape
 
-from sempath.cli.formatting import _format_file_meta, _is_generic_stem, _print_grouped_matches
+from sempath.cli.formatting import (
+    _format_file_meta,
+    _format_snippet,
+    _is_generic_stem,
+    _print_grouped_matches,
+)
 from sempath.config import load_config
 from sempath.engine import SearchEngine
 from sempath.utils.console import console, err_console
@@ -304,12 +309,14 @@ def register_find_command(cli_group: click.Group) -> None:
             console.print(f"{msg_hdr} [bold cyan]{escaped_path}[/]{meta}")
             if primary.snippets:
                 for line_num, snippet_text in primary.snippets:
-                    console.print(f"  [dim]└─ L{line_num}:[/] [dim green]{escape(snippet_text)}[/]")
+                    formatted_snippet = _format_snippet(snippet_text, query)
+                    console.print(f"  [dim]└─ L{line_num}:[/] {formatted_snippet}")
             if near_misses and top_n_final > 1:
                 _print_grouped_matches(
                     near_misses,
                     limit=top_n_final - 1,
                     verbose=verbose_final,
+                    query=query,
                 )
             sys.exit(0)
         elif search_result.status == "ambiguous":
