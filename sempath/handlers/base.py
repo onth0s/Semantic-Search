@@ -76,6 +76,8 @@ class BaseHandler(ABC):
 
         if collected is None:
             collected = []
+        if len(collected) >= top_n:
+            return collected
 
         verbose_log(
             f"[dim]Evaluating handler [bold cyan]{self.name}[/] "

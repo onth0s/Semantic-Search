@@ -240,6 +240,33 @@ class SearchEngine:
                     f"'[bold]{content_query}[/]'"
                 )
 
+        # Collect handler names for the phase log
+        handler_names: list[str] = []
+        h = chain
+        while h is not None:
+            handler_names.append(h.name)
+            h = getattr(h, "next_handler", None)
+
+        content_count = len(collected_initial)
+        if content_count and content_count < top_n:
+            verbose_log(
+                f"[bold blue]>> Chain:[/] top_n=[bold]{top_n}[/] > "
+                f"([bold]{content_count}[/] content match(es)), "
+                f"running handlers: [cyan]{', '.join(handler_names)}[/]"
+            )
+        elif content_count >= top_n:
+            verbose_log(
+                f"[bold blue]>> Chain:[/] top_n=[bold]{top_n}[/] ≤ "
+                f"([bold]{content_count}[/] content match(es)), "
+                f"skipping all handlers"
+            )
+        else:
+            verbose_log(
+                f"[bold blue]>> Chain:[/] top_n=[bold]{top_n}[/], "
+                f"no content pre-matches, "
+                f"running handlers: [cyan]{', '.join(handler_names)}[/]"
+            )
+
         return chain.handle(
             clean_query,
             filtered_candidates,
@@ -463,11 +490,6 @@ class SearchEngine:
         except ValueError as exc:
             raise ValueError(f"Error building handler chain: {exc}") from exc
 
-        verbose_log(
-            f"[bold blue]>> Phase:[/] [italic]main handler chain[/] "
-            f"([bold]{len(filtered_candidates)}[/] candidates, "
-            f"query: '[bold]{clean_query}[/]')"
-        )
         match_results = self._execute_chain(
             chain,
             clean_query,
