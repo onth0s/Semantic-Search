@@ -185,3 +185,18 @@ def test_extract_heuristics_no_false_fuzzy_matches():
     # It should match 'audio' exactly, NOT 'code' via fuzzy matching json
     assert "audio" in res.matched_categories
     assert "code" not in res.matched_categories
+
+
+def test_extract_heuristics_extension_stripping():
+    """Test queries ending with extension (.rs) strip extension and don't leave .r."""
+    res = extract_heuristics(".rs")
+    assert res.clean_query == ""
+    assert res.name_query == ".r"
+    assert "rs" in res.extensions
+    assert "code" in res.matched_categories
+
+    res = extract_heuristics("main.py")
+    assert res.clean_query == "main"
+    assert res.name_query == "main.py"
+    assert "py" in res.extensions
+    assert "code" in res.matched_categories

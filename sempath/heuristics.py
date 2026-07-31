@@ -318,11 +318,11 @@ def _normalize_whitespace(s: str) -> str:
 
 def _match_extension_in_query(
     query: str, categories: dict
-) -> tuple[list[str] | None, dict[str, list[str]] | None]:
+) -> tuple[str, list[str] | None, dict[str, list[str]] | None]:
     """Check if query ends with a recognized file extension.
 
-    Returns (matched_categories, matched_category_keywords) if found,
-    or (None, None) so the caller can fall back to keyword matching.
+    Returns (clean_query, matched_categories, matched_category_keywords) if found,
+    or (query, None, None) so the caller can fall back to keyword matching.
     """
     import fnmatch
 
@@ -334,12 +334,12 @@ def _match_extension_in_query(
             ext_patterns.append((ext, cat_name))
 
     if not ext_patterns:
-        return None, None
+        return query, None, None
 
     query_lower = query.lower().strip()
     last_dot = query_lower.rfind(".")
     if last_dot == -1 or last_dot == len(query_lower) - 1:
-        return None, None
+        return query, None, None
 
     suffix = query_lower[last_dot + 1 :]
 
@@ -357,9 +357,11 @@ def _match_extension_in_query(
             )
 
     if matched_categories:
-        return matched_categories, matched_keywords
+        # Strip extension suffix and dot from clean_query
+        clean_query = query[:last_dot].strip()
+        return clean_query, matched_categories, matched_keywords
 
-    return None, None
+    return query, None, None
 
 
 def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResult:
@@ -409,7 +411,7 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     name_query = " ".join(singularize_token(t) for t in clean_query.split())
 
     # 4. Extract categories — extension match has priority over keyword matching
-    ext_cats, ext_kws = _match_extension_in_query(clean_query, categories)
+    clean_query, ext_cats, ext_kws = _match_extension_in_query(clean_query, categories)
     if ext_cats:
         matched_categories = ext_cats
         matched_category_keywords = ext_kws
