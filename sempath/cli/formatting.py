@@ -63,12 +63,12 @@ def _format_file_meta(path: Path) -> str:
 
 
 def _format_snippet(snippet_text: str, query: str | None = None) -> str:
-    """Escape and format snippet text without dimming, highlighting literal query matches."""
+    """Format snippet text without dimming, highlighting exact case-sensitive query matches."""
     if not query or not query.strip() or query.strip() in (".", "*"):
         return escape(snippet_text)
 
-    # Case-insensitive replacement of query matches with bold yellow/amber highlight
-    pattern = re.compile(re.escape(query), re.IGNORECASE)
+    # Exact case-sensitive replacement of query matches with bold yellow/amber highlight
+    pattern = re.compile(re.escape(query))
     parts = []
     last_idx = 0
     for match in pattern.finditer(snippet_text):
