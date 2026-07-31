@@ -153,6 +153,7 @@ def register_find_command(cli_group: click.Group) -> None:
         help="Flip the configured respect_gitignore setting.",
     )
     @click.option(
+        "-c",
         "--read-content",
         is_flag=True,
         default=False,
