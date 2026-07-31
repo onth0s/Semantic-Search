@@ -45,6 +45,7 @@ class SearchResult:
     match: MatchResult | None = None
     near_misses: list[MatchResult] = field(default_factory=list)
     message: str = ""
+    elapsed_seconds: float = 0.0
 
     def to_dict(self) -> dict:
         """Serialize to a plain dict suitable for JSON output.
@@ -55,6 +56,7 @@ class SearchResult:
         result: dict = {
             "status": self.status,
             "query": self.query,
+            "elapsed_seconds": round(self.elapsed_seconds, 4),
         }
 
         def _format_match(m: MatchResult) -> dict:

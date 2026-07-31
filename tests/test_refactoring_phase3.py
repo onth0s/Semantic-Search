@@ -51,13 +51,18 @@ def test_t4_sqlite_index_edge_cases(tmp_path: Path, sample_config: dict):
     engine = SearchEngine(sample_config)
     # 1. Non-existent path returns empty candidates
     non_existent = tmp_path / "non_existent_folder"
-    cands = engine._gather_candidates(non_existent, depth=5, use_index=True, exclude_patterns=[])
+    cands, _ = engine._gather_candidates(non_existent, depth=5, use_index=True, exclude_patterns=[])
     assert cands == []
 
     # 2. Empty directory returns empty candidates list but creates index cleanly
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
-    cands_empty = engine._gather_candidates(empty_dir, depth=5, use_index=True, exclude_patterns=[])
+    cands_empty, _ = engine._gather_candidates(
+        empty_dir,
+        depth=5,
+        use_index=True,
+        exclude_patterns=[]
+    )
     assert cands_empty == []
     assert engine.index_manager.is_indexed(empty_dir)
 

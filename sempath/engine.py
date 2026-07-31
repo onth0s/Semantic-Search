@@ -142,8 +142,13 @@ class SearchEngine:
         use_index: bool,
         exclude_patterns: list[str],
         respect_gitignore: bool = True,
-    ) -> list[Path]:
+    ) -> tuple[list[Path], str]:
         """Gather candidates using SQLite index or on-the-fly scanning."""
+        import time
+
+        from sempath.utils.logging import verbose_log
+
+        t0 = time.perf_counter()
         if use_index:
             needs_init = not self.index_manager.is_indexed(search_root)
             needs_update = False
@@ -159,14 +164,26 @@ class SearchEngine:
                     exclude_patterns=exclude_patterns,
                     respect_gitignore=respect_gitignore,
                 )
-            return self.index_manager.get_candidates(search_root)
+            cands = self.index_manager.get_candidates(search_root)
+            elapsed = time.perf_counter() - t0
+            verbose_log(
+                f"[dim]Gathered {len(cands)} candidates from "
+                f"[bold green]SQLite index (index.db)[/] in {elapsed:.3f}s[/]"
+            )
+            return cands, "index.db"
 
-        return scan_directory(
+        cands = scan_directory(
             search_root,
             depth=depth,
             exclude_patterns=exclude_patterns,
             respect_gitignore=respect_gitignore,
         )
+        elapsed = time.perf_counter() - t0
+        verbose_log(
+            f"[dim]Gathered {len(cands)} candidates via [bold yellow]on-the-fly directory walk[/] "
+            f"in {elapsed:.3f}s[/]"
+        )
+        return cands, "filesystem_walk"
 
     def _apply_filters(
         self,
@@ -386,13 +403,15 @@ class SearchEngine:
         non_interactive: bool = False,
     ) -> SearchResult:
         """Find the best matching file path using semantics and heuristics."""
-        from sempath.utils.logging import verbose_log
+        import time
 
+        t_search_start = time.perf_counter()
         search_root = Path(root_dir).resolve()
 
         # Early-bypass check for alias matching
         query, search_root, early_result = self._resolve_early_alias(query, search_root)
         if early_result:
+            early_result.elapsed_seconds = time.perf_counter() - t_search_start
             return early_result
 
         from sempath.search_context import SearchContext
@@ -435,14 +454,13 @@ class SearchEngine:
         if latest_final or largest_final or smallest_final or oldest_final:
             use_index = False
 
-        candidates = self._gather_candidates(
+        candidates, _candidate_source = self._gather_candidates(
             search_root,
             depth,
             use_index,
             exclude_patterns,
             respect_gitignore=respect_gitignore_final,
         )
-        verbose_log(f"[dim]Gathered {len(candidates)} candidates from scan/index...[/]")
 
         # 3. Filter candidates
         filtered_candidates = self._apply_filters(candidates, heuristics, exts_final, h_age_limit)
@@ -565,14 +583,20 @@ class SearchEngine:
             confident_matches, latest_final, largest_final, smallest_final, oldest_final
         )
 
+        def _with_timing(res: SearchResult) -> SearchResult:
+            res.elapsed_seconds = time.perf_counter() - t_search_start
+            return res
+
         if confident_matches:
             top_match = confident_matches[0]
             other_matches = confident_matches[1:]
-            return SearchResult(
-                status="success",
-                query=query,
-                match=top_match,
-                near_misses=other_matches,
+            return _with_timing(
+                SearchResult(
+                    status="success",
+                    query=query,
+                    match=top_match,
+                    near_misses=other_matches,
+                )
             )
 
         # Fallback Directory Content Match
@@ -581,7 +605,7 @@ class SearchEngine:
             query, clean_query, search_root, candidates, filtered_candidates
         )
         if dir_res_fallback:
-            return dir_res_fallback
+            return _with_timing(dir_res_fallback)
 
         # Collect near-misses by scanning all handlers
         verbose_log(
@@ -601,16 +625,20 @@ class SearchEngine:
         near_misses.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
 
         if near_misses:
-            return SearchResult(
-                status="ambiguous",
-                query=query,
-                near_misses=near_misses,
-                message="No match found above confidence threshold.",
+            return _with_timing(
+                SearchResult(
+                    status="ambiguous",
+                    query=query,
+                    near_misses=near_misses,
+                    message="No match found above confidence threshold.",
+                )
             )
         else:
             msg = _build_category_failure_message(heuristics)
-            return SearchResult(
-                status="failed",
-                query=query,
-                message=msg,
+            return _with_timing(
+                SearchResult(
+                    status="failed",
+                    query=query,
+                    message=msg,
+                )
             )

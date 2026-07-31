@@ -35,6 +35,14 @@ def _is_generic_stem(stem: str) -> bool:
     return cleaned in _GENERIC_STEMS
 
 
+def _format_elapsed_time(seconds: float) -> str:
+    """Format elapsed time in seconds as human-readable string (e.g. 42ms, 0.15s)."""
+    if seconds < 1.0:
+        ms = seconds * 1000.0
+        return f"{ms:.0f}ms" if ms >= 1.0 else f"{seconds * 1000.0:.1f}ms"
+    return f"{seconds:.2f}s"
+
+
 def _human_size(size_bytes: int) -> str:
     """Format bytes as human-readable string with 2 decimal places."""
     for unit in ("B", "KB", "MB", "GB", "TB"):

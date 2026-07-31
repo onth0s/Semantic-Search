@@ -79,6 +79,9 @@ class FuzzyMatchHandler(BaseHandler):
                 r_max = max(r_max, r_suffix)
 
             if r_max >= threshold:
-                results.append(MatchResult(p, r_max / 100.0, self.name))
+                # Cap fuzzy match confidence at 0.80 maximum so fuzzy matches
+                # never outrank exact (0.95), prefix (0.92), or sub-path token matches
+                confidence = min(0.80, (r_max / 100.0) * 0.80)
+                results.append(MatchResult(p, confidence, self.name))
 
         return results

@@ -12,6 +12,7 @@ import click
 from rich.markup import escape
 
 from sempath.cli.formatting import (
+    _format_elapsed_time,
     _format_file_meta,
     _format_snippet,
     _is_generic_stem,
@@ -285,7 +286,12 @@ def register_find_command(cli_group: click.Group) -> None:
             )
             copy_to_clipboard(str(primary.path))
             escaped_path = escape(str(primary.path))
-            msg_hdr = f"[bold green]✔ Success:[/] Found match{match_count_header}:"
+            time_str = (
+                f" [dim](in {_format_elapsed_time(search_result.elapsed_seconds)})[/]"
+                if search_result.elapsed_seconds > 0
+                else ""
+            )
+            msg_hdr = f"[bold green]✔ Success{time_str}:[/] Found match{match_count_header}:"
             console.print(f"{msg_hdr} [bold cyan]{escaped_path}[/]{meta}")
             if primary.snippets:
                 for line_num, snippet_text in primary.snippets:

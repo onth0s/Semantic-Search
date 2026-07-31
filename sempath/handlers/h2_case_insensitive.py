@@ -37,14 +37,8 @@ class CaseInsensitiveHandler(BaseHandler):
         if not matches:
             return None
 
-        # Filter for the exact case-insensitive matches (confidence 0.95)
-        # to preserve original behavior
-        exact_matches = [m for m in matches if m.confidence >= 0.95]
-        if not exact_matches:
-            return None
-
-        # Tie-breaker: shortest path depth first
-        return min(exact_matches, key=lambda m: len(m.path.parts))
+        # Return candidate with highest confidence, tie-breaking by shallowest path depth
+        return min(matches, key=lambda m: (-m.confidence, len(m.path.parts)))
 
     def match_all(
         self,
@@ -52,7 +46,7 @@ class CaseInsensitiveHandler(BaseHandler):
         candidates: list[Path],
         context: SearchContext | None = None,
     ) -> list[MatchResult]:
-        """Attempt a case-insensitive and substring match against candidate basenames."""
+        """Attempt a case-insensitive, prefix, and substring match against candidate basenames."""
         if not query or not candidates:
             return []
 
@@ -80,7 +74,9 @@ class CaseInsensitiveHandler(BaseHandler):
                         confidence = 0.95
 
                 if confidence == 0.0:
-                    if query_lower in p_name_lower or query_lower in p_stem_lower:
+                    if p_stem_lower.startswith(query_lower) or p_name_lower.startswith(query_lower):
+                        confidence = 0.92
+                    elif query_lower in p_name_lower or query_lower in p_stem_lower:
                         confidence = 0.85
                     elif "/" in query_pure:
                         p_str_lower = normalize_path_separators(str(p)).lower()
