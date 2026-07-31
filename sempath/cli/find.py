@@ -19,6 +19,7 @@ from sempath.cli.formatting import (
 )
 from sempath.config import load_config
 from sempath.engine import SearchEngine
+from sempath.utils.clipboard import copy_to_clipboard
 from sempath.utils.console import console, err_console
 from sempath.utils.handlers import parse_handler_spec as _parse_handler_spec
 
@@ -282,6 +283,7 @@ def register_find_command(cli_group: click.Group) -> None:
                 if verbose_final
                 else ""
             )
+            copy_to_clipboard(str(primary.path))
             escaped_path = escape(str(primary.path))
             msg_hdr = f"[bold green]✔ Success:[/] Found match{match_count_header}:"
             console.print(f"{msg_hdr} [bold cyan]{escaped_path}[/]{meta}")
@@ -349,6 +351,7 @@ def register_find_command(cli_group: click.Group) -> None:
                         if verbose_final
                         else ""
                     )
+                    copy_to_clipboard(str(selected_nm.path))
                     console.print(
                         f"[bold green]✔ Success:[/] Found match: "
                         f"[bold cyan]{escape(str(selected_nm.path))}[/]{meta}"
