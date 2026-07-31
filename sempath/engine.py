@@ -7,7 +7,6 @@ the handler chain of responsibility.
 
 from __future__ import annotations
 
-import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -540,21 +539,7 @@ class SearchEngine:
                 heuristics.name_query, intent_candidates, top_n=top_n, context=context
             )
             if exts_final:
-                allowed_name_matches = []
-                for nm in name_matches:
-                    suffix = nm.path.suffix.lower().lstrip(".")
-                    matches_ext = False
-                    for ext_pat in exts_final:
-                        if fnmatch.fnmatch(suffix, ext_pat.lower()):
-                            matches_ext = True
-                            break
-                    if matches_ext or nm.handler in (
-                        "h1_exact",
-                        "h2_case_insensitive",
-                        "h3_token_normalized",
-                        "h6_alias",
-                    ):
-                        allowed_name_matches.append(nm)
+                allowed_name_matches = [nm for nm in name_matches if nm.handler != "category_match"]
                 name_matches = allowed_name_matches
 
             match_results = self._merge_name_query_matches(match_results, name_matches)
