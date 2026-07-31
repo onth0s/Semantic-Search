@@ -166,6 +166,7 @@ class LLMHandler(BaseHandler):
             headers["Authorization"] = f"Bearer {api_key}"
 
         endpoint = f"{url.rstrip('/')}/chat/completions"
+        verbose_log(f"[bold cyan]H8 LLM query prompt:[/] '[bold]{raw_query}[/]'")
         verbose_log(f"[dim]H8: querying {model} at {endpoint} (top_k={top_k})...[/]")
 
         try:
@@ -179,10 +180,10 @@ class LLMHandler(BaseHandler):
                 res_data = json.loads(response.read().decode("utf-8"))
                 raw_content: str = res_data["choices"][0]["message"]["content"].strip()
         except Exception as exc:
-            verbose_log(f"[dim]H8 LLM request failed: {exc}[/]")
+            verbose_log(f"[bold red]H8 LLM request failed:[/] {exc}")
             return []
 
-        verbose_log(f"[dim]H8 LLM raw response:\n{raw_content}[/]")
+        verbose_log(f"[bold cyan]H8 LLM raw response:\n[/][dim]{raw_content}[/]")
 
         # --- Parse response --------------------------------------------------
         results: list[MatchResult] = []

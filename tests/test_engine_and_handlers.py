@@ -348,3 +348,37 @@ def test_directory_content_match_fallback_file_intent(sample_config: dict, tmp_p
     assert res.status == "success"
     assert res.match is not None
     assert res.match.path.resolve() == blend_file.resolve()
+
+
+def test_read_content_snippets_extraction(sample_config: dict, tmp_path: Path):
+    """Verify read_content extracts line numbers and text snippets for matching lines."""
+    doc = tmp_path / "notes.txt"
+    doc.write_text(
+        "Line 1: preamble\n"
+        "Line 2: URC-01 (User Ratified Comment): test feature\n"
+        "Line 3: unrelated text\n"
+        "Line 4: URC-02: additional comment\n",
+        encoding="utf-8",
+    )
+
+    engine = SearchEngine(sample_config)
+    res = engine.find_path(
+        "URC",
+        tmp_path,
+        no_index=True,
+        non_interactive=True,
+        read_content=True,
+    )
+    assert res.status == "success"
+    assert res.match is not None
+    assert res.match.path.resolve() == doc.resolve()
+    assert len(res.match.snippets) == 2
+    assert res.match.snippets[0] == (2, "Line 2: URC-01 (User Ratified Comment): test feature")
+    assert res.match.snippets[1] == (4, "Line 4: URC-02: additional comment")
+
+    res_dict = res.to_dict()
+    assert "snippets" in res_dict["match"]
+    assert res_dict["match"]["snippets"] == [
+        {"line": 2, "text": "Line 2: URC-01 (User Ratified Comment): test feature"},
+        {"line": 4, "text": "Line 4: URC-02: additional comment"},
+    ]

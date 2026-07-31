@@ -14,11 +14,13 @@ class MatchResult(NamedTuple):
         path: The matched filesystem path.
         confidence: Confidence score between 0.0 and 1.0.
         handler: Name of the handler that produced this match.
+        snippets: List of matching line context tuples (line_number, line_text).
     """
 
     path: Path
     confidence: float
     handler: str
+    snippets: tuple[tuple[int, str], ...] = ()
 
 
 @dataclass
@@ -55,23 +57,22 @@ class SearchResult:
             "query": self.query,
         }
 
-        if self.match is not None:
-            result["match"] = {
-                "path": str(self.match.path),
-                "confidence": self.match.confidence,
-                "handler": self.match.handler,
-            }
-
-        if self.message:
-            result["message"] = self.message
-
-        result["near_misses"] = [
-            {
+        def _format_match(m: MatchResult) -> dict:
+            d: dict = {
                 "path": str(m.path),
                 "confidence": m.confidence,
                 "handler": m.handler,
             }
-            for m in self.near_misses
-        ]
+            if m.snippets:
+                d["snippets"] = [{"line": line_num, "text": text} for line_num, text in m.snippets]
+            return d
+
+        if self.match is not None:
+            result["match"] = _format_match(self.match)
+
+        if self.message:
+            result["message"] = self.message
+
+        result["near_misses"] = [_format_match(m) for m in self.near_misses]
 
         return result

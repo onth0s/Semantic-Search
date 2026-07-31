@@ -429,6 +429,13 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
             for ext in exts:
                 if ext not in extensions:
                     extensions.append(ext)
+
+    # When both directory_only and file category extensions co-occur
+    # (e.g. "guns n roses dir songs"), prioritize category extension searching
+    # over strict directory filtering to avoid zero candidates.
+    if directory_only and extensions:
+        directory_only = False
+        file_only = True
         extensions = sorted(extensions)
 
     # Clean up whitespace runs again

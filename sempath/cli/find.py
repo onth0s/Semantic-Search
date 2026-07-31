@@ -289,15 +289,22 @@ def register_find_command(cli_group: click.Group) -> None:
                     primary = non_generic[0]
                     near_misses = [*non_generic[1:], *generic]
 
+            match_count_header = ""
+            if primary.snippets:
+                n_snip = len(primary.snippets)
+                plural = "s" if n_snip > 1 else ""
+                match_count_header = f" ({n_snip} line occurrence{plural})"
             meta = _format_file_meta(primary.path) + (
                 f" [dim]({primary.handler}, confidence: {primary.confidence:.2f})[/]"
                 if verbose_final
                 else ""
             )
             escaped_path = escape(str(primary.path))
-            console.print(
-                f"[bold green]✔ Success:[/] Found match: [bold cyan]{escaped_path}[/]{meta}"
-            )
+            msg_hdr = f"[bold green]✔ Success:[/] Found match{match_count_header}:"
+            console.print(f"{msg_hdr} [bold cyan]{escaped_path}[/]{meta}")
+            if primary.snippets:
+                for line_num, snippet_text in primary.snippets:
+                    console.print(f"  [dim]└─ L{line_num}:[/] [dim green]{escape(snippet_text)}[/]")
             if near_misses and top_n_final > 1:
                 _print_grouped_matches(
                     near_misses,

@@ -217,15 +217,29 @@ class SearchEngine:
                 try:
                     content = p.read_text(encoding="utf-8", errors="ignore")
                     if content_query.lower() in content.lower():
+                        snippets: list[tuple[int, str]] = []
+                        for line_num, line in enumerate(content.splitlines(), start=1):
+                            if content_query.lower() in line.lower():
+                                snippets.append((line_num, line.strip()))
+                                if len(snippets) >= 10:
+                                    break
                         confidence = (
                             CONTENT_SEARCH_EXACT_CONFIDENCE
                             if content_query in content
                             else CONTENT_SEARCH_CASE_CONFIDENCE
                         )
-                        collected_initial.append(MatchResult(p, confidence, "content_search"))
+                        collected_initial.append(
+                            MatchResult(
+                                p,
+                                confidence,
+                                "content_search",
+                                snippets=tuple(snippets),
+                            )
+                        )
                         verbose_log(
                             f"  [bold green]✔[/] [cyan]{p.name}[/] contains "
-                            f"'[bold]{content_query}[/]' (confidence: [bold]{confidence:.2f}[/])"
+                            f"'[bold]{content_query}[/]' ({len(snippets)} line match(es), "
+                            f"confidence: [bold]{confidence:.2f}[/])"
                         )
                 except (OSError, UnicodeDecodeError):
                     pass

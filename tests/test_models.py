@@ -37,10 +37,11 @@ class TestMatchResult:
             confidence=1.0,
             handler="h1_exact",
         )
-        assert len(result) == 3
+        assert len(result) == 4
         assert result[0] == Path("/some/path")
         assert result[1] == 1.0
         assert result[2] == "h1_exact"
+        assert result[3] == ()
 
 
 class TestSearchResult:

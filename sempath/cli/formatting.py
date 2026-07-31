@@ -120,9 +120,20 @@ def _print_grouped_matches(
         for nm in items:
             if printed_count >= limit:
                 break
-            nm_meta = _format_file_meta(nm.path) + (
-                f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else ""
+            count_suffix = ""
+            if nm.snippets:
+                plural = "es" if len(nm.snippets) > 1 else ""
+                count_suffix = f" [dim]({len(nm.snippets)} match{plural})[/]"
+            nm_meta = (
+                _format_file_meta(nm.path)
+                + count_suffix
+                + (f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else "")
             )
             color = "cyan" if group_name != _GROUP_GENERIC else "dim cyan"
             console.print(f"  - [{color}]{escape(str(nm.path))}[/]{nm_meta}")
+            if nm.snippets:
+                for line_num, snippet_text in nm.snippets:
+                    console.print(
+                        f"    [dim]└─ L{line_num}:[/] [dim green]{escape(snippet_text)}[/]"
+                    )
             printed_count += 1
