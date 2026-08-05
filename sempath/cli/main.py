@@ -10,6 +10,7 @@ import rich_click
 from sempath import __version__
 from sempath.cli.commands import register_commands
 from sempath.cli.find import register_find_command
+from sempath.cli.history import register_history_commands
 from sempath.config import load_config
 from sempath.utils.console import console
 
@@ -54,6 +55,10 @@ class SempathGroup(rich_click.RichGroup):
     """Custom Click Group to preprocess shorthand arguments before Click parsing."""
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        # Bare number shorthand: 'sempath 2' → 'sempath get 2 --bare'
+        if args and re.match(r"^\d+$", args[0]):
+            return super().parse_args(ctx, ["get", args[0], "--bare", *args[1:]])
+
         new_args = []
 
         presets = {}
@@ -62,6 +67,10 @@ class SempathGroup(rich_click.RichGroup):
             presets = cfg.get("presets", {})
         except (OSError, ValueError):
             pass
+
+        # Skip preset preprocessing if executing the 'preset' subcommand
+        if args and args[0] == "preset":
+            return super().parse_args(ctx, args)
 
         i = 0
         while i < len(args):
@@ -127,3 +136,4 @@ def cli(ctx: click.Context) -> None:
 
 register_find_command(cli)
 register_commands(cli)
+register_history_commands(cli)

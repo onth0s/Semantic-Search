@@ -58,10 +58,7 @@ def test_t4_sqlite_index_edge_cases(tmp_path: Path, sample_config: dict):
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
     cands_empty, _ = engine._gather_candidates(
-        empty_dir,
-        depth=5,
-        use_index=True,
-        exclude_patterns=[]
+        empty_dir, depth=5, use_index=True, exclude_patterns=[]
     )
     assert cands_empty == []
     assert engine.index_manager.is_indexed(empty_dir)

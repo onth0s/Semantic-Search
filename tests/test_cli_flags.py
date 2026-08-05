@@ -133,21 +133,21 @@ def test_find_gitignore_flags(tmp_path: Path):
 
     # --- Case A: Config defaults to True (respect) ---
     runner.invoke(cli, ["config", "gitignore", "on"])
-    # 1. Without flag: respects gitignore, so ignored.txt is NOT found
+    # 1. Without flag: explicit root str(tmp_path) takes precedence -> default_respect is False, so ignored.txt IS found
     res1 = runner.invoke(cli, ["find", "ignored.txt", str(tmp_path)])
-    assert "ignored.txt" not in res1.output
-    # 2. With --gitignore flag: flips behavior (to ignore gitignore), so ignored.txt IS found
+    assert res1.exit_code == 0
+    assert "ignored.txt" in res1.output
+    # 2. With --gitignore flag: flips behavior to True (respect gitignore), so ignored.txt is NOT found
     res2 = runner.invoke(cli, ["find", "--gitignore", "ignored.txt", str(tmp_path)])
-    assert res2.exit_code == 0
-    assert "ignored.txt" in res2.output
+    assert "ignored.txt" not in res2.output
 
     # --- Case B: Config set to False (ignore) ---
     runner.invoke(cli, ["config", "gitignore", "off"])
-    # 3. Without flag: ignores gitignore, so ignored.txt IS found
+    # 3. Without flag: explicit root str(tmp_path) takes precedence -> default_respect is False, so ignored.txt IS found
     res3 = runner.invoke(cli, ["find", "ignored.txt", str(tmp_path)])
     assert res3.exit_code == 0
     assert "ignored.txt" in res3.output
-    # 4. With --gitignore flag: flips behavior (to respect gitignore), so ignored.txt is NOT found
+    # 4. With --gitignore flag: flips behavior to True (respect gitignore), so ignored.txt is NOT found
     res4 = runner.invoke(cli, ["find", "--gitignore", "ignored.txt", str(tmp_path)])
     assert "ignored.txt" not in res4.output
 

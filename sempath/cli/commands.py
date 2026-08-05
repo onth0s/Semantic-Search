@@ -337,8 +337,8 @@ def register_commands(cli_group: click.Group) -> None:
 
         table = Table(title="sempath Handler Presets")
         table.add_column("Preset Name", style="bold cyan")
-        table.add_column("Handler Spec", style="green")
-        table.add_column("Resolved Handlers", style="dim cyan")
+        table.add_column("Handler Spec", style="bold green")
+        table.add_column("Resolved Handlers", style="cyan")
 
         try:
             cfg = load_config()

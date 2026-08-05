@@ -1633,16 +1633,18 @@ def print_report(results: list[Result]) -> tuple[int, int]:
             "| `largest *.mp4` | `mp4` | `mp4` (exact) | `video` | Filters to video files, then `directory_content_match` |"
         )
         print(
-            "| `gceu4l*.png` | `png` | `png` (exact) | `image` | Filters to images, then `directory_content_match` |"
+            "| `gceu4l*.png` | `png` | `png` (exact) | `image` | "
+            "Filters to images, then `directory_content_match` |"
         )
         print()
         print(
             "The heuristics parser extracts alphanumeric tokens from glob patterns "
-            "(`blend` from `*.blend*`, `mp4` from `*.mp4`, `png` from `*.png`) and matches them against "
-            "category keywords. This triggers an extension filter + `directory_content_match` early return, "
-            "bypassing the normal handler chain and preventing the intended glob/sorting behavior. "
-            "Fix: exclude glob pattern components from category keyword matching, or run category matching "
-            "only AFTER the handler chain fails to find a glob match."
+            "(`blend` from `*.blend*`, `mp4` from `*.mp4`, `png` from `*.png`) and matches them "
+            "against category keywords. This triggers an extension filter + "
+            "`directory_content_match` early return, bypassing the normal handler chain and "
+            "preventing the intended glob/sorting behavior. Fix: exclude glob pattern "
+            "components from category keyword matching, or run category matching only AFTER the "
+            "handler chain fails to find a glob match."
         )
         print()
         print("**2. Wildcard bijection limitation in H3 (Q17, Q18, Q19)**")
@@ -1650,22 +1652,26 @@ def print_report(results: list[Result]) -> tuple[int, int]:
         print("| Query | Tokens | Candidate Tokens (name/stem) | Issue |")
         print("|---|---|---|---|")
         print(
-            "| `str*ggling` | `{str*ggling}` | `{struggling, while, squatting}` | `str*ggling` matches `struggling`, but `while`, `squatting` remain |"
+            "| `str*ggling` | `{str*ggling}` | `{struggling, while, squatting}` | "
+            "`str*ggling` matches `struggling`, but `while`, `squatting` remain |"
         )
         print(
-            "| `fub*ki pur` | `{fub*ki, pur}` | `{fubuki, refs, pur}` | `pur`+`fub*ki` match, but `refs` remains |"
+            "| `fub*ki pur` | `{fub*ki, pur}` | `{fubuki, refs, pur}` | "
+            "`pur`+`fub*ki` match, but `refs` remains |"
         )
         print(
-            "| `shackles v1*` | `{shackles, v1*}` | `{mikasa, in, shackles, v1, glb}` | `shackles`+`v1*` match, but `mikasa`, `in`, `glb` remain |"
+            "| `shackles v1*` | `{shackles, v1*}` | `{mikasa, in, shackles, v1, glb}` | "
+            "`shackles`+`v1*` match, but `mikasa`, `in`, `glb` remain |"
         )
         print()
         print(
-            "H3 `_match_token_sets` enforces a bijection (each query token maps to exactly one candidate "
-            "token, and all candidate tokens must be consumed). The subset fallback (allowing extra candidate "
-            "tokens) explicitly skips queries containing `*` or `?`. For wildcard queries that match a subset "
-            "of the candidate's tokens, the bijection constraint is too strict. "
-            "Fix: allow extra unmatched candidate tokens when query tokens have embedded wildcards (similar "
-            "to the non-wildcard subset behavior)."
+            "H3 `_match_token_sets` enforces a bijection (each query token maps to exactly "
+            "one candidate token, and all candidate tokens must be consumed). The subset "
+            "fallback (allowing extra candidate tokens) explicitly skips queries containing `*` "
+            "or `?`. For wildcard queries that match a subset of the candidate's tokens, the "
+            "bijection constraint is too strict. Fix: allow extra unmatched candidate tokens "
+            "when query tokens have embedded wildcards (similar to the non-wildcard subset "
+            "behavior)."
         )
         print()
         print("**3. Compound-query parsing limitations (Q8, Q11, Q24)**")
@@ -1674,17 +1680,19 @@ def print_report(results: list[Result]) -> tuple[int, int]:
         print("|---|---|")
         print(
             "| `bowsette backup_blend` | Keyword `backup` doesn't match inside compound token "
-            "`backup_blend` (underscore is a word char, so `\\bbackup\\b` fails). No category triggered. |"
+            "`backup_blend` (underscore is a word char, so `\\bbackup\\b` fails). "
+            "No category triggered. |"
         )
         print(
-            "| `picts on Desktop` | Fuzzy match `picts→pics` works, but clean query `Desktop` has no "
-            "matching directory in this tree. Expected by queries_review, but `Desktop` literally "
-            "doesn't exist in the tree → no match. |"
+            "| `picts on Desktop` | Fuzzy match `picts→pics` works, but clean query `Desktop` "
+            "has no matching directory in this tree. Expected by queries_review, but "
+            "`Desktop` literally doesn't exist in the tree → no match. |"
         )
         print(
             "| `latest video under var_01` | `video` triggers category, `latest` sets sort. "
-            "Clean query becomes `under var_01`. `under` is not a stopword. The engine doesn't support "
-            "path-scoping tokens (`under`, `in`, etc.) to restrict candidates to a subdirectory. |"
+            "Clean query becomes `under var_01`. `under` is not a stopword. The engine doesn't "
+            "support path-scoping tokens (`under`, `in`, etc.) to restrict candidates to a "
+            "subdirectory. |"
         )
         print()
         print("**4. Tiebreaker picks wrong result for multiple glob matches (Q22)**")
@@ -1710,7 +1718,7 @@ def main() -> int:
     # Create temp root for mock FS
     root = Path(tempfile.mkdtemp(prefix="sempath_mock_"))
     results = run_all(root)
-    n_pass, n_fail = print_report(results)
+    _n_pass, n_fail = print_report(results)
     return 0 if n_fail == 0 else 1
 
 

@@ -3,6 +3,11 @@
 ## Efficient Search with `sempath`
 When searching for files, architectural concepts, or code snippets across a repository, AI agents SHOULD use `sempath` (or alias `sf`) instead of slow, unindexed `grep`/`glob` scans. `sempath` executes multi-layer fuzzy, phonetic, wildcard, and content searches in seconds.
 
+### Recalling the Last Search
+`sempath` remembers the most recent search's results:
+- `sempath list` (or `sg list`) — show the numbered matches from the last search.
+- `sempath N` / `sempath get N` (or `sg N` / `sg get N`) — copy match *N* to the clipboard; bare `N` prints just the raw path (pipe-able, e.g. `cd (sg 2)`), while `get N` shows full detail. `sg` alone copies the top match.
+
 ### Key Instructions for Agents:
 1. **Self-Discovery**: Run `sempath --help` or `sempath find --help` (or `py -3.13 -m sempath find --help`) whenever needed to explore options.
 2. **Recommended Command Pattern**:
@@ -26,4 +31,7 @@ When searching for files, architectural concepts, or code snippets across a repo
 - **Don't restore any files that have been deleted unless the user explicitly tells you to.**
 - **Code Quality Check**: Always run Ruff (`py -3.13 -m ruff check --fix` and `py -3.13 -m ruff format`) to check and format the codebase after every major change.
 - **Distribution/Packaging**: Package distribution is deferred for now as this is still in beta. The configuration file `config.yaml` remains at the project root as a user-editable example.
+- **Root Parameter Precedence & `--gitignore` Toggle**: Specifying a root path explicitly (including `.`) takes precedence over `.gitignore` matching rules for traversal, unless `--gitignore` is passed (which flips whatever the default pruning tactic is set regarding git ignores).
+
+
 

@@ -114,7 +114,7 @@ def scan_directory(
                             break
 
                         part = parts[i - 1]
-                        if part.startswith(".") or part in exclude_patterns:
+                        if (respect_gitignore and part.startswith(".")) or part in exclude_patterns:
                             skipped_rel_dirs.add(ancestor_rel)
                             ignored = True
                             break
@@ -153,8 +153,8 @@ def scan_directory(
         # Filter directories in-place to control traversal
         kept_dirs = []
         for d in dirs:
-            # Skip hidden directories and matches in exclude_patterns
-            if d.startswith(".") or d in exclude_patterns:
+            # Skip hidden directories if respect_gitignore is enabled, and skip exclude_patterns
+            if (respect_gitignore and d.startswith(".")) or d in exclude_patterns:
                 continue
             dir_path = Path(root) / d
             if respect_gitignore and _is_path_ignored_by_gitignore(
@@ -167,8 +167,8 @@ def scan_directory(
 
         # Process files in current directory
         for f in files:
-            # Skip hidden files and matches in exclude_patterns
-            if f.startswith(".") or f in exclude_patterns:
+            # Skip hidden files if respect_gitignore is enabled, and skip exclude_patterns
+            if (respect_gitignore and f.startswith(".")) or f in exclude_patterns:
                 continue
             file_path = Path(root) / f
             if respect_gitignore and _is_path_ignored_by_gitignore(

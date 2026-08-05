@@ -172,10 +172,26 @@ def register_find_command(cli_group: click.Group) -> None:
         verbose_final = verbose or config.get("verbose", False)
         exhaustive = config.get("exhaustive", False)
 
+        # Check if root parameter was explicitly provided on CLI
+        from click.core import ParameterSource
+
+        has_explicit_root = (
+            root is not None or ctx.get_parameter_source("root_dir") == ParameterSource.COMMANDLINE
+        )
         config_respect = config.get("index", {}).get("respect_gitignore", True)
-        respect_gitignore_final = not config_respect if gitignore else config_respect
+        default_respect = False if has_explicit_root else config_respect
+        respect_gitignore_final = not default_respect if gitignore else default_respect
 
         # --- Handler filtering ---------------------------------------------------
+        if handler_spec is None:
+            presets = config.get("presets", {})
+            target_preset = preset_spec if preset_spec is not None else "0"
+            handler_spec = (
+                presets.get(target_preset)
+                or presets.get(str(target_preset))
+                or (target_preset if preset_spec is not None else None)
+            )
+
         if handler_spec is not None:
             try:
                 selected = _parse_handler_spec(handler_spec)
@@ -241,6 +257,17 @@ def register_find_command(cli_group: click.Group) -> None:
         except Exception as exc:
             err_console.print(f"[bold red]Search Engine error:[/] {exc}")
             sys.exit(1)
+
+        # Persist last-search snapshot for 'sempath list' / 'sempath get N'
+        if search_result.match is not None or search_result.near_misses:
+            from sempath.utils.history import save_history
+
+            save_history(
+                query=query,
+                root_dir=search_root,
+                elapsed_seconds=search_result.elapsed_seconds,
+                search_result=search_result,
+            )
 
         # Output results
         if json_output:
