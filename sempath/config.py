@@ -218,6 +218,17 @@ DEFAULT_CONFIG: dict[str, Any] = {
                 ],
                 "extensions": ["zip", "rar", "tar", "gz", "7z", "tgz"],
             },
+            "executable": {
+                "keywords": [
+                    "exe",
+                    "exes",
+                    "executable",
+                    "executables",
+                    "binary",
+                    "binaries",
+                ],
+                "extensions": ["exe", "msi", "bat", "cmd", "ps1", "sh"],
+            },
             "backup_blend": {
                 "keywords": ["blend1", "blend1s", "backup", "backups"],
                 "extensions": ["blend*"],
@@ -225,6 +236,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         }
     },
 }
+
 
 # ---------------------------------------------------------------------------
 # Paths

@@ -200,3 +200,21 @@ def test_extract_heuristics_extension_stripping():
     assert res.name_query == "main.py"
     assert "py" in res.extensions
     assert "code" in res.matched_categories
+
+
+def test_extract_heuristics_executable_extension_tokens():
+    """Test executable extension category extraction for bee.exe, bee-exe, and bee exe."""
+    res1 = extract_heuristics("bee.exe")
+    assert res1.clean_query == "bee"
+    assert "exe" in res1.extensions
+    assert "executable" in res1.matched_categories
+
+    res2 = extract_heuristics("bee-exe")
+    assert res2.clean_query == "bee"
+    assert "exe" in res2.extensions
+    assert "executable" in res2.matched_categories
+
+    res3 = extract_heuristics("bee exe")
+    assert res3.clean_query == "bee"
+    assert "exe" in res3.extensions
+    assert "executable" in res3.matched_categories

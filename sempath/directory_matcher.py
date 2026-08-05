@@ -46,7 +46,20 @@ def _match_dir_name(clean_query: str, dir_name: str, config: dict[str, Any] | No
     for q_tok in q_tokens:
         with suppress_verbose():
             matches = chain.handle(q_tok, synthetic_candidates)
-        if not any(m.confidence >= 0.5 for m in matches):
+        # Require exact/prefix/token match or strong fuzzy match (confidence >= 0.60)
+        # to avoid false loose folder matches
+        valid = any(
+            m.confidence >= 0.60
+            and m.handler
+            in (
+                "h1_exact",
+                "h2_case_insensitive",
+                "h3_token_normalized",
+                "h4_fuzzy",
+            )
+            for m in matches
+        )
+        if not valid:
             return False
 
     return True

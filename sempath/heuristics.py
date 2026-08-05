@@ -337,31 +337,47 @@ def _match_extension_in_query(
         return query, None, None
 
     query_lower = query.lower().strip()
-    last_dot = query_lower.rfind(".")
-    if last_dot == -1 or last_dot == len(query_lower) - 1:
-        return query, None, None
-
-    suffix = query_lower[last_dot + 1 :]
-
     matched_categories: list[str] = []
     matched_keywords: dict[str, list[str]] = {}
+    clean_query = query
 
-    for ext, cat_name in ext_patterns:
-        if fnmatch.fnmatch(suffix, ext.lower()):
-            if cat_name not in matched_categories:
-                matched_categories.append(cat_name)
-            matched_keywords.setdefault(cat_name, []).append(suffix)
-            verbose_log(
-                f"[dim]Extension category match: query ends with "
-                f"[bold cyan].{suffix}[/] → category [bold green]{cat_name}[/].[/]"
-            )
+    # 1. Check dot-separated suffix (e.g. "bee.exe")
+    last_dot = query_lower.rfind(".")
+    if last_dot != -1 and last_dot < len(query_lower) - 1:
+        suffix = query_lower[last_dot + 1 :]
+        for ext, cat_name in ext_patterns:
+            if fnmatch.fnmatch(suffix, ext.lower()):
+                if cat_name not in matched_categories:
+                    matched_categories.append(cat_name)
+                matched_keywords.setdefault(cat_name, []).append(suffix)
+                verbose_log(
+                    f"[dim]Extension category match: query ends with "
+                    f"[bold cyan].{suffix}[/] → category [bold green]{cat_name}[/].[/]"
+                )
+        if matched_categories:
+            clean_query = query[:last_dot].strip()
+            return clean_query, matched_categories, matched_keywords, [suffix]
 
-    if matched_categories:
-        # Strip extension suffix and dot from clean_query
-        clean_query = query[:last_dot].strip()
-        return clean_query, matched_categories, matched_keywords
+    # 2. Check whitespace-separated last token (e.g. "bee exe")
+    tokens = query_lower.split()
+    if len(tokens) > 1:
+        last_token = tokens[-1]
+        for ext, cat_name in ext_patterns:
+            if fnmatch.fnmatch(last_token, ext.lower()):
+                if cat_name not in matched_categories:
+                    matched_categories.append(cat_name)
+                matched_keywords.setdefault(cat_name, []).append(last_token)
+                verbose_log(
+                    f"[dim]Extension category match: query ends with token "
+                    f"[bold cyan]{last_token}[/] → category [bold green]{cat_name}[/].[/]"
+                )
+        if matched_categories:
+            # Strip trailing token from query
+            last_token_idx = query_lower.rfind(last_token)
+            clean_query = query[:last_token_idx].strip()
+            return clean_query, matched_categories, matched_keywords, [last_token]
 
-    return query, None, None
+    return query, None, None, None
 
 
 def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResult:
@@ -411,7 +427,9 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     name_query = " ".join(singularize_token(t) for t in clean_query.split())
 
     # 4. Extract categories — extension match has priority over keyword matching
-    clean_query, ext_cats, ext_kws = _match_extension_in_query(clean_query, categories)
+    clean_query, ext_cats, ext_kws, explicit_exts = _match_extension_in_query(
+        clean_query, categories
+    )
     if ext_cats:
         matched_categories = ext_cats
         matched_category_keywords = ext_kws
@@ -422,7 +440,9 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
 
     # Collect extensions
     extensions = None
-    if matched_categories:
+    if explicit_exts:
+        extensions = explicit_exts
+    elif matched_categories:
         extensions = []
         for cat_name in matched_categories:
             exts = categories[cat_name].get("extensions", [])
