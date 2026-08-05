@@ -314,11 +314,13 @@ def register_find_command(cli_group: click.Group) -> None:
             copy_to_clipboard(str(primary.path))
             escaped_path = escape(str(primary.path))
             time_str = (
-                f" [dim](in {_format_elapsed_time(search_result.elapsed_seconds)})[/]"
+                f" [dim cyan]({_format_elapsed_time(search_result.elapsed_seconds)})[/]"
                 if search_result.elapsed_seconds > 0
                 else ""
             )
+
             msg_hdr = f"[bold green]✔ Success{time_str}:[/] Found match{match_count_header}:"
+
             console.print(f"{msg_hdr} [bold cyan]{escaped_path}[/]{meta}")
             if primary.snippets:
                 for line_num, snippet_text in primary.snippets:
@@ -330,7 +332,9 @@ def register_find_command(cli_group: click.Group) -> None:
                     limit=top_n_final - 1,
                     verbose=verbose_final,
                     query=query,
+                    start_index=2,
                 )
+
             sys.exit(0)
         elif search_result.status == "ambiguous":
             if not non_interactive_final and search_result.near_misses:

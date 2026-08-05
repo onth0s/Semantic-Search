@@ -110,8 +110,12 @@ def _print_grouped_matches(
     limit: int,
     verbose: bool,
     query: str | None = None,
-) -> None:
-    """Print *matches* (up to *limit*) sorted into display groups."""
+    start_index: int = 1,
+) -> int:
+    """Print *matches* (up to *limit*) sorted into display groups with 1-indexed numbering.
+
+    Returns the next available 1-based item index after printing.
+    """
     from collections import defaultdict
 
     ctx = click.get_current_context(silent=True)
@@ -134,6 +138,8 @@ def _print_grouped_matches(
         group_order.append(_GROUP_GENERIC)
 
     printed_count = 0
+    current_index = start_index
+
     for group_name in group_order:
         if printed_count >= limit:
             break
@@ -157,9 +163,12 @@ def _print_grouped_matches(
                 + (f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else "")
             )
             color = "cyan" if group_name != _GROUP_GENERIC else "dim cyan"
-            console.print(f"  - [{color}]{escape(str(nm.path))}[/]{nm_meta}")
+            console.print(f"  {current_index}. [{color}]{escape(str(nm.path))}[/]{nm_meta}")
             if nm.snippets:
                 for line_num, snippet_text in nm.snippets:
                     formatted_snippet = _format_snippet(snippet_text, query)
                     console.print(f"    [dim]└─ L{line_num}:[/] {formatted_snippet}")
             printed_count += 1
+            current_index += 1
+
+    return current_index

@@ -406,13 +406,18 @@ class SearchEngine:
         import time
 
         t_search_start = time.perf_counter()
+
+        def _with_timing(res: SearchResult) -> SearchResult:
+            if res.elapsed_seconds <= 0:
+                res.elapsed_seconds = time.perf_counter() - t_search_start
+            return res
+
         search_root = Path(root_dir).resolve()
 
         # Early-bypass check for alias matching
         query, search_root, early_result = self._resolve_early_alias(query, search_root)
         if early_result:
-            early_result.elapsed_seconds = time.perf_counter() - t_search_start
-            return early_result
+            return _with_timing(early_result)
 
         from sempath.search_context import SearchContext
 
@@ -470,23 +475,25 @@ class SearchEngine:
             file_only=heuristics.file_only,
         )
 
-        verbose_log(
-            f"[dim]Remaining candidates after applying filters: {len(filtered_candidates)}[/]"
-        )
-
         # 3b. Check for Directory Content Matching
+        # (only if no candidate filename directly matches clean_query)
         if (exts_final or heuristics.file_only) and clean_query not in ("", ".", "*"):
-            verbose_log(
-                "[bold blue]>> Phase:[/] [italic]directory content match "
-                "(query has extension / file-only intent)[/]"
+            # If any candidate filename contains the clean_query token, let handler chain run first
+            clean_q_lower = clean_query.lower()
+            direct_filename_match = any(
+                clean_q_lower in fc.stem.lower() or clean_q_lower in fc.name.lower()
+                for fc in filtered_candidates
+                if fc.is_file()
             )
-            dir_res = self._try_directory_content_match(
-                query, clean_query, search_root, candidates, filtered_candidates
-            )
-            if dir_res:
-                return dir_res
+            if not direct_filename_match:
+                dir_res = self._try_directory_content_match(
+                    query, clean_query, search_root, candidates, filtered_candidates
+                )
+                if dir_res:
+                    return _with_timing(dir_res)
 
         # 4. Sort candidates
+
         sort_candidates(
             filtered_candidates,
             latest=latest_final,
@@ -503,11 +510,13 @@ class SearchEngine:
         if (original_query_placeholder or query_fully_consumed_with_sort) and filtered_candidates:
             match_result = MatchResult(filtered_candidates[0], 1.0, "explicit_flags")
             near_misses = [MatchResult(p, 1.0, "explicit_flags") for p in filtered_candidates[1:]]
-            return SearchResult(
-                status="success",
-                query=query,
-                match=match_result,
-                near_misses=near_misses,
+            return _with_timing(
+                SearchResult(
+                    status="success",
+                    query=query,
+                    match=match_result,
+                    near_misses=near_misses,
+                )
             )
 
         # 6. Build and execute Chain of Responsibility
@@ -572,20 +581,18 @@ class SearchEngine:
             )
             match_result = MatchResult(filtered_candidates[0], 1.0, handler_name)
             near_misses = [MatchResult(p, 1.0, handler_name) for p in filtered_candidates[1:]]
-            return SearchResult(
-                status="success",
-                query=query,
-                match=match_result,
-                near_misses=near_misses,
+            return _with_timing(
+                SearchResult(
+                    status="success",
+                    query=query,
+                    match=match_result,
+                    near_misses=near_misses,
+                )
             )
 
         self._sort_confident_matches(
             confident_matches, latest_final, largest_final, smallest_final, oldest_final
         )
-
-        def _with_timing(res: SearchResult) -> SearchResult:
-            res.elapsed_seconds = time.perf_counter() - t_search_start
-            return res
 
         if confident_matches:
             top_match = confident_matches[0]

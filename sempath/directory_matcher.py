@@ -83,6 +83,7 @@ def match_directory_content(
     matching_dirs = []
 
     # 1. Check ancestors of search_root (including search_root itself)
+
     verbose_log("  [dim]Checking ancestor directories...[/]")
     ancestor_count = 0
     current = search_root.resolve()
@@ -98,6 +99,7 @@ def match_directory_content(
     verbose_log(f"  [dim]Ancestor check complete: {ancestor_count} match(es)[/]")
 
     # 2. Check candidate directories under search_root
+
     verbose_log(
         f"  [dim]Checking [bold]{len(candidates)}[/] candidate directories for "
         f"'[bold]{clean_query}[/]'...[/]"

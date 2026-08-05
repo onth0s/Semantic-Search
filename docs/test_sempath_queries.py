@@ -1370,7 +1370,7 @@ def write_lean_config() -> None:
 
 def prepare_mock_fs(root: Path) -> None:
     """Build the tree and add extra metadata files for sorting tests."""
-    n_files = _build_tree(root)
+    _build_tree(root)
     now = time.time()
 
     # ── Extra files for Q14 (latest *.png) — varying mtimes ──
