@@ -400,8 +400,8 @@ def extract_heuristics(query: str, config: dict | None = None) -> HeuristicsResu
     # 1. Extract temporal parameters
     clean_query, modified_within_seconds = _extract_temporal(query)
 
-    # Replace dashes with spaces (treat as word separators)
-    clean_query = clean_query.replace("-", " ")
+    # Replace dashes and underscores with spaces (treat as word separators)
+    clean_query = clean_query.replace("-", " ").replace("_", " ")
 
     # 2. Extract sorting and intent parameters
     (

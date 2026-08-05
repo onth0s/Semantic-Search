@@ -175,6 +175,10 @@ def test_extract_heuristics_dash_replacement():
     res = extract_heuristics("my-project notes")
     assert res.clean_query == "my project note"
 
+    res = extract_heuristics("gmrti_dir")
+    assert res.clean_query == "gmrti"
+    assert res.directory_only is True
+
 
 def test_extract_heuristics_no_false_fuzzy_matches():
     """Test that short words/keywords (like 'song' vs 'json') are not fuzzy matched."""
@@ -203,7 +207,7 @@ def test_extract_heuristics_extension_stripping():
 
 
 def test_extract_heuristics_executable_extension_tokens():
-    """Test executable extension category extraction for bee.exe, bee-exe, and bee exe."""
+    """Test executable extension category extraction for bee.exe, bee-exe, bee_exe, and bee exe."""
     res1 = extract_heuristics("bee.exe")
     assert res1.clean_query == "bee"
     assert "exe" in res1.extensions
@@ -214,7 +218,12 @@ def test_extract_heuristics_executable_extension_tokens():
     assert "exe" in res2.extensions
     assert "executable" in res2.matched_categories
 
-    res3 = extract_heuristics("bee exe")
+    res3 = extract_heuristics("bee_exe")
     assert res3.clean_query == "bee"
     assert "exe" in res3.extensions
     assert "executable" in res3.matched_categories
+
+    res4 = extract_heuristics("bee exe")
+    assert res4.clean_query == "bee"
+    assert "exe" in res4.extensions
+    assert "executable" in res4.matched_categories
