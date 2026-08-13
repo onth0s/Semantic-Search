@@ -19,6 +19,7 @@ from sempath.cli.formatting import (
     _print_grouped_matches,
 )
 from sempath.config import load_config
+from sempath.constants import DEFAULT_DEPTH
 from sempath.engine import SearchEngine
 from sempath.utils.clipboard import copy_to_clipboard
 from sempath.utils.console import console, err_console
@@ -54,9 +55,7 @@ def register_find_command(cli_group: click.Group) -> None:
         default=None,
         help="Root directory to search (overrides ROOT_DIR argument).",
     )
-    @click.option(
-        "--depth", default=5, type=int, show_default=True, help="Maximum folder depth to traverse."
-    )
+    @click.option("--depth", default=None, type=int, help="Maximum folder depth to traverse.")
     @click.option(
         "--min-confidence",
         default=0.3,
@@ -143,7 +142,7 @@ def register_find_command(cli_group: click.Group) -> None:
         query: str,
         root_dir: Path,
         root: Path | None,
-        depth: int,
+        depth: int | None,
         min_confidence: float,
         top_n: int,
         non_interactive: bool,
@@ -169,6 +168,7 @@ def register_find_command(cli_group: click.Group) -> None:
             err_console.print(f"[bold red]Error loading config:[/] {exc}")
             sys.exit(1)
 
+        depth_final = depth if depth is not None else config.get("depth", DEFAULT_DEPTH)
         verbose_final = verbose or config.get("verbose", False)
         exhaustive = config.get("exhaustive", False)
 
@@ -214,7 +214,7 @@ def register_find_command(cli_group: click.Group) -> None:
             {
                 "query": query,
                 "root": search_root,
-                "depth": depth,
+                "depth": depth_final,
                 "min_confidence": min_confidence,
                 "top_n": top_n_final,
                 "non_interactive": non_interactive_final,
@@ -233,7 +233,7 @@ def register_find_command(cli_group: click.Group) -> None:
         if verbose_final:
             console.print(f"[dim]Query:[/]  [bold cyan]{query}[/]")
             console.print(f"[dim]Root:[/]   [bold]{escape(str(search_root))}[/]")
-            console.print(f"[dim]Depth:[/]  {depth}")
+            console.print(f"[dim]Depth:[/]  {depth_final}")
             console.print()
 
         try:
@@ -241,7 +241,7 @@ def register_find_command(cli_group: click.Group) -> None:
             search_result = engine.find_path(
                 query=query,
                 root_dir=search_root,
-                depth=depth,
+                depth=depth_final,
                 min_confidence=min_confidence,
                 top_n=top_n_final,
                 non_interactive=non_interactive_final,

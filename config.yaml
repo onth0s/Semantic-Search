@@ -54,6 +54,7 @@ heuristics:
       extensions: [blend*]
 
 
+depth: 5
 verbose: false
 exhaustive: true
 

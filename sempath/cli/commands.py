@@ -10,6 +10,7 @@ import click
 from rich.markup import escape
 
 from sempath.config import get_index_store_path, load_config, save_config
+from sempath.constants import DEFAULT_DEPTH
 from sempath.index import IndexManager
 from sempath.utils.console import console, err_console
 
@@ -27,20 +28,21 @@ def register_commands(cli_group: click.Group) -> None:
 
     @index.command("create")
     @click.argument("path", default=".", type=click.Path(exists=True, path_type=Path))
-    @click.option("--depth", default=5, type=int, help="Maximum folder depth to traverse.")
-    def index_create(path: Path, depth: int) -> None:
+    @click.option("--depth", default=None, type=int, help="Maximum folder depth to traverse.")
+    def index_create(path: Path, depth: int | None) -> None:
         """Build a new index for PATH."""
         try:
             cfg = load_config()
             exclude = cfg.get("index", {}).get("exclude_patterns", [])
             respect_gi = cfg.get("index", {}).get("respect_gitignore", True)
+            depth_final = depth if depth is not None else cfg.get("depth", DEFAULT_DEPTH)
 
             manager = IndexManager(get_index_store_path(cfg))
             console.print(
-                f"[yellow]Scanning and indexing:[/] {escape(str(path))} (depth: {depth})..."
+                f"[yellow]Scanning and indexing:[/] {escape(str(path))} (depth: {depth_final})..."
             )
             added, deleted = manager.create_or_update_index(
-                path, depth=depth, exclude_patterns=exclude, respect_gitignore=respect_gi
+                path, depth=depth_final, exclude_patterns=exclude, respect_gitignore=respect_gi
             )
             console.print(
                 f"[bold green]✔ Success:[/] Indexed root: [bold]{path}[/] "
@@ -52,18 +54,19 @@ def register_commands(cli_group: click.Group) -> None:
 
     @index.command("update")
     @click.argument("path", default=".", type=click.Path(exists=True, path_type=Path))
-    @click.option("--depth", default=5, type=int, help="Maximum folder depth to traverse.")
-    def index_update(path: Path, depth: int) -> None:
+    @click.option("--depth", default=None, type=int, help="Maximum folder depth to traverse.")
+    def index_update(path: Path, depth: int | None) -> None:
         """Incrementally update the index for PATH."""
         try:
             cfg = load_config()
             exclude = cfg.get("index", {}).get("exclude_patterns", [])
             respect_gi = cfg.get("index", {}).get("respect_gitignore", True)
+            depth_final = depth if depth is not None else cfg.get("depth", DEFAULT_DEPTH)
 
             manager = IndexManager(get_index_store_path(cfg))
             console.print(f"[yellow]Updating index for:[/] {escape(str(path))}...")
             added, deleted = manager.create_or_update_index(
-                path, depth=depth, exclude_patterns=exclude, respect_gitignore=respect_gi
+                path, depth=depth_final, exclude_patterns=exclude, respect_gitignore=respect_gi
             )
             console.print(
                 f"[bold green]✔ Success:[/] Updated root: [bold]{path}[/] "
@@ -315,6 +318,22 @@ def register_commands(cli_group: click.Group) -> None:
             console.print(
                 "[bold green]✔ Success:[/] Respecting .gitignore rules has been "
                 f"[bold]{status_str}[/]."
+            )
+        except Exception as exc:
+            err_console.print(f"[bold red]Error updating configuration:[/] {exc}")
+            sys.exit(1)
+
+    @config.command("depth")
+    @click.argument("value", type=int)
+    def config_depth(value: int) -> None:
+        """Set default traversal search depth globally."""
+        if value < 1:
+            err_console.print("[bold red]Error:[/] Depth must be a positive integer (>= 1).")
+            sys.exit(1)
+        try:
+            save_config({"depth": value})
+            console.print(
+                f"[bold green]✔ Success:[/] Default search depth set to [bold]{value}[/]."
             )
         except Exception as exc:
             err_console.print(f"[bold red]Error updating configuration:[/] {exc}")

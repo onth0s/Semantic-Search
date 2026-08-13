@@ -144,6 +144,32 @@ class TestConfigVerbose:
         assert cfg["verbose"] is True
 
 
+class TestConfigDepth:
+    """Tests for the 'config depth' subcommand."""
+
+    def test_config_depth_help_exits_0(self, runner: CliRunner):
+        """config depth --help exits with code 0."""
+        result = runner.invoke(cli, ["config", "depth", "--help"])
+        assert result.exit_code == 0
+
+    def test_config_depth_valid(self, runner: CliRunner):
+        """config depth <N> updates depth in loaded config."""
+        result = runner.invoke(cli, ["config", "depth", "10"])
+        assert result.exit_code == 0
+        assert "Default search depth set to 10" in result.output
+
+        from sempath.config import load_config
+
+        cfg = load_config()
+        assert cfg["depth"] == 10
+
+    def test_config_depth_invalid(self, runner: CliRunner):
+        """config depth with non-positive integer returns error."""
+        result = runner.invoke(cli, ["config", "depth", "0"])
+        assert result.exit_code != 0
+        assert "Depth must be a positive integer" in result.output
+
+
 def test_find_root_dir_leading_slash_normalization(tmp_path: Path):
     """Test that '/scratch' normalizes to local 'scratch' subdirectory."""
     scratch = tmp_path / "scratch"

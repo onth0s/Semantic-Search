@@ -137,6 +137,7 @@ sempath preset get NAME
 sempath preset remove NAME
 sempath config verbose VALUE
 sempath config gitignore VALUE
+sempath config depth VALUE
 sempath export-memory FILE_PATH
 sempath import-memory FILE_PATH
 ```
@@ -265,6 +266,13 @@ You can persistently configure whether `.gitignore` rules are respected by defau
 sempath config gitignore [on|off|true|false]
 ```
 This saves the configuration locally under `%APPDATA%\sempath\config.yaml` to override any system/package defaults.
+
+### CLI Depth Command
+You can persistently configure the default directory traversal depth via:
+```bash
+sempath config depth DEPTH
+```
+For example, `sempath config depth 10` sets the default search depth to 10 folder levels deep.
 
 ```yaml
 handlers:

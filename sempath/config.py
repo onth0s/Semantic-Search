@@ -14,11 +14,14 @@ from typing import Any
 
 import yaml
 
+from sempath.constants import DEFAULT_DEPTH
+
 # ---------------------------------------------------------------------------
 # Default configuration — mirrors config.yaml
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG: dict[str, Any] = {
+    "depth": DEFAULT_DEPTH,
     "verbose": True,
     "exhaustive": True,
     "handlers": {
