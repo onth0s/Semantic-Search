@@ -121,54 +121,67 @@ def _print_grouped_matches(
     ctx = click.get_current_context(silent=True)
     search_root = ctx.obj.get("root", Path(".")) if (ctx and ctx.obj) else Path(".")
 
-    # Bucket all matches first
-    groups: dict[str, list] = defaultdict(list)
-    for nm in matches:
-        group_lbl = _classify_match(nm.path, search_root)
-        groups[group_lbl].append(nm)
-
-    all_groups = list(groups.keys())
-    subfolder_groups = [g for g in all_groups if g not in (_GROUP_OTHER, _GROUP_GENERIC)]
-
-    group_order = []
-    if _GROUP_OTHER in groups:
-        group_order.append(_GROUP_OTHER)
-    group_order.extend(subfolder_groups)
-    if _GROUP_GENERIC in groups:
-        group_order.append(_GROUP_GENERIC)
+    # Partition matches into content-based (with snippets) and filename/metadata-based
+    content_matches = [m for m in matches if getattr(m, "snippets", None)]
+    path_matches = [m for m in matches if not getattr(m, "snippets", None)]
 
     printed_count = 0
     current_index = start_index
 
-    for group_name in group_order:
-        if printed_count >= limit:
-            break
-        items = groups.get(group_name, [])
-        if not items:
-            continue
+    def _render_partition(partition_items: list, header_prefix: str = "") -> None:
+        nonlocal printed_count, current_index
+        groups: dict[str, list] = defaultdict(list)
+        for nm in partition_items:
+            group_lbl = _classify_match(nm.path, search_root)
+            groups[group_lbl].append(nm)
 
-        style = "[bold]" if group_name != _GROUP_GENERIC else "[bold dim]"
-        console.print(f"{style}{escape(group_name)}:[/]")
+        all_groups = list(groups.keys())
+        subfolder_groups = [g for g in all_groups if g not in (_GROUP_OTHER, _GROUP_GENERIC)]
 
-        for nm in items:
+        group_order = []
+        if _GROUP_OTHER in groups:
+            group_order.append(_GROUP_OTHER)
+        group_order.extend(subfolder_groups)
+        if _GROUP_GENERIC in groups:
+            group_order.append(_GROUP_GENERIC)
+
+        for group_name in group_order:
             if printed_count >= limit:
                 break
-            count_suffix = ""
-            if nm.snippets:
-                plural = "es" if len(nm.snippets) > 1 else ""
-                count_suffix = f" [dim]({len(nm.snippets)} match{plural})[/]"
-            nm_meta = (
-                _format_file_meta(nm.path)
-                + count_suffix
-                + (f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else "")
-            )
-            color = "cyan" if group_name != _GROUP_GENERIC else "dim cyan"
-            console.print(f"  {current_index}. [{color}]{escape(str(nm.path))}[/]{nm_meta}")
-            if nm.snippets:
-                for line_num, snippet_text in nm.snippets:
-                    formatted_snippet = _format_snippet(snippet_text, query)
-                    console.print(f"    [dim]└─ L{line_num}:[/] {formatted_snippet}")
-            printed_count += 1
-            current_index += 1
+            items = groups.get(group_name, [])
+            if not items:
+                continue
+
+            style = "[bold]" if group_name != _GROUP_GENERIC else "[bold dim]"
+            display_name = f"{header_prefix}{group_name}" if header_prefix else group_name
+            console.print(f"{style}{escape(display_name)}:[/]")
+
+            for nm in items:
+                if printed_count >= limit:
+                    break
+                count_suffix = ""
+                if nm.snippets:
+                    plural = "es" if len(nm.snippets) > 1 else ""
+                    count_suffix = f" [dim]({len(nm.snippets)} match{plural})[/]"
+                handler_meta = (
+                    f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]" if verbose else ""
+                )
+                nm_meta = _format_file_meta(nm.path) + count_suffix + handler_meta
+                color = "cyan" if group_name != _GROUP_GENERIC else "dim cyan"
+                console.print(f"  {current_index}. [{color}]{escape(str(nm.path))}[/]{nm_meta}")
+                if nm.snippets:
+                    for line_num, snippet_text in nm.snippets:
+                        formatted_snippet = _format_snippet(snippet_text, query)
+                        console.print(f"    [dim]└─ L{line_num}:[/] {formatted_snippet}")
+                printed_count += 1
+                current_index += 1
+
+    if content_matches:
+        _render_partition(content_matches)
+        if path_matches and printed_count < limit:
+            console.print("[dim]─" * 40 + " [bold yellow]Filename Matches[/] " + "─" * 40 + "[/]")
+            _render_partition(path_matches)
+    else:
+        _render_partition(matches)
 
     return current_index
