@@ -217,9 +217,6 @@ class SearchEngine:
         all_candidates: list[Path] | None = None,
     ) -> list[MatchResult]:
         """Execute the handler chain on candidates, including text search if enabled."""
-        if clean_query in ("", ".", "*"):
-            return []
-
         collected_initial = []
         if read_content:
             content_query = context.raw_query
@@ -264,6 +261,9 @@ class SearchEngine:
                     f"[yellow]>> Content scan complete:[/] no matches found for "
                     f"'[bold]{content_query}[/]'"
                 )
+
+        if clean_query in ("", ".", "*"):
+            return collected_initial
 
         # Collect handler names for the phase log
         handler_names: list[str] = []
