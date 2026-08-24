@@ -175,29 +175,33 @@ def _extract_sorting_and_intent(
     latest = largest = smallest = oldest = False
     directory_only = file_only = False
 
-    # Latest match
-    latest_match = LATEST_RE.search(clean_query)
-    if latest_match:
+    # Latest match: strip rightmost occurrence
+    latest_matches = list(LATEST_RE.finditer(clean_query))
+    if latest_matches:
         latest = True
-        clean_query = LATEST_RE.sub("", clean_query)
+        last_m = latest_matches[-1]
+        clean_query = clean_query[: last_m.start()] + clean_query[last_m.end() :]
 
-    # Largest match
-    largest_match = LARGEST_RE.search(clean_query)
-    if largest_match:
+    # Largest match: strip rightmost occurrence
+    largest_matches = list(LARGEST_RE.finditer(clean_query))
+    if largest_matches:
         largest = True
-        clean_query = LARGEST_RE.sub("", clean_query)
+        last_m = largest_matches[-1]
+        clean_query = clean_query[: last_m.start()] + clean_query[last_m.end() :]
 
-    # Smallest match
-    smallest_match = SMALLEST_RE.search(clean_query)
-    if smallest_match:
+    # Smallest match: strip rightmost occurrence
+    smallest_matches = list(SMALLEST_RE.finditer(clean_query))
+    if smallest_matches:
         smallest = True
-        clean_query = SMALLEST_RE.sub("", clean_query)
+        last_m = smallest_matches[-1]
+        clean_query = clean_query[: last_m.start()] + clean_query[last_m.end() :]
 
-    # Oldest match
-    oldest_match = OLDEST_RE.search(clean_query)
-    if oldest_match:
+    # Oldest match: strip rightmost occurrence
+    oldest_matches = list(OLDEST_RE.finditer(clean_query))
+    if oldest_matches:
         oldest = True
-        clean_query = OLDEST_RE.sub("", clean_query)
+        last_m = oldest_matches[-1]
+        clean_query = clean_query[: last_m.start()] + clean_query[last_m.end() :]
 
     # Directory intent match
     dir_match = DIR_INTENT_RE.search(clean_query)

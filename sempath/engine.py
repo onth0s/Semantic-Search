@@ -525,15 +525,34 @@ class SearchEngine:
         except ValueError as exc:
             raise ValueError(f"Error building handler chain: {exc}") from exc
 
-        match_results = self._execute_chain(
+        chain_top_n = (
+            len(filtered_candidates)
+            if (latest_final or largest_final or smallest_final or oldest_final)
+            else top_n
+        )
+
+        match_results = []
+        # Pre-check exact raw query match against candidates so filenames containing
+        # category or modifier words (e.g. 'formal_verification_latest') match with 1.0 confidence.
+        if query.strip() and query.strip() != clean_query:
+            from sempath.handlers.h1_exact import ExactMatchHandler
+
+            raw_exact_matches = ExactMatchHandler(self.config).match_all(
+                query.strip(), filtered_candidates, context=context
+            )
+            if raw_exact_matches:
+                match_results.extend(raw_exact_matches)
+
+        chain_matches = self._execute_chain(
             chain,
             clean_query,
             filtered_candidates,
             read_content,
-            top_n,
+            chain_top_n,
             context,
             all_candidates=candidates,
         )
+        match_results = self._merge_name_query_matches(match_results, chain_matches)
         if match_results:
             verbose_log(
                 f"[bold blue]>> Chain result:[/] [bold]{len(match_results)}[/] match(es) "

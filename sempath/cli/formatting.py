@@ -135,13 +135,15 @@ def _print_grouped_matches(
             group_lbl = _classify_match(nm.path, search_root)
             groups[group_lbl].append(nm)
 
-        all_groups = list(groups.keys())
-        subfolder_groups = [g for g in all_groups if g not in (_GROUP_OTHER, _GROUP_GENERIC)]
-
+        # Order groups by the first appearance of each group in the ranked candidate list
         group_order = []
-        if _GROUP_OTHER in groups:
-            group_order.append(_GROUP_OTHER)
-        group_order.extend(subfolder_groups)
+        seen_groups = set()
+        for nm in partition_items:
+            group_lbl = _classify_match(nm.path, search_root)
+            if group_lbl != _GROUP_GENERIC and group_lbl not in seen_groups:
+                seen_groups.add(group_lbl)
+                group_order.append(group_lbl)
+
         if _GROUP_GENERIC in groups:
             group_order.append(_GROUP_GENERIC)
 

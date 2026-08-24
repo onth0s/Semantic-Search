@@ -68,15 +68,28 @@ class FuzzyMatchHandler(BaseHandler):
         results = []
 
         for p in candidates:
-            r_name = fuzz.ratio(query_lower, p.name.lower())
-            r_stem = fuzz.ratio(query_lower, p.stem.lower())
-            r_max = max(r_name, r_stem)
+            p_name_lower = p.name.lower()
+            p_stem_lower = p.stem.lower()
+
+            r_name = fuzz.ratio(query_lower, p_name_lower)
+            r_stem = fuzz.ratio(query_lower, p_stem_lower)
+            r_token_set = fuzz.token_set_ratio(query_lower, p_stem_lower)
+            r_max = max(r_name, r_stem, r_token_set)
+
+            # Check partial ratio for queries with 4 or more chars
+            if len(query_clean) >= 4:
+                r_partial = fuzz.partial_ratio(query_lower, p_stem_lower)
+                r_max = max(r_max, r_partial)
 
             if k > 1 and len(p.parts) >= k:
                 suffix_parts = p.parts[-k:]
                 suffix_str = "/".join(suffix_parts).lower()
                 r_suffix = fuzz.ratio(query_pure, suffix_str)
-                r_max = max(r_max, r_suffix)
+                r_suffix_token = fuzz.token_set_ratio(query_pure, suffix_str)
+                r_max = max(r_max, r_suffix, r_suffix_token)
+                if len(query_clean) >= 4:
+                    r_suffix_partial = fuzz.partial_ratio(query_pure, suffix_str)
+                    r_max = max(r_max, r_suffix_partial)
 
             if r_max >= threshold:
                 # Cap fuzzy match confidence at 0.80 maximum so fuzzy matches
