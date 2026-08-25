@@ -262,7 +262,7 @@ class SearchEngine:
                     f"'[bold]{content_query}[/]'"
                 )
 
-        if clean_query in ("", ".", "*"):
+        if read_content or clean_query in ("", ".", "*"):
             return collected_initial
 
         # Collect handler names for the phase log
@@ -476,8 +476,12 @@ class SearchEngine:
         )
 
         # 3b. Check for Directory Content Matching
-        # (only if no candidate filename directly matches clean_query)
-        if (exts_final or heuristics.file_only) and clean_query not in ("", ".", "*"):
+        # (only if no candidate filename directly matches clean_query and not content search)
+        if (
+            not read_content
+            and (exts_final or heuristics.file_only)
+            and clean_query not in ("", ".", "*")
+        ):
             # If any candidate filename contains the clean_query token, let handler chain run first
             clean_q_lower = clean_query.lower()
             direct_filename_match = any(
@@ -532,9 +536,9 @@ class SearchEngine:
         )
 
         match_results = []
-        # Pre-check exact raw query match against candidates so filenames containing
-        # category or modifier words (e.g. 'formal_verification_latest') match with 1.0 confidence.
-        if query.strip() and query.strip() != clean_query:
+        if not read_content and query.strip() and query.strip() != clean_query:
+            # Pre-check exact raw query match against candidates so filenames containing
+            # category/modifier words (e.g. 'formal_verification_latest') match with 1.0.
             from sempath.handlers.h1_exact import ExactMatchHandler
 
             raw_exact_matches = ExactMatchHandler(self.config).match_all(
@@ -565,8 +569,8 @@ class SearchEngine:
                 "continuing fallback search"
             )
 
-        # 7. Merge name_query matches if applicable
-        if heuristics.name_query and heuristics.name_query != clean_query:
+        # 7. Merge name_query matches if applicable (only for filename searches, not content search)
+        if not read_content and heuristics.name_query and heuristics.name_query != clean_query:
             try:
                 fast_cfg = dict(self.config)
                 fast_cfg["handlers"] = dict(self.config.get("handlers", {}))
@@ -625,13 +629,14 @@ class SearchEngine:
                 )
             )
 
-        # Fallback Directory Content Match
-        verbose_log("[bold blue]>> Phase:[/] [italic]fallback directory content match[/]")
-        dir_res_fallback = self._try_directory_content_match(
-            query, clean_query, search_root, candidates, filtered_candidates
-        )
-        if dir_res_fallback:
-            return _with_timing(dir_res_fallback)
+        # Fallback Directory Content Match (only for filename/path searches, not content search)
+        if not read_content:
+            verbose_log("[bold blue]>> Phase:[/] [italic]fallback directory content match[/]")
+            dir_res_fallback = self._try_directory_content_match(
+                query, clean_query, search_root, candidates, filtered_candidates
+            )
+            if dir_res_fallback:
+                return _with_timing(dir_res_fallback)
 
         # Collect near-misses by scanning all handlers
         verbose_log(

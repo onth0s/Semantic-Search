@@ -44,6 +44,12 @@ def _match_dir_name(clean_query: str, dir_name: str, config: dict[str, Any] | No
     synthetic_candidates = [Path(tok) for tok in p_tokens]
 
     for q_tok in q_tokens:
+        # For purely numeric tokens (e.g. '500'), require exact token equality
+        if q_tok.isdigit():
+            if not any(q_tok == p_tok for p_tok in p_tokens):
+                return False
+            continue
+
         with suppress_verbose():
             matches = chain.handle(q_tok, synthetic_candidates)
         # Require exact/prefix/token match or strong fuzzy match (confidence >= 0.60)

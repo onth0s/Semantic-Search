@@ -76,10 +76,14 @@ class FuzzyMatchHandler(BaseHandler):
             r_token_set = fuzz.token_set_ratio(query_lower, p_stem_lower)
             r_max = max(r_name, r_stem, r_token_set)
 
-            # Check partial ratio for queries with 4 or more chars
-            if len(query_clean) >= 4:
-                r_partial = fuzz.partial_ratio(query_lower, p_stem_lower)
-                r_max = max(r_max, r_partial)
+            # Check partial ratio for queries with 4 or more chars and compatible length
+            stem_len = len(p_stem_lower)
+            q_len = len(query_clean)
+            if q_len >= 4 and stem_len > 0:
+                len_ratio = min(q_len, stem_len) / max(q_len, stem_len)
+                if len_ratio >= 0.5:
+                    r_partial = fuzz.partial_ratio(query_lower, p_stem_lower)
+                    r_max = max(r_max, r_partial)
 
             if k > 1 and len(p.parts) >= k:
                 suffix_parts = p.parts[-k:]
@@ -87,9 +91,12 @@ class FuzzyMatchHandler(BaseHandler):
                 r_suffix = fuzz.ratio(query_pure, suffix_str)
                 r_suffix_token = fuzz.token_set_ratio(query_pure, suffix_str)
                 r_max = max(r_max, r_suffix, r_suffix_token)
-                if len(query_clean) >= 4:
-                    r_suffix_partial = fuzz.partial_ratio(query_pure, suffix_str)
-                    r_max = max(r_max, r_suffix_partial)
+                suffix_len = len(suffix_str)
+                if q_len >= 4 and suffix_len > 0:
+                    s_len_ratio = min(q_len, suffix_len) / max(q_len, suffix_len)
+                    if s_len_ratio >= 0.5:
+                        r_suffix_partial = fuzz.partial_ratio(query_pure, suffix_str)
+                        r_max = max(r_max, r_suffix_partial)
 
             if r_max >= threshold:
                 # Cap fuzzy match confidence at 0.80 maximum so fuzzy matches
