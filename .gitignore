@@ -12,6 +12,10 @@ venv/
 # Testing / Linting
 .pytest_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
 
 # Databases and Local Caches
 %APPDATA%/

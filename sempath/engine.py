@@ -7,22 +7,18 @@ the handler chain of responsibility.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sempath.chain import build_chain
 from sempath.config import get_index_store_path, load_config
-from sempath.directory_matcher import match_directory_content
-from sempath.handlers.h6_alias import AliasHandler
-
-if TYPE_CHECKING:
-    from sempath.handlers.base import BaseHandler
-    from sempath.search_context import SearchContext
 from sempath.constants import (
     CONTENT_SEARCH_EXACT_CONFIDENCE,
     NEAR_MISS_MIN_CONFIDENCE,
-    TEXT_FILE_MAX_BYTES,
 )
+from sempath.directory_matcher import match_directory_content
+from sempath.handlers.h6_alias import AliasHandler
 from sempath.heuristics import HeuristicsResult, extract_heuristics
 from sempath.index import IndexManager
 from sempath.models import MatchResult, SearchResult
@@ -30,35 +26,22 @@ from sempath.pipeline import (
     filter_by_age,
     filter_by_extensions,
     filter_by_intent,
-    get_path_mtime,
-    get_path_size,
     sort_candidates,
+    sort_match_results,
 )
 from sempath.scanner import scan_directory
+from sempath.search_context import SearchContext
+from sempath.utils.file_ops import extract_matching_snippets, is_text_file
 from sempath.utils.logging import verbose_log
+from sempath.utils.matching import merge_matches
+
+if TYPE_CHECKING:
+    from sempath.handlers.base import BaseHandler
 
 
 def _is_text_file(path: Path) -> bool:
     """Return True if path points to a readable text file (non-binary and < 5MB)."""
-    try:
-        if not path.is_file():
-            return False
-        if path.stat().st_size > TEXT_FILE_MAX_BYTES:
-            return False
-        with open(path, "rb") as f:
-            chunk = f.read(1024)
-            if b"\x00" in chunk:
-                return False
-            try:
-                chunk.decode("utf-8")
-            except UnicodeDecodeError:
-                try:
-                    chunk.decode("latin-1")
-                except UnicodeDecodeError:
-                    return False
-        return True
-    except (OSError, PermissionError):
-        return False
+    return is_text_file(path)
 
 
 def _build_category_failure_message(heuristics: HeuristicsResult) -> str:
@@ -144,10 +127,6 @@ class SearchEngine:
         respect_gitignore: bool = True,
     ) -> tuple[list[Path], str]:
         """Gather candidates using SQLite index or on-the-fly scanning."""
-        import time
-
-        from sempath.utils.logging import verbose_log
-
         t0 = time.perf_counter()
         if use_index:
             needs_init = not self.index_manager.is_indexed(search_root)
@@ -220,7 +199,7 @@ class SearchEngine:
         collected_initial = []
         if read_content:
             content_query = context.raw_query
-            text_files = [p for p in (all_candidates or filtered_candidates) if _is_text_file(p)]
+            text_files = [p for p in (all_candidates or filtered_candidates) if is_text_file(p)]
             verbose_log(
                 f"[bold blue]>> Content scan:[/] checking [bold]{len(text_files)}[/] text files "
                 f"for '[bold]{content_query}[/]'"
@@ -229,12 +208,9 @@ class SearchEngine:
                 try:
                     content = p.read_text(encoding="utf-8", errors="ignore")
                     if content_query in content:
-                        snippets: list[tuple[int, str]] = []
-                        for line_num, line in enumerate(content.splitlines(), start=1):
-                            if content_query in line:
-                                snippets.append((line_num, line.strip()))
-                                if len(snippets) >= 10:
-                                    break
+                        snippets = extract_matching_snippets(
+                            content, content_query, max_snippets=10
+                        )
                         if snippets:
                             collected_initial.append(
                                 MatchResult(
@@ -306,8 +282,6 @@ class SearchEngine:
         name_matches: list[MatchResult],
     ) -> list[MatchResult]:
         """Merge name_query matches into primary match results keeping higher confidence."""
-        from sempath.utils.matching import merge_matches
-
         return merge_matches(match_results, name_matches)
 
     def _sort_confident_matches(
@@ -319,41 +293,13 @@ class SearchEngine:
         oldest_final: bool,
     ) -> None:
         """Sort confident matches based on size/date flags or confidence descending."""
-        if latest_final:
-
-            def _mtime_key(m: MatchResult) -> tuple:
-                return (-get_path_mtime(m.path), -m.confidence)
-
-            confident_matches.sort(key=_mtime_key)
-        elif largest_final:
-
-            def _size_desc_key(m: MatchResult) -> tuple:
-                return (-get_path_size(m.path), -m.confidence)
-
-            confident_matches.sort(key=_size_desc_key)
-        elif smallest_final:
-
-            def _size_asc_key(m: MatchResult) -> tuple:
-                try:
-                    sz = float(m.path.stat().st_size) if m.path.is_file() else float("inf")
-                except Exception:
-                    sz = float("inf")
-                return (sz, -m.confidence)
-
-            confident_matches.sort(key=_size_asc_key)
-        elif oldest_final:
-
-            def _mtime_asc_key(m: MatchResult) -> tuple:
-                try:
-                    mt = m.path.stat().st_mtime
-                except Exception:
-                    mt = float("inf")
-                return (mt, -m.confidence)
-
-            confident_matches.sort(key=_mtime_asc_key)
-        else:
-            # Default: sort by confidence descending, path depth ascending
-            confident_matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
+        sort_match_results(
+            confident_matches,
+            latest=latest_final,
+            largest=largest_final,
+            smallest=smallest_final,
+            oldest=oldest_final,
+        )
 
     def _try_directory_content_match(
         self,
@@ -403,8 +349,6 @@ class SearchEngine:
         non_interactive: bool = False,
     ) -> SearchResult:
         """Find the best matching file path using semantics and heuristics."""
-        import time
-
         t_search_start = time.perf_counter()
 
         def _with_timing(res: SearchResult) -> SearchResult:
@@ -419,13 +363,12 @@ class SearchEngine:
         if early_result:
             return _with_timing(early_result)
 
-        from sempath.search_context import SearchContext
-
         context = SearchContext(
             raw_query=query,
             search_root=search_root,
             top_n=top_n,
             non_interactive=non_interactive,
+            config=self.config,
         )
 
         # 1. Extract heuristics
@@ -497,7 +440,6 @@ class SearchEngine:
                     return _with_timing(dir_res)
 
         # 4. Sort candidates
-
         sort_candidates(
             filtered_candidates,
             latest=latest_final,

@@ -1,7 +1,7 @@
 """Candidate filtering and sorting pipeline.
 
 Provides decoupled functions for applying heuristics constraints
-(extensions, age, types) and sorting strategies to candidate paths.
+(extensions, age, types) and sorting strategies to candidate paths and MatchResults.
 """
 
 from __future__ import annotations
@@ -9,6 +9,10 @@ from __future__ import annotations
 import fnmatch
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sempath.models import MatchResult
 
 
 def filter_by_intent(candidates: list[Path], directory_only: bool, file_only: bool) -> list[Path]:
@@ -102,3 +106,23 @@ def sort_candidates(
         candidates.sort(key=_size_for_smallest)
     elif oldest:
         candidates.sort(key=_mtime_for_oldest)
+
+
+def sort_match_results(
+    matches: list[MatchResult],
+    latest: bool = False,
+    largest: bool = False,
+    smallest: bool = False,
+    oldest: bool = False,
+) -> None:
+    """Sort MatchResult objects in-place based on ordering flags or confidence descending."""
+    if latest:
+        matches.sort(key=lambda m: (-get_path_mtime(m.path), -m.confidence))
+    elif largest:
+        matches.sort(key=lambda m: (-get_path_size(m.path), -m.confidence))
+    elif smallest:
+        matches.sort(key=lambda m: (_size_for_smallest(m.path), -m.confidence))
+    elif oldest:
+        matches.sort(key=lambda m: (_mtime_for_oldest(m.path), -m.confidence))
+    else:
+        matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))

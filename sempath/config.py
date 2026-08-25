@@ -10,11 +10,14 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from sempath.constants import DEFAULT_DEPTH
+
+if TYPE_CHECKING:
+    from sempath.config_schema import AppConfig
 
 # ---------------------------------------------------------------------------
 # Default configuration — mirrors config.yaml
@@ -402,6 +405,13 @@ def load_config(path: Path | None = None) -> dict:
     _validate_config(merged)
 
     return merged
+
+
+def get_typed_config(path: Path | None = None) -> AppConfig:
+    """Load and return the validated configuration as a typed AppConfig instance."""
+    from sempath.config_schema import AppConfig
+
+    return AppConfig.from_dict(load_config(path))
 
 
 def save_config(config_dict: dict, path: Path | None = None) -> None:

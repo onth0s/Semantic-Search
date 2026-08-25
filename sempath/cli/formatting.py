@@ -45,29 +45,23 @@ def _format_elapsed_time(seconds: float) -> str:
 
 def _human_size(size_bytes: int) -> str:
     """Format bytes as human-readable string with 2 decimal places."""
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if size_bytes < 1024:
-            return f"{size_bytes:.2f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.2f} PB"
+    from sempath.utils.file_ops import format_human_size
+
+    return format_human_size(size_bytes)
 
 
 def _human_mtime(mtime: float) -> str:
     """Format a modification timestamp as a human-readable date-time string."""
-    from datetime import datetime
+    from sempath.utils.file_ops import format_human_mtime
 
-    return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+    return format_human_mtime(mtime)
 
 
 def _format_file_meta(path: Path) -> str:
     """Return a compact '[size, date]' dimmed suffix for *path*."""
-    try:
-        st = path.stat()
-        sz = _human_size(st.st_size) if path.is_file() else "DIR"
-        dt = _human_mtime(st.st_mtime)
-        return f" [dim][{sz}, {dt}][/]"
-    except OSError:
-        return ""
+    from sempath.utils.file_ops import get_path_file_meta
+
+    return get_path_file_meta(path)
 
 
 def _format_snippet(snippet_text: str, query: str | None = None) -> str:
