@@ -163,6 +163,9 @@ class TestConfigDepth:
         cfg = load_config()
         assert cfg["depth"] == 10
 
+        # Reset depth to default 5 to prevent side-effects on other tests
+        runner.invoke(cli, ["config", "depth", "5"])
+
     def test_config_depth_invalid(self, runner: CliRunner):
         """config depth with non-positive integer returns error."""
         result = runner.invoke(cli, ["config", "depth", "0"])

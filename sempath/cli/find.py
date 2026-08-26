@@ -34,6 +34,14 @@ class NormalizedPath(click.Path):
             return None
         val_str = str(value).strip("'\"")
 
+        if (
+            val_str in ("./", ".\\", ".//", ".\\\\") or re.match(r"^\.[/\\]+$", val_str)
+        ) and ctx is not None:
+            if ctx.obj is None:
+                ctx.obj = {}
+            if isinstance(ctx.obj, dict):
+                ctx.obj["flat_cwd"] = True
+
         p = Path(val_str)
         if not p.exists() and (val_str.startswith("/") or val_str.startswith("\\")):
             rel_candidate = Path(val_str.lstrip("/\\"))
@@ -56,6 +64,12 @@ def register_find_command(cli_group: click.Group) -> None:
         help="Root directory to search (overrides ROOT_DIR argument).",
     )
     @click.option("--depth", default=None, type=int, help="Maximum folder depth to traverse.")
+    @click.option(
+        "--full-depth",
+        is_flag=True,
+        default=False,
+        help="Search recursively with unlimited folder depth (equivalent to --depth -1).",
+    )
     @click.option(
         "--min-confidence",
         default=0.3,
@@ -143,6 +157,7 @@ def register_find_command(cli_group: click.Group) -> None:
         root_dir: Path,
         root: Path | None,
         depth: int | None,
+        full_depth: bool,
         min_confidence: float,
         top_n: int,
         non_interactive: bool,
@@ -168,15 +183,28 @@ def register_find_command(cli_group: click.Group) -> None:
             err_console.print(f"[bold red]Error loading config:[/] {exc}")
             sys.exit(1)
 
-        depth_final = depth if depth is not None else config.get("depth", DEFAULT_DEPTH)
+        from click.core import ParameterSource
+
+        depth_explicit = ctx.get_parameter_source("depth") == ParameterSource.COMMANDLINE
+        is_flat_cwd = bool(ctx.obj.get("flat_cwd", False)) if (ctx and ctx.obj) else False
+
+        if full_depth or (depth is not None and depth == -1):
+            depth_final = -1
+        elif depth_explicit and depth is not None:
+            depth_final = depth
+        elif is_flat_cwd:
+            depth_final = 1
+        else:
+            depth_final = config.get("depth", DEFAULT_DEPTH)
+
         verbose_final = verbose or config.get("verbose", False)
         exhaustive = config.get("exhaustive", False)
 
         # Check if root parameter was explicitly provided on CLI
-        from click.core import ParameterSource
-
         has_explicit_root = (
-            root is not None or ctx.get_parameter_source("root_dir") == ParameterSource.COMMANDLINE
+            root is not None
+            or is_flat_cwd
+            or ctx.get_parameter_source("root_dir") == ParameterSource.COMMANDLINE
         )
         config_respect = config.get("index", {}).get("respect_gitignore", True)
         default_respect = False if has_explicit_root else config_respect
@@ -202,12 +230,10 @@ def register_find_command(cli_group: click.Group) -> None:
             if verbose or config.get("verbose", False):
                 console.print(f"[dim]Handlers:[/] {', '.join(selected)}")
 
-        from click.core import ParameterSource
-
         top_n_explicit = ctx.get_parameter_source("top_n") == ParameterSource.COMMANDLINE
         top_n_final = top_n if (top_n_explicit or not exhaustive) else 999999
 
-        no_index_final = no_index or exhaustive
+        no_index_final = no_index or exhaustive or (is_flat_cwd and depth_final == 1)
         non_interactive_final = non_interactive or exhaustive
 
         ctx.obj.update(

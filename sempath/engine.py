@@ -399,7 +399,7 @@ class SearchEngine:
         else:
             respect_gitignore_final = respect_gitignore
 
-        if latest_final or largest_final or smallest_final or oldest_final:
+        if latest_final or largest_final or smallest_final or oldest_final or depth == 1:
             use_index = False
 
         candidates, _candidate_source = self._gather_candidates(
@@ -419,9 +419,10 @@ class SearchEngine:
         )
 
         # 3b. Check for Directory Content Matching
-        # (only if no candidate filename directly matches clean_query and not content search)
+        # (only if not flat search, not content search, and no candidate directly matches)
         if (
             not read_content
+            and depth != 1
             and (exts_final or heuristics.file_only)
             and clean_query not in ("", ".", "*")
         ):
@@ -571,8 +572,8 @@ class SearchEngine:
                 )
             )
 
-        # Fallback Directory Content Match (only for filename/path searches, not content search)
-        if not read_content:
+        # Fallback Directory Content Match (only for path searches, not flat CWD or content search)
+        if not read_content and depth != 1:
             verbose_log("[bold blue]>> Phase:[/] [italic]fallback directory content match[/]")
             dir_res_fallback = self._try_directory_content_match(
                 query, clean_query, search_root, candidates, filtered_candidates

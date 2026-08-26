@@ -63,35 +63,65 @@ def test_index_subcommands_lifecycle(tmp_path: Path):
 
 
 def test_config_subcommands(tmp_path: Path):
-    """Test config verbose, gitignore, and depth subcommands."""
+    """Test config list, verbose, gitignore, and depth subcommands."""
     runner = CliRunner()
 
+    # 1. config list / show
+    res_list = runner.invoke(cli, ["config", "list"])
+    assert res_list.exit_code == 0
+    assert "Configuration Settings" in res_list.output
+    assert "depth" in res_list.output
+
+    res_show = runner.invoke(cli, ["config", "show"])
+    assert res_show.exit_code == 0
+    assert "Configuration Settings" in res_show.output
+
+    # 2. config read modes (no args passed)
+    res_get_depth = runner.invoke(cli, ["config", "depth"])
+    assert res_get_depth.exit_code == 0
+    assert "Current default search depth:" in res_get_depth.output
+
+    res_get_verbose = runner.invoke(cli, ["config", "verbose"])
+    assert res_get_verbose.exit_code == 0
+    assert "Current verbose logging:" in res_get_verbose.output
+
+    res_get_gi = runner.invoke(cli, ["config", "gitignore"])
+    assert res_get_gi.exit_code == 0
+    assert "Current respect .gitignore setting:" in res_get_gi.output
+
+    # 3. config write modes
     with patch("sempath.cli.subcommands.config_cmd.save_config") as mock_save:
-        # 1. config verbose on
+        # config verbose on
         res_verbose_on = runner.invoke(cli, ["config", "verbose", "on"])
         assert res_verbose_on.exit_code == 0
         assert "enabled" in res_verbose_on.output
         mock_save.assert_called_with({"verbose": True})
 
-        # 2. config verbose off
+        # config verbose off
         res_verbose_off = runner.invoke(cli, ["config", "verbose", "off"])
         assert res_verbose_off.exit_code == 0
         assert "disabled" in res_verbose_off.output
         mock_save.assert_called_with({"verbose": False})
 
-        # 3. config gitignore on
+        # config gitignore on
         res_gi_on = runner.invoke(cli, ["config", "gitignore", "true"])
         assert res_gi_on.exit_code == 0
         assert "enabled" in res_gi_on.output
         mock_save.assert_called_with({"index": {"respect_gitignore": True}})
 
-        # 4. config depth 10
+        # config depth 10
         res_depth = runner.invoke(cli, ["config", "depth", "10"])
         assert res_depth.exit_code == 0
         assert "Default search depth set to 10" in res_depth.output
         mock_save.assert_called_with({"depth": 10})
 
-        # 5. config depth invalid (< 1)
+        # config depth -1 (unlimited)
+        res_depth_unlimited = runner.invoke(cli, ["config", "depth", "-1"])
+        assert res_depth_unlimited.exit_code == 0
+        assert "unlimited (-1)" in res_depth_unlimited.output
+        mock_save.assert_called_with({"depth": -1})
+
+        # config depth invalid (< 1 and != -1)
         res_depth_invalid = runner.invoke(cli, ["config", "depth", "0"])
         assert res_depth_invalid.exit_code != 0
         assert "Depth must be a positive integer" in res_depth_invalid.output

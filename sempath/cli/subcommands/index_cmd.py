@@ -24,17 +24,29 @@ def register_index_commands(cli_group: click.Group) -> None:
     @index.command("create")
     @click.argument("path", default=".", type=click.Path(exists=True, path_type=Path))
     @click.option("--depth", default=None, type=int, help="Maximum folder depth to traverse.")
-    def index_create(path: Path, depth: int | None) -> None:
+    @click.option(
+        "--full-depth",
+        is_flag=True,
+        default=False,
+        help="Index recursively with unlimited depth (-1).",
+    )
+    def index_create(path: Path, depth: int | None, full_depth: bool) -> None:
         """Build a new index for PATH."""
         try:
             cfg = load_config()
             exclude = cfg.get("index", {}).get("exclude_patterns", [])
             respect_gi = cfg.get("index", {}).get("respect_gitignore", True)
-            depth_final = depth if depth is not None else cfg.get("depth", DEFAULT_DEPTH)
+            if full_depth or (depth is not None and depth == -1):
+                depth_final = -1
+            elif depth is not None:
+                depth_final = depth
+            else:
+                depth_final = cfg.get("depth", DEFAULT_DEPTH)
 
             manager = IndexManager(get_index_store_path(cfg))
+            depth_str = "unlimited" if depth_final == -1 else str(depth_final)
             console.print(
-                f"[yellow]Scanning and indexing:[/] {escape(str(path))} (depth: {depth_final})..."
+                f"[yellow]Scanning and indexing:[/] {escape(str(path))} (depth: {depth_str})..."
             )
             added, deleted = manager.create_or_update_index(
                 path, depth=depth_final, exclude_patterns=exclude, respect_gitignore=respect_gi
@@ -50,13 +62,24 @@ def register_index_commands(cli_group: click.Group) -> None:
     @index.command("update")
     @click.argument("path", default=".", type=click.Path(exists=True, path_type=Path))
     @click.option("--depth", default=None, type=int, help="Maximum folder depth to traverse.")
-    def index_update(path: Path, depth: int | None) -> None:
+    @click.option(
+        "--full-depth",
+        is_flag=True,
+        default=False,
+        help="Update index recursively with unlimited depth (-1).",
+    )
+    def index_update(path: Path, depth: int | None, full_depth: bool) -> None:
         """Incrementally update the index for PATH."""
         try:
             cfg = load_config()
             exclude = cfg.get("index", {}).get("exclude_patterns", [])
             respect_gi = cfg.get("index", {}).get("respect_gitignore", True)
-            depth_final = depth if depth is not None else cfg.get("depth", DEFAULT_DEPTH)
+            if full_depth or (depth is not None and depth == -1):
+                depth_final = -1
+            elif depth is not None:
+                depth_final = depth
+            else:
+                depth_final = cfg.get("depth", DEFAULT_DEPTH)
 
             manager = IndexManager(get_index_store_path(cfg))
             console.print(f"[yellow]Updating index for:[/] {escape(str(path))}...")

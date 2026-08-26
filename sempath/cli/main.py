@@ -68,14 +68,15 @@ class SempathGroup(rich_click.RichGroup):
         except (OSError, ValueError):
             pass
 
-        # Skip preset preprocessing if executing the 'preset' subcommand
-        if args and args[0] == "preset":
+        # Skip preset and config preprocessing if executing subcommands
+        if args and args[0] in ("preset", "config"):
             return super().parse_args(ctx, args)
 
         i = 0
         while i < len(args):
             arg = args[i]
             is_val_for_handlers = i > 0 and args[i - 1] == "--handlers"
+            is_val_for_depth = i > 0 and args[i - 1] in ("--depth", "depth")
 
             preset_name = None
             if arg == "-p":
@@ -105,7 +106,7 @@ class SempathGroup(rich_click.RichGroup):
                 )
                 new_args.append("--handlers")
                 new_args.append(str(preset_val))
-            elif re.match(r"^-\d+$", arg):
+            elif not is_val_for_depth and re.match(r"^-\d+$", arg):
                 new_args.append("--top-n")
                 new_args.append(arg[1:])
             elif not is_val_for_handlers and re.match(r"^--?h(\d[\d,\-]*)$", arg):

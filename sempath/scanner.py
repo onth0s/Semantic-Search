@@ -102,7 +102,7 @@ def scan_directory(
                         continue
 
                     parts = rel_path.parts
-                    if len(parts) > depth:
+                    if depth > 0 and len(parts) > depth:
                         continue
 
                     # Check if any ancestor or the path itself is hidden or excluded
@@ -145,8 +145,8 @@ def scan_directory(
         rel_path = Path(root).relative_to(root_dir)
         curr_depth = len(rel_path.parts)
 
-        # If we have reached the max depth, do not walk any deeper
-        if curr_depth >= depth:
+        # If depth is positive and we have reached the max depth, do not walk any deeper
+        if depth > 0 and curr_depth >= depth:
             dirs.clear()
             continue
 
