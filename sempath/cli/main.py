@@ -12,14 +12,10 @@ from sempath.cli.commands import register_commands
 from sempath.cli.find import register_find_command
 from sempath.cli.history import register_history_commands
 from sempath.config import load_config
-from sempath.utils.console import console
 
 rich_click.STYLE_OPTION = "bold cyan"
 rich_click.STYLE_ARGUMENT = "cyan"
 rich_click.STYLE_COMMAND = "bold green"
-rich_click.STYLE_ERRORS_OPTION = "bold red"
-rich_click.STYLE_METAVAR = "dim"
-rich_click.STYLE_HELPTEXT = ""
 
 
 def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> None:
@@ -27,27 +23,22 @@ def print_full_help(ctx: click.Context, param: click.Parameter, value: bool) -> 
     if not value or ctx.resilient_parsing:
         return
 
-    def _print_command_help(cmd: click.Command, prefix_args: list[str]) -> None:
-        cmd_ctx = cmd.context_class(cmd, info_name=" ".join(prefix_args))
+    def _render_command_help(cmd: click.Command, prefix_args: list[str]) -> None:
         full_name = " ".join(prefix_args)
-        if prefix_args != [ctx.info_name]:
-            console.print()
-        console.print(f"[dim]COMMAND: [bold cyan]{full_name}[/][/]")
-        console.print("=" * (len(full_name) + 9))
-        help_text = cmd.get_help(cmd_ctx)
-        if isinstance(cmd, click.Group):
-            cmds_idx = help_text.find("┌─ Commands")
-            if cmds_idx != -1:
-                help_text = help_text[:cmds_idx].rstrip()
-        console.print(help_text, markup=False)
+        cmd_ctx = cmd.context_class(cmd, info_name=full_name)
+        formatter = cmd_ctx.make_formatter()
+        cmd.format_help(cmd_ctx, formatter)
+        click.echo(formatter.getvalue().rstrip("\n"))
+        click.echo()
+
         if isinstance(cmd, click.Group):
             sub_names = sorted(cmd.list_commands(cmd_ctx))
             for name in sub_names:
                 sub_cmd = cmd.get_command(cmd_ctx, name)
                 if sub_cmd:
-                    _print_command_help(sub_cmd, [*prefix_args, name])
+                    _render_command_help(sub_cmd, [*prefix_args, name])
 
-    _print_command_help(ctx.command, [ctx.info_name])
+    _render_command_help(ctx.command, ["sempath"])
     ctx.exit()
 
 

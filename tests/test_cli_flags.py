@@ -77,10 +77,11 @@ def test_help_full_flag():
     result = runner.invoke(cli, ["--help-full"])
     assert result.exit_code == 0
     # Check that it printed output for all major commands/subcommands
-    assert "COMMAND: sempath" in result.output or "COMMAND: cli" in result.output
+    assert "sempath" in result.output
     assert "find" in result.output
     assert "index create" in result.output
     assert "alias add" in result.output
+    assert "config list" in result.output
     assert "export-memory" in result.output
     assert "import-memory" in result.output
 
