@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -44,15 +45,47 @@ def read_text_safely(path: Path) -> str | None:
 def extract_matching_snippets(
     content: str, query: str, max_snippets: int = 10
 ) -> list[tuple[int, str]]:
-    """Extract line numbers and trimmed line texts matching query."""
+    """Extract line numbers and trimmed line texts matching query.
+
+    Supports exact match, case-insensitive match, and delimiter-normalized matching
+    (matching across spaces, hyphens, underscores).
+    """
     if not query or not content:
         return []
+
+    lines = content.splitlines()
+
+    # 1. Exact substring match
     snippets: list[tuple[int, str]] = []
-    for line_num, line in enumerate(content.splitlines(), start=1):
+    for line_num, line in enumerate(lines, start=1):
         if query in line:
             snippets.append((line_num, line.strip()))
             if len(snippets) >= max_snippets:
-                break
+                return snippets
+    if snippets:
+        return snippets
+
+    # 2. Case-insensitive substring match
+    q_lower = query.lower()
+    for line_num, line in enumerate(lines, start=1):
+        if q_lower in line.lower():
+            snippets.append((line_num, line.strip()))
+            if len(snippets) >= max_snippets:
+                return snippets
+    if snippets:
+        return snippets
+
+    # 3. Delimiter/punctuation-normalized regex match
+    # (e.g. 'Launching-Blender' matches 'Launching Blender')
+    tokens = [re.escape(t) for t in re.split(r"[\s\-_]+", query.strip()) if t]
+    if len(tokens) > 1:
+        pattern = re.compile(r"[\s\-_.:/]+".join(tokens), re.IGNORECASE)
+        for line_num, line in enumerate(lines, start=1):
+            if pattern.search(line):
+                snippets.append((line_num, line.strip()))
+                if len(snippets) >= max_snippets:
+                    return snippets
+
     return snippets
 
 

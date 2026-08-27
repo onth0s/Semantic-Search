@@ -207,24 +207,21 @@ class SearchEngine:
             for p in text_files:
                 try:
                     content = p.read_text(encoding="utf-8", errors="ignore")
-                    if content_query in content:
-                        snippets = extract_matching_snippets(
-                            content, content_query, max_snippets=10
+                    snippets = extract_matching_snippets(content, content_query, max_snippets=10)
+                    if snippets:
+                        collected_initial.append(
+                            MatchResult(
+                                p,
+                                CONTENT_SEARCH_EXACT_CONFIDENCE,
+                                "content_search",
+                                snippets=tuple(snippets),
+                            )
                         )
-                        if snippets:
-                            collected_initial.append(
-                                MatchResult(
-                                    p,
-                                    CONTENT_SEARCH_EXACT_CONFIDENCE,
-                                    "content_search",
-                                    snippets=tuple(snippets),
-                                )
-                            )
-                            verbose_log(
-                                f"  [bold green]✔[/] [cyan]{p.name}[/] contains "
-                                f"'[bold]{content_query}[/]' ({len(snippets)} line match(es), "
-                                f"confidence: [bold]{CONTENT_SEARCH_EXACT_CONFIDENCE:.2f}[/])"
-                            )
+                        verbose_log(
+                            f"  [bold green]✔[/] [cyan]{p.name}[/] contains "
+                            f"'[bold]{content_query}[/]' ({len(snippets)} line match(es), "
+                            f"confidence: [bold]{CONTENT_SEARCH_EXACT_CONFIDENCE:.2f}[/])"
+                        )
                 except (OSError, UnicodeDecodeError):
                     pass
             if collected_initial:

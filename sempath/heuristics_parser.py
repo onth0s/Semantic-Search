@@ -147,12 +147,33 @@ class CategoryParser:
                 clean_query = query[:last_dot].strip()
                 return clean_query, matched_categories, matched_keywords, [suffix]
 
-        # 2. Check whitespace-separated last token (e.g. "bee exe")
+        # 2. Check whitespace-separated last token (e.g. "bee exe", "backup blend1")
         tokens = query_lower.split()
         if len(tokens) > 1:
             last_token = tokens[-1]
             for ext, cat_name in ext_patterns:
-                if fnmatch.fnmatch(last_token, ext.lower()):
+                ext_l = ext.lower()
+                matched = False
+                if "*" in ext_l or "?" in ext_l:
+                    # For wildcard patterns without dot (e.g. 'blend*'):
+                    # Match exact base prefix or wildcard parts consisting of digits/special chars,
+                    # preventing arbitrary words like 'blender' from matching 'blend*'.
+                    base = ext_l.rstrip("*?")
+                    if last_token == base:
+                        matched = True
+                    else:
+                        regex_str = (
+                            "^"
+                            + re.escape(ext_l)
+                            .replace(r"\*", r"[\d_~@#-]*")
+                            .replace(r"\?", r"[\d_~@#-]")
+                            + "$"
+                        )
+                        matched = bool(re.match(regex_str, last_token))
+                else:
+                    matched = last_token == ext_l
+
+                if matched:
                     if cat_name not in matched_categories:
                         matched_categories.append(cat_name)
                     matched_keywords.setdefault(cat_name, []).append(last_token)
