@@ -9,6 +9,7 @@ confidence equal to ``ratio * 1.0``.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,10 @@ from sempath.utils.tokenize import normalize_path_separators
 
 if TYPE_CHECKING:
     from sempath.search_context import SearchContext
+
+_LETTER_DIGIT_RE = re.compile(r"([a-zA-Z])(\d)")
+_DIGIT_LETTER_RE = re.compile(r"(\d)([a-zA-Z])")
+_NON_ALNUM_RE = re.compile(r"[^a-zA-Z0-9]+")
 
 
 class FuzzyMatchHandler(BaseHandler):
@@ -61,6 +66,9 @@ class FuzzyMatchHandler(BaseHandler):
             return []
 
         query_lower = query_clean.lower()
+        query_spaced = _LETTER_DIGIT_RE.sub(r"\1 \2", query_lower)
+        query_spaced = _DIGIT_LETTER_RE.sub(r"\1 \2", query_spaced)
+        query_spaced = _NON_ALNUM_RE.sub(" ", query_spaced).strip()
         query_pure = normalize_path_separators(query_lower)
         query_parts = [p for p in query_pure.split("/") if p]
         k = len(query_parts)
@@ -70,11 +78,15 @@ class FuzzyMatchHandler(BaseHandler):
         for p in candidates:
             p_name_lower = p.name.lower()
             p_stem_lower = p.stem.lower()
+            p_stem_spaced = _LETTER_DIGIT_RE.sub(r"\1 \2", p_stem_lower)
+            p_stem_spaced = _DIGIT_LETTER_RE.sub(r"\1 \2", p_stem_spaced)
+            p_stem_spaced = _NON_ALNUM_RE.sub(" ", p_stem_spaced).strip()
 
             r_name = fuzz.ratio(query_lower, p_name_lower)
             r_stem = fuzz.ratio(query_lower, p_stem_lower)
             r_token_set = fuzz.token_set_ratio(query_lower, p_stem_lower)
-            r_max = max(r_name, r_stem, r_token_set)
+            r_token_set_spaced = fuzz.token_set_ratio(query_spaced, p_stem_spaced)
+            r_max = max(r_name, r_stem, r_token_set, r_token_set_spaced)
 
             # Check partial ratio for queries with 4 or more chars and compatible length
             stem_len = len(p_stem_lower)

@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 
 _NON_ALNUM_RE = re.compile(r"[^a-zA-Z0-9]+")
+_LETTER_DIGIT_RE = re.compile(r"([a-zA-Z])(\d)")
+_DIGIT_LETTER_RE = re.compile(r"(\d)([a-zA-Z])")
 
 
 def singularize_token(token: str) -> str:
@@ -40,14 +42,16 @@ def singularize_token(token: str) -> str:
 def normalize_tokens(text: str) -> set[str]:
     """Normalise *text* into a set of lowercase alphanumeric tokens.
 
-    Strips all non-alphanumeric characters, lowercases the result,
-    splits on whitespace and separator boundaries, and returns the
-    unique token set. Plural suffixes are singularized.
+    Strips all non-alphanumeric characters, splits on letter-digit boundaries,
+    whitespace and separator boundaries, and returns the unique token set.
+    Plural suffixes are singularized.
 
     Examples::
 
         >>> normalize_tokens("Desktop/__MAIN")
         {'desktop', 'main'}
+        >>> normalize_tokens("paper1")
+        {'paper', '1'}
         >>> normalize_tokens("the main dir on dsktp")
         {'the', 'main', 'dir', 'on', 'dsktp'}
         >>> normalize_tokens("")
@@ -56,8 +60,12 @@ def normalize_tokens(text: str) -> set[str]:
     if not text:
         return set()
 
+    # Split letter/digit boundaries
+    spaced = _LETTER_DIGIT_RE.sub(r"\1 \2", text)
+    spaced = _DIGIT_LETTER_RE.sub(r"\1 \2", spaced)
+
     # Replace non-alphanumeric runs with spaces, then split
-    cleaned = _NON_ALNUM_RE.sub(" ", text).strip().lower()
+    cleaned = _NON_ALNUM_RE.sub(" ", spaced).strip().lower()
     if not cleaned:
         return set()
 
@@ -75,7 +83,11 @@ def normalize_tokens_with_wildcards(text: str) -> set[str]:
     if not text:
         return set()
 
-    cleaned = _WILD_RE.sub(" ", text).strip().lower()
+    # Split letter/digit boundaries
+    spaced = _LETTER_DIGIT_RE.sub(r"\1 \2", text)
+    spaced = _DIGIT_LETTER_RE.sub(r"\1 \2", spaced)
+
+    cleaned = _WILD_RE.sub(" ", spaced).strip().lower()
     if not cleaned:
         return set()
     return {singularize_token(t) if "*" not in t and "?" not in t else t for t in cleaned.split()}
