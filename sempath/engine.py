@@ -20,6 +20,11 @@ from sempath.constants import (
 from sempath.directory_matcher import match_directory_content
 from sempath.handlers.h6_alias import AliasHandler
 from sempath.heuristics import HeuristicsResult, extract_heuristics
+from sempath.heuristics_parser import (
+    OrderingAndIntentParser,
+    TemporalParser,
+    normalize_whitespace,
+)
 from sempath.index import IndexManager
 from sempath.models import MatchResult, SearchResult
 from sempath.pipeline import (
@@ -194,11 +199,12 @@ class SearchEngine:
         top_n: int,
         context: SearchContext,
         all_candidates: list[Path] | None = None,
+        content_pattern: str | None = None,
     ) -> list[MatchResult]:
         """Execute the handler chain on candidates, including text search if enabled."""
         collected_initial = []
-        if read_content:
-            content_query = context.raw_query
+        if read_content and content_pattern:
+            content_query = content_pattern
             text_files = [p for p in (all_candidates or filtered_candidates) if is_text_file(p)]
             verbose_log(
                 f"[bold blue]>> Content scan:[/] checking [bold]{len(text_files)}[/] text files "
@@ -375,6 +381,14 @@ class SearchEngine:
         h_age_limit = heuristics.age_limit
         h_latest = heuristics.latest
 
+        # Content search pattern: raw query stripped of only temporal/ordering/intent
+        # words (extension suffixes like ".yaml" stay literal). None => no scan.
+        content_pattern = None
+        if read_content:
+            pat, _ = TemporalParser.parse(query)
+            pat, *_ = OrderingAndIntentParser.parse(pat)
+            content_pattern = normalize_whitespace(pat) or None
+
         # Merge CLI arguments and heuristics
         latest_final = latest or h_latest
         largest_final = largest or heuristics.largest
@@ -451,7 +465,14 @@ class SearchEngine:
         query_fully_consumed_with_sort = clean_query in ("", ".", "*") and (
             latest_final or largest_final or smallest_final or oldest_final
         )
-        if (original_query_placeholder or query_fully_consumed_with_sort) and filtered_candidates:
+        # With -c/--read-content, a real query must proceed to content search instead
+        # of the name/extension bypass; bare placeholders ("." / "*") still bypass.
+        bypass_blocked = read_content and not original_query_placeholder
+        if (
+            (original_query_placeholder or query_fully_consumed_with_sort)
+            and filtered_candidates
+            and not bypass_blocked
+        ):
             match_result = MatchResult(filtered_candidates[0], 1.0, "explicit_flags")
             near_misses = [MatchResult(p, 1.0, "explicit_flags") for p in filtered_candidates[1:]]
             return _with_timing(
@@ -495,6 +516,7 @@ class SearchEngine:
             chain_top_n,
             context,
             all_candidates=candidates,
+            content_pattern=content_pattern,
         )
         match_results = self._merge_name_query_matches(match_results, chain_matches)
         if match_results:
