@@ -53,33 +53,43 @@ def extract_matching_snippets(
     if not query or not content:
         return []
 
+    q_lower = query.lower()
+    has_exact = query in content
+    has_case_insensitive = q_lower in content.lower()
+
+    tokens = [re.escape(t) for t in re.split(r"[\s\-_]+", query.strip()) if t]
+    pattern = re.compile(r"[\s\-_.:/]+".join(tokens), re.IGNORECASE) if len(tokens) > 1 else None
+    has_pattern = pattern.search(content) is not None if pattern else False
+
+    if not (has_exact or has_case_insensitive or has_pattern):
+        return []
+
     lines = content.splitlines()
 
     # 1. Exact substring match
     snippets: list[tuple[int, str]] = []
-    for line_num, line in enumerate(lines, start=1):
-        if query in line:
-            snippets.append((line_num, line.strip()))
-            if len(snippets) >= max_snippets:
-                return snippets
-    if snippets:
-        return snippets
+    if has_exact:
+        for line_num, line in enumerate(lines, start=1):
+            if query in line:
+                snippets.append((line_num, line.strip()))
+                if len(snippets) >= max_snippets:
+                    return snippets
+        if snippets:
+            return snippets
 
     # 2. Case-insensitive substring match
-    q_lower = query.lower()
-    for line_num, line in enumerate(lines, start=1):
-        if q_lower in line.lower():
-            snippets.append((line_num, line.strip()))
-            if len(snippets) >= max_snippets:
-                return snippets
-    if snippets:
-        return snippets
+    if has_case_insensitive:
+        for line_num, line in enumerate(lines, start=1):
+            if q_lower in line.lower():
+                snippets.append((line_num, line.strip()))
+                if len(snippets) >= max_snippets:
+                    return snippets
+        if snippets:
+            return snippets
 
     # 3. Delimiter/punctuation-normalized regex match
     # (e.g. 'Launching-Blender' matches 'Launching Blender')
-    tokens = [re.escape(t) for t in re.split(r"[\s\-_]+", query.strip()) if t]
-    if len(tokens) > 1:
-        pattern = re.compile(r"[\s\-_.:/]+".join(tokens), re.IGNORECASE)
+    if pattern and has_pattern:
         for line_num, line in enumerate(lines, start=1):
             if pattern.search(line):
                 snippets.append((line_num, line.strip()))

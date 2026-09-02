@@ -47,9 +47,189 @@ class CategoryConfig:
     extensions: list[str] = field(default_factory=list)
 
 
+def get_default_categories() -> dict[str, CategoryConfig]:
+    """Return the default heuristic categories and their keywords/extensions."""
+    return {
+        "image": CategoryConfig(
+            keywords=[
+                "pic",
+                "pics",
+                "picture",
+                "pictures",
+                "photo",
+                "photos",
+                "image",
+                "images",
+                "img",
+                "imgs",
+                "png",
+                "pngs",
+                "jpg",
+                "jpgs",
+                "jpeg",
+                "jpegs",
+                "webp",
+                "gif",
+                "gifs",
+                "bmp",
+                "bmps",
+            ],
+            extensions=["png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "ico", "svg"],
+        ),
+        "document": CategoryConfig(
+            keywords=[
+                "doc",
+                "docs",
+                "document",
+                "documents",
+                "pdf",
+                "pdfs",
+                "text",
+                "txt",
+                "txts",
+                "csv",
+                "csvs",
+                "md",
+                "markdown",
+                "markdowns",
+                "vcf",
+                "vcfs",
+            ],
+            extensions=[
+                "pdf",
+                "docx",
+                "doc",
+                "txt",
+                "rtf",
+                "odt",
+                "xls",
+                "xlsx",
+                "ppt",
+                "pptx",
+                "csv",
+                "md",
+                "markdown",
+                "vcf",
+            ],
+        ),
+        "code": CategoryConfig(
+            keywords=[
+                "code",
+                "script",
+                "scripts",
+                "source",
+                "py",
+                "python",
+                "js",
+                "javascript",
+                "ts",
+                "typescript",
+                "html",
+                "css",
+                "json",
+                "yaml",
+                "yml",
+                "toml",
+            ],
+            extensions=[
+                "py",
+                "js",
+                "ts",
+                "html",
+                "css",
+                "json",
+                "yaml",
+                "yml",
+                "toml",
+                "sh",
+                "bat",
+                "ps1",
+                "rs",
+                "go",
+                "cpp",
+                "c",
+                "h",
+            ],
+        ),
+        "audio": CategoryConfig(
+            keywords=[
+                "audio",
+                "audios",
+                "sound",
+                "sounds",
+                "music",
+                "mp3",
+                "mp3s",
+                "wav",
+                "wavs",
+                "flac",
+                "flacs",
+                "song",
+                "songs",
+                "tune",
+                "tunes",
+            ],
+            extensions=["mp3", "wav", "flac", "m4a", "ogg", "aac"],
+        ),
+        "video": CategoryConfig(
+            keywords=[
+                "video",
+                "videos",
+                "vid",
+                "vids",
+                "movie",
+                "movies",
+                "film",
+                "films",
+                "mp4",
+                "mp4s",
+                "mkv",
+                "mkvs",
+                "avi",
+                "avis",
+                "mov",
+                "movs",
+            ],
+            extensions=["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"],
+        ),
+        "archive": CategoryConfig(
+            keywords=[
+                "archive",
+                "archives",
+                "compressed",
+                "compression",
+                "zip",
+                "zips",
+                "rar",
+                "rars",
+                "7z",
+                "7zs",
+                "tar",
+                "tars",
+            ],
+            extensions=["zip", "rar", "tar", "gz", "7z", "tgz"],
+        ),
+        "executable": CategoryConfig(
+            keywords=[
+                "exe",
+                "exes",
+                "executable",
+                "executables",
+                "binary",
+                "binaries",
+            ],
+            extensions=["exe", "msi", "bat", "cmd", "ps1", "sh"],
+        ),
+        "backup_blend": CategoryConfig(
+            keywords=["blend1", "blend1s", "backup", "backups"],
+            extensions=["blend*"],
+        ),
+    }
+
+
 @dataclass
 class HeuristicsConfig:
-    categories: dict[str, CategoryConfig] = field(default_factory=dict)
+    categories: dict[str, CategoryConfig] = field(default_factory=get_default_categories)
 
 
 @dataclass
@@ -130,7 +310,9 @@ class AppConfig:
                 )
             elif isinstance(cat_val, CategoryConfig):
                 categories[cat_name] = cat_val
-        heuristics = HeuristicsConfig(categories=categories)
+        heuristics = HeuristicsConfig(
+            categories=categories if categories else get_default_categories()
+        )
 
         return cls(
             depth=int(data.get("depth", DEFAULT_DEPTH)),

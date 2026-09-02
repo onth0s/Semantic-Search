@@ -39,14 +39,10 @@ from sempath.search_context import SearchContext
 from sempath.utils.file_ops import extract_matching_snippets, is_text_file
 from sempath.utils.logging import verbose_log
 from sempath.utils.matching import merge_matches
+from sempath.utils.stat_cache import FileStatCache
 
 if TYPE_CHECKING:
     from sempath.handlers.base import BaseHandler
-
-
-def _is_text_file(path: Path) -> bool:
-    """Return True if path points to a readable text file (non-binary and < 5MB)."""
-    return is_text_file(path)
 
 
 def _build_category_failure_message(heuristics: HeuristicsResult) -> str:
@@ -175,6 +171,7 @@ class SearchEngine:
         heuristics: HeuristicsResult,
         exts_final: list[str],
         h_age_limit: int | None,
+        stat_cache: FileStatCache | None = None,
     ) -> list[Path]:
         """Filter candidates by intent, extensions, and age."""
         intent_candidates = filter_by_intent(
@@ -187,7 +184,7 @@ class SearchEngine:
         if not heuristics.directory_only:
             filtered_candidates = filter_by_extensions(filtered_candidates, exts_final)
 
-        filtered_candidates = filter_by_age(filtered_candidates, h_age_limit)
+        filtered_candidates = filter_by_age(filtered_candidates, h_age_limit, stat_cache=stat_cache)
         return filtered_candidates
 
     def _execute_chain(
@@ -294,6 +291,7 @@ class SearchEngine:
         largest_final: bool,
         smallest_final: bool,
         oldest_final: bool,
+        stat_cache: FileStatCache | None = None,
     ) -> None:
         """Sort confident matches based on size/date flags or confidence descending."""
         sort_match_results(
@@ -302,6 +300,7 @@ class SearchEngine:
             largest=largest_final,
             smallest=smallest_final,
             oldest=oldest_final,
+            stat_cache=stat_cache,
         )
 
     def _try_directory_content_match(
@@ -334,6 +333,61 @@ class SearchEngine:
             )
         return None
 
+    def _execute_secondary_name_chain(
+        self,
+        chain: BaseHandler,
+        name_query: str,
+        intent_candidates: list[Path],
+        exts_final: list[str],
+        top_n: int,
+        context: SearchContext,
+    ) -> list[MatchResult]:
+        """Execute fast secondary chain on singularized name_query."""
+        try:
+            fast_cfg = dict(self.config)
+            fast_cfg["handlers"] = dict(self.config.get("handlers", {}))
+            fast_cfg["handlers"]["enabled"] = [
+                h for h in fast_cfg["handlers"].get("enabled", []) if h not in ("h7", "h8")
+            ]
+            name_chain = build_chain(fast_cfg) if fast_cfg["handlers"]["enabled"] else chain
+        except Exception:
+            name_chain = chain
+
+        verbose_log(
+            f"[bold blue]>> Phase:[/] [italic]name_query secondary chain[/] "
+            f"(name_query: '[bold]{name_query}[/]')"
+        )
+        name_matches = name_chain.handle(
+            name_query, intent_candidates, top_n=top_n, context=context
+        )
+        if exts_final:
+            name_matches = [nm for nm in name_matches if nm.handler != "category_match"]
+        return name_matches
+
+    def _collect_near_misses(
+        self,
+        chain: BaseHandler,
+        clean_query: str,
+        filtered_candidates: list[Path],
+        context: SearchContext,
+    ) -> list[MatchResult]:
+        """Collect near-misses across all handlers and return sorted by confidence."""
+        verbose_log(
+            "[bold blue]>> Phase:[/] [italic]near-miss collection (re-scanning all handlers)[/]"
+        )
+        seen_paths: dict[Path, MatchResult] = {}
+        try:
+            res_list = chain.collect_all_matches(clean_query, filtered_candidates, context=context)
+            for r in res_list:
+                if r.path not in seen_paths or r.confidence > seen_paths[r.path].confidence:
+                    seen_paths[r.path] = r
+        except Exception as exc:
+            verbose_log(f"[dim yellow]Warning during near-miss collection: {exc}[/]")
+
+        near_misses = [m for m in seen_paths.values() if m.confidence >= NEAR_MISS_MIN_CONFIDENCE]
+        near_misses.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
+        return near_misses
+
     def find_path(
         self,
         query: str,
@@ -360,6 +414,7 @@ class SearchEngine:
             return res
 
         search_root = Path(root_dir).resolve()
+        stat_cache = FileStatCache()
 
         # Early-bypass check for alias matching
         query, search_root, early_result = self._resolve_early_alias(query, search_root)
@@ -422,7 +477,9 @@ class SearchEngine:
         )
 
         # 3. Filter candidates
-        filtered_candidates = self._apply_filters(candidates, heuristics, exts_final, h_age_limit)
+        filtered_candidates = self._apply_filters(
+            candidates, heuristics, exts_final, h_age_limit, stat_cache=stat_cache
+        )
         intent_candidates = filter_by_intent(
             candidates,
             directory_only=heuristics.directory_only,
@@ -458,6 +515,7 @@ class SearchEngine:
             largest=largest_final,
             smallest=smallest_final,
             oldest=oldest_final,
+            stat_cache=stat_cache,
         )
 
         # 5. Check for direct bypass
@@ -533,27 +591,14 @@ class SearchEngine:
 
         # 7. Merge name_query matches if applicable (only for filename searches, not content search)
         if not read_content and heuristics.name_query and heuristics.name_query != clean_query:
-            try:
-                fast_cfg = dict(self.config)
-                fast_cfg["handlers"] = dict(self.config.get("handlers", {}))
-                fast_cfg["handlers"]["enabled"] = [
-                    h for h in fast_cfg["handlers"].get("enabled", []) if h not in ("h7", "h8")
-                ]
-                name_chain = build_chain(fast_cfg) if fast_cfg["handlers"]["enabled"] else chain
-            except Exception:
-                name_chain = chain
-
-            verbose_log(
-                f"[bold blue]>> Phase:[/] [italic]name_query secondary chain[/] "
-                f"(name_query: '[bold]{heuristics.name_query}[/]')"
+            name_matches = self._execute_secondary_name_chain(
+                chain=chain,
+                name_query=heuristics.name_query,
+                intent_candidates=intent_candidates,
+                exts_final=exts_final,
+                top_n=top_n,
+                context=context,
             )
-            name_matches = name_chain.handle(
-                heuristics.name_query, intent_candidates, top_n=top_n, context=context
-            )
-            if exts_final:
-                allowed_name_matches = [nm for nm in name_matches if nm.handler != "category_match"]
-                name_matches = allowed_name_matches
-
             match_results = self._merge_name_query_matches(match_results, name_matches)
 
         confident_matches = [m for m in match_results if m.confidence >= min_confidence]
@@ -576,7 +621,12 @@ class SearchEngine:
             )
 
         self._sort_confident_matches(
-            confident_matches, latest_final, largest_final, smallest_final, oldest_final
+            confident_matches,
+            latest_final,
+            largest_final,
+            smallest_final,
+            oldest_final,
+            stat_cache=stat_cache,
         )
 
         if confident_matches:
@@ -601,19 +651,12 @@ class SearchEngine:
                 return _with_timing(dir_res_fallback)
 
         # Collect near-misses by scanning all handlers
-        verbose_log(
-            "[bold blue]>> Phase:[/] [italic]near-miss collection (re-scanning all handlers)[/]"
+        near_misses = self._collect_near_misses(
+            chain=chain,
+            clean_query=clean_query,
+            filtered_candidates=filtered_candidates,
+            context=context,
         )
-        seen_paths = {}
-        try:
-            res_list = chain.collect_all_matches(clean_query, filtered_candidates, context=context)
-            for r in res_list:
-                if r.path not in seen_paths or r.confidence > seen_paths[r.path].confidence:
-                    seen_paths[r.path] = r
-        except Exception as exc:
-            verbose_log(f"[dim yellow]Warning during near-miss collection: {exc}[/]")
-
-        near_misses = list(seen_paths.values())
         near_misses = [m for m in near_misses if m.confidence >= NEAR_MISS_MIN_CONFIDENCE]
         near_misses.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
 
