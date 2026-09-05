@@ -17,6 +17,7 @@ from sempath.cli.formatting import (
     _format_snippet,
     _is_generic_stem,
     _print_grouped_matches,
+    get_ordered_display_matches,
 )
 from sempath.config import load_config
 from sempath.constants import DEFAULT_DEPTH
@@ -284,22 +285,6 @@ def register_find_command(cli_group: click.Group) -> None:
             err_console.print(f"[bold red]Search Engine error:[/] {exc}")
             sys.exit(1)
 
-        # Persist last-search snapshot for 'sempath list' / 'sempath get N'
-        if search_result.match is not None or search_result.near_misses:
-            from sempath.utils.history import save_history
-
-            save_history(
-                query=query,
-                root_dir=search_root,
-                elapsed_seconds=search_result.elapsed_seconds,
-                search_result=search_result,
-            )
-
-        # Output results
-        if json_output:
-            click.echo(json.dumps(search_result.to_dict(), indent=2))
-            sys.exit(0 if search_result.status == "success" else 1)
-
         if search_result.status == "success":
             if search_result.message:
                 console.print(f"[yellow]ℹ {search_result.message}[/]")  # noqa: RUF001
@@ -327,6 +312,37 @@ def register_find_command(cli_group: click.Group) -> None:
                     primary = non_generic[0]
                     near_misses = [*non_generic[1:], *generic]
 
+            displayed_near_misses: list = []
+            if near_misses and top_n_final > 1:
+                displayed_near_misses = get_ordered_display_matches(
+                    near_misses,
+                    search_root=search_root,
+                    limit=top_n_final - 1,
+                )
+
+            # Persist last-search snapshot matching the exact visual console numbering
+            from sempath.models import SearchResult
+            from sempath.utils.history import save_history
+
+            snapshot_result = SearchResult(
+                status="success",
+                query=query,
+                match=primary,
+                near_misses=displayed_near_misses,
+                elapsed_seconds=search_result.elapsed_seconds,
+            )
+            save_history(
+                query=query,
+                root_dir=search_root,
+                elapsed_seconds=search_result.elapsed_seconds,
+                search_result=snapshot_result,
+            )
+
+            # Output results
+            if json_output:
+                click.echo(json.dumps(search_result.to_dict(), indent=2))
+                sys.exit(0)
+
             match_count_header = ""
             if primary.snippets:
                 n_snip = len(primary.snippets)
@@ -352,10 +368,10 @@ def register_find_command(cli_group: click.Group) -> None:
                 for line_num, snippet_text in primary.snippets:
                     formatted_snippet = _format_snippet(snippet_text, query)
                     console.print(f"  [dim]└─ L{line_num}:[/] {formatted_snippet}")
-            if near_misses and top_n_final > 1:
+            if displayed_near_misses:
                 _print_grouped_matches(
-                    near_misses,
-                    limit=top_n_final - 1,
+                    displayed_near_misses,
+                    limit=len(displayed_near_misses),
                     verbose=verbose_final,
                     query=query,
                     start_index=2,
@@ -384,12 +400,33 @@ def register_find_command(cli_group: click.Group) -> None:
                         err=True,
                     )
                 except click.Abort:
-                    console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
-                    _print_grouped_matches(
+                    displayed_ambiguous = get_ordered_display_matches(
                         search_result.near_misses,
+                        search_root=search_root,
                         limit=top_n_final,
-                        verbose=verbose_final,
                     )
+                    from sempath.models import SearchResult
+                    from sempath.utils.history import save_history
+
+                    snapshot_result = SearchResult(
+                        status="ambiguous",
+                        query=query,
+                        near_misses=displayed_ambiguous,
+                        elapsed_seconds=search_result.elapsed_seconds,
+                    )
+                    save_history(
+                        query=query,
+                        root_dir=search_root,
+                        elapsed_seconds=search_result.elapsed_seconds,
+                        search_result=snapshot_result,
+                    )
+                    console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
+                    if displayed_ambiguous:
+                        _print_grouped_matches(
+                            displayed_ambiguous,
+                            limit=len(displayed_ambiguous),
+                            verbose=verbose_final,
+                        )
                     sys.exit(1)
 
                 if 1 <= selection <= len(top_candidates):
@@ -408,6 +445,25 @@ def register_find_command(cli_group: click.Group) -> None:
 
                         verbose_log(f"[dim]Failed to save learned memory: {exc}[/]")
 
+                    # Save confirmed match as primary in history
+                    from sempath.models import SearchResult
+                    from sempath.utils.history import save_history
+
+                    remaining_candidates = [c for c in top_candidates if c.path != selected_nm.path]
+                    snapshot_result = SearchResult(
+                        status="success",
+                        query=query,
+                        match=selected_nm,
+                        near_misses=remaining_candidates,
+                        elapsed_seconds=search_result.elapsed_seconds,
+                    )
+                    save_history(
+                        query=query,
+                        root_dir=search_root,
+                        elapsed_seconds=search_result.elapsed_seconds,
+                        search_result=snapshot_result,
+                    )
+
                     meta = _format_file_meta(selected_nm.path) + (
                         f" [dim]({selected_nm.handler}, "
                         f"confidence: {selected_nm.confidence:.2f})[/]"
@@ -421,13 +477,42 @@ def register_find_command(cli_group: click.Group) -> None:
                     )
                     sys.exit(0)
 
-            console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
-            _print_grouped_matches(
+            displayed_ambiguous = get_ordered_display_matches(
                 search_result.near_misses,
+                search_root=search_root,
                 limit=top_n_final,
-                verbose=verbose_final,
             )
+            from sempath.models import SearchResult
+            from sempath.utils.history import save_history
+
+            snapshot_result = SearchResult(
+                status="ambiguous",
+                query=query,
+                near_misses=displayed_ambiguous,
+                elapsed_seconds=search_result.elapsed_seconds,
+            )
+            save_history(
+                query=query,
+                root_dir=search_root,
+                elapsed_seconds=search_result.elapsed_seconds,
+                search_result=snapshot_result,
+            )
+
+            if json_output:
+                click.echo(json.dumps(search_result.to_dict(), indent=2))
+                sys.exit(1)
+
+            console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
+            if displayed_ambiguous:
+                _print_grouped_matches(
+                    displayed_ambiguous,
+                    limit=len(displayed_ambiguous),
+                    verbose=verbose_final,
+                )
             sys.exit(1)
         else:
+            if json_output:
+                click.echo(json.dumps(search_result.to_dict(), indent=2))
+                sys.exit(1)
             console.print(f"[bold red]❌ Failed:[/] {search_result.message}")
             sys.exit(1)

@@ -99,6 +99,55 @@ def _classify_match(path: Path, search_root: Path) -> str:
         return _GROUP_OTHER
 
 
+def get_ordered_display_matches(
+    matches: list,
+    search_root: Path,
+    limit: int | None = None,
+) -> list:
+    """Return *matches* ordered exactly as grouped for console display, up to *limit*."""
+    from collections import defaultdict
+
+    content_matches = [m for m in matches if getattr(m, "snippets", None)]
+    path_matches = [m for m in matches if not getattr(m, "snippets", None)]
+
+    ordered: list = []
+
+    def _collect_partition(partition_items: list) -> None:
+        groups: dict[str, list] = defaultdict(list)
+        for nm in partition_items:
+            group_lbl = _classify_match(nm.path, search_root)
+            groups[group_lbl].append(nm)
+
+        group_order = []
+        seen_groups = set()
+        for nm in partition_items:
+            group_lbl = _classify_match(nm.path, search_root)
+            if group_lbl != _GROUP_GENERIC and group_lbl not in seen_groups:
+                seen_groups.add(group_lbl)
+                group_order.append(group_lbl)
+
+        if _GROUP_GENERIC in groups:
+            group_order.append(_GROUP_GENERIC)
+
+        for group_name in group_order:
+            if limit is not None and len(ordered) >= limit:
+                break
+            items = groups.get(group_name, [])
+            for nm in items:
+                if limit is not None and len(ordered) >= limit:
+                    break
+                ordered.append(nm)
+
+    if content_matches:
+        _collect_partition(content_matches)
+        if path_matches and (limit is None or len(ordered) < limit):
+            _collect_partition(path_matches)
+    else:
+        _collect_partition(matches)
+
+    return ordered
+
+
 def _print_grouped_matches(
     matches: list,
     limit: int,
