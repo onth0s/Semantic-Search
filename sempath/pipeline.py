@@ -146,4 +146,4 @@ def sort_match_results(
             key=lambda m: (_mtime_for_oldest(m.path, stat_cache=stat_cache), -m.confidence)
         )
     else:
-        matches.sort(key=lambda m: (-m.confidence, len(m.path.parts)))
+        matches.sort(key=lambda m: (-m.confidence, -len(m.snippets), len(m.path.parts)))

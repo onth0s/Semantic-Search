@@ -15,6 +15,11 @@ from sempath.chain import build_chain
 from sempath.config import get_index_store_path, load_config
 from sempath.constants import (
     CONTENT_SEARCH_EXACT_CONFIDENCE,
+    CONTENT_TIER_CI_SUBSTRING,
+    CONTENT_TIER_CI_TOKEN,
+    CONTENT_TIER_DELIMITED,
+    CONTENT_TIER_EXACT_SUBSTRING,
+    CONTENT_TIER_EXACT_TOKEN,
     NEAR_MISS_MIN_CONFIDENCE,
 )
 from sempath.directory_matcher import match_directory_content
@@ -36,7 +41,15 @@ from sempath.pipeline import (
 )
 from sempath.scanner import scan_directory
 from sempath.search_context import SearchContext
-from sempath.utils.file_ops import extract_matching_snippets, is_text_file
+from sempath.utils.file_ops import (
+    TIER_CI_SUBSTRING,
+    TIER_CI_TOKEN,
+    TIER_DELIMITED,
+    TIER_EXACT_SUBSTRING,
+    TIER_EXACT_TOKEN,
+    extract_content_match_info,
+    is_text_file,
+)
 from sempath.utils.logging import verbose_log
 from sempath.utils.matching import merge_matches
 from sempath.utils.stat_cache import FileStatCache
@@ -210,20 +223,33 @@ class SearchEngine:
             for p in text_files:
                 try:
                     content = p.read_text(encoding="utf-8", errors="ignore")
-                    snippets = extract_matching_snippets(content, content_query, max_snippets=10)
-                    if snippets:
+                    info = extract_content_match_info(content, content_query, max_snippets=10)
+                    if info and info.snippets:
+                        tier_map = {
+                            TIER_EXACT_TOKEN: CONTENT_TIER_EXACT_TOKEN,
+                            TIER_CI_TOKEN: CONTENT_TIER_CI_TOKEN,
+                            TIER_EXACT_SUBSTRING: CONTENT_TIER_EXACT_SUBSTRING,
+                            TIER_CI_SUBSTRING: CONTENT_TIER_CI_SUBSTRING,
+                            TIER_DELIMITED: CONTENT_TIER_DELIMITED,
+                        }
+                        base_conf = tier_map.get(info.best_tier, CONTENT_SEARCH_EXACT_CONFIDENCE)
+                        # Frequency bonus: up to +0.04 (e.g. +0.005 per extra occurrence)
+                        freq_bonus = min(0.04, max(0, info.total_occurrences - 1) * 0.005)
+                        confidence = round(min(0.99, base_conf + freq_bonus), 4)
+
                         collected_initial.append(
                             MatchResult(
                                 p,
-                                CONTENT_SEARCH_EXACT_CONFIDENCE,
+                                confidence,
                                 "content_search",
-                                snippets=tuple(snippets),
+                                snippets=tuple(info.snippets),
                             )
                         )
                         verbose_log(
                             f"  [bold green]✔[/] [cyan]{p.name}[/] contains "
-                            f"'[bold]{content_query}[/]' ({len(snippets)} line match(es), "
-                            f"confidence: [bold]{CONTENT_SEARCH_EXACT_CONFIDENCE:.2f}[/])"
+                            f"'[bold]{content_query}[/]' (tier {info.best_tier}, "
+                            f"{info.total_occurrences} occurrence(s), "
+                            f"confidence: [bold]{confidence:.2f}[/])"
                         )
                 except (OSError, UnicodeDecodeError):
                     pass

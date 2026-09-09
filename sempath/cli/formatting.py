@@ -65,12 +65,18 @@ def _format_file_meta(path: Path) -> str:
 
 
 def _format_snippet(snippet_text: str, query: str | None = None) -> str:
-    """Format snippet text without dimming, highlighting exact case-sensitive query matches."""
+    """Format snippet text without dimming, highlighting query matches in bold yellow."""
     if not query or not query.strip() or query.strip() in (".", "*"):
         return escape(snippet_text)
 
-    # Exact case-sensitive replacement of query matches with bold yellow/amber highlight
-    pattern = re.compile(re.escape(query))
+    # Compile regex matching query (case-insensitively) or delimiter-separated tokens
+    tokens = [re.escape(t) for t in re.split(r"[\s\-_]+", query.strip()) if t]
+    if len(tokens) > 1:
+        joined_delims = r"[\s\-_.:/]+".join(tokens)
+        pattern = re.compile(rf"({re.escape(query)}|{joined_delims})", re.IGNORECASE)
+    else:
+        pattern = re.compile(re.escape(query), re.IGNORECASE)
+
     parts = []
     last_idx = 0
     for match in pattern.finditer(snippet_text):
