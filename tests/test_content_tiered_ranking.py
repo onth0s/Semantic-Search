@@ -117,17 +117,18 @@ def test_content_search_tiered_ranking_order(sample_config: dict, tmp_path: Path
 
 
 def test_snippet_highlighting():
-    # Exact case highlight
+    # Tier 1: exact token at boundary → bold green
     snip1 = _format_snippet("Process Execution System (PES) active", "PES")
-    assert "[bold yellow]PES[/]" in snip1
+    assert "[bold green]PES[/]" in snip1
 
-    # Case-insensitive highlight
+    # Tier 4: CI substring buried in word → plain yellow (no bold)
     snip2 = _format_snippet('name = "foreign-types"', "PES")
-    assert "[bold yellow]pes[/]" in snip2
-    assert "foreign-ty[bold yellow]pes[/]" in snip2
+    assert "[yellow]pes[/]" in snip2
+    assert "foreign-ty[yellow]pes[/]" in snip2
 
-    # Preserves mixed casing
+    # Mixed: all three are CI token matches (query "pes" differs in case from Pes/pEs/PES)
+    # All at word boundaries → Tier 2 → bold cyan
     snip3 = _format_snippet("Pes and pEs and PES", "pes")
-    assert "[bold yellow]Pes[/]" in snip3
-    assert "[bold yellow]pEs[/]" in snip3
-    assert "[bold yellow]PES[/]" in snip3
+    assert "[bold cyan]Pes[/]" in snip3
+    assert "[bold cyan]pEs[/]" in snip3
+    assert "[bold cyan]PES[/]" in snip3

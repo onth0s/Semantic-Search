@@ -64,26 +64,82 @@ def _format_file_meta(path: Path) -> str:
     return get_path_file_meta(path)
 
 
+def _tier_color_for_occurrence(
+    matched_str: str,
+    query: str,
+    context_line: str,
+    match_start: int,
+    match_end: int,
+    is_delimiter_match: bool,
+) -> str:
+    """Return the Rich color tag string for a single matched occurrence.
+
+    Tier 1 (exact token)     → ``bold green``
+    Tier 2 (CI token)        → ``bold cyan``
+    Tier 3 (exact substring) → ``bold yellow``
+    Tier 4 (CI substring)    → ``yellow``
+    Tier 5 (delimiter match) → ``bold cyan``  (same as Tier 2)
+    """
+    # Tier 5: delimiter-normalized multi-token (e.g. "Launching-Blender" ← "Launching Blender")
+    if is_delimiter_match:
+        return "bold cyan"
+
+    # Check token boundary: chars immediately outside the match must be non-alphanumeric
+    before_ok = match_start == 0 or not context_line[match_start - 1].isalnum()
+    after_ok = match_end == len(context_line) or not context_line[match_end].isalnum()
+
+    if before_ok and after_ok:
+        # Tier 1: exact case + token boundary
+        if matched_str == query:
+            return "bold green"
+        # Tier 2: case-insensitive token boundary
+        return "bold cyan"
+    else:
+        # Tier 3: exact case substring buried in a larger word
+        if matched_str == query:
+            return "bold yellow"
+        # Tier 4: case-insensitive substring (lowest confidence)
+        return "yellow"
+
+
 def _format_snippet(snippet_text: str, query: str | None = None) -> str:
-    """Format snippet text without dimming, highlighting query matches in bold yellow."""
+    """Format snippet text, highlighting matches with tier-based colors.
+
+    Colors reflect match confidence:
+
+    - ``[bold green]``   Tier 1 — exact token  (e.g. ``(PES)``, ``PES-STATE``)
+    - ``[bold cyan]``    Tier 2/5 — CI token or delimiter-normalized multi-token
+    - ``[bold yellow]``  Tier 3 — exact substring within a larger word
+    - ``[yellow]``       Tier 4 — CI substring (lowest confidence)
+    """
     if not query or not query.strip() or query.strip() in (".", "*"):
         return escape(snippet_text)
 
-    # Compile regex matching query (case-insensitively) or delimiter-separated tokens
-    tokens = [re.escape(t) for t in re.split(r"[\s\-_]+", query.strip()) if t]
-    if len(tokens) > 1:
-        joined_delims = r"[\s\-_.:/]+".join(tokens)
-        pattern = re.compile(rf"({re.escape(query)}|{joined_delims})", re.IGNORECASE)
-    else:
-        pattern = re.compile(re.escape(query), re.IGNORECASE)
+    q = query.strip()
+    tokens = [re.escape(t) for t in re.split(r"[\s\-_]+", q) if t]
+    multi_token = len(tokens) > 1
 
-    parts = []
+    # Build pattern with two capture groups when multi-token:
+    #   group 1 → exact query literal   (Tiers 1-4, boundary checked at runtime)
+    #   group 2 → delimiter-normalized  (Tier 5)
+    if multi_token:
+        delim_branch = r"[\s\-_.:/]+".join(tokens)
+        pattern = re.compile(rf"({re.escape(q)})|({delim_branch})", re.IGNORECASE)
+    else:
+        pattern = re.compile(rf"({re.escape(q)})", re.IGNORECASE)
+
+    parts: list[str] = []
     last_idx = 0
-    for match in pattern.finditer(snippet_text):
-        parts.append(escape(snippet_text[last_idx : match.start()]))
-        matched_str = escape(match.group(0))
-        parts.append(f"[bold yellow]{matched_str}[/]")
-        last_idx = match.end()
+    for m in pattern.finditer(snippet_text):
+        parts.append(escape(snippet_text[last_idx : m.start()]))
+        matched_str = m.group(0)
+        # group(1) is None only when the delimiter branch (group 2) matched
+        is_delim = multi_token and m.group(1) is None
+        color = _tier_color_for_occurrence(
+            matched_str, q, snippet_text, m.start(), m.end(), is_delim
+        )
+        parts.append(f"[{color}]{escape(matched_str)}[/]")
+        last_idx = m.end()
     parts.append(escape(snippet_text[last_idx:]))
     return "".join(parts)
 
