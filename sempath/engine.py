@@ -210,16 +210,23 @@ class SearchEngine:
         context: SearchContext,
         all_candidates: list[Path] | None = None,
         content_pattern: str | None = None,
+        has_extension_filter: bool = False,
     ) -> list[MatchResult]:
         """Execute the handler chain on candidates, including text search if enabled."""
         collected_initial = []
         if read_content and content_pattern:
             content_query = content_pattern
-            text_files = [p for p in (all_candidates or filtered_candidates) if is_text_file(p)]
+            candidate_pool = (
+                filtered_candidates
+                if has_extension_filter
+                else (all_candidates or filtered_candidates)
+            )
+            text_files = [p for p in candidate_pool if is_text_file(p)]
             verbose_log(
                 f"[bold blue]>> Content scan:[/] checking [bold]{len(text_files)}[/] text files "
                 f"for '[bold]{content_query}[/]'"
             )
+
             for p in text_files:
                 try:
                     content = p.read_text(encoding="utf-8", errors="ignore")
@@ -468,7 +475,22 @@ class SearchEngine:
         if read_content:
             pat, _ = TemporalParser.parse(query)
             pat, *_ = OrderingAndIntentParser.parse(pat)
-            content_pattern = normalize_whitespace(pat) or None
+            pat = normalize_whitespace(pat) or None
+
+            # If the query had an extension suffix attached to a non-empty stem (e.g. 'PES.md')
+            # where heuristics extracted extensions and left clean_query as the stem ('PES'),
+            # use clean_query as the content search query.
+            if (
+                pat
+                and "." in pat
+                and h_exts
+                and clean_query
+                and clean_query not in ("", ".", "*")
+                and clean_query.lower() != pat.lower()
+            ):
+                content_pattern = clean_query
+            else:
+                content_pattern = pat
 
         # Merge CLI arguments and heuristics
         latest_final = latest or h_latest
@@ -476,6 +498,15 @@ class SearchEngine:
         smallest_final = smallest or heuristics.smallest
         oldest_final = oldest or heuristics.oldest
         exts_final = [ext.lower().lstrip(".")] if ext else (h_exts or [])
+
+        # For content search, apply extension filtering if an explicit --ext was passed,
+        # or if the query used extension syntactic sugar on a non-empty stem (e.g. 'PES.md').
+        content_has_ext_filter = bool(ext) or (
+            read_content
+            and content_pattern == clean_query
+            and bool(h_exts)
+            and clean_query not in ("", ".", "*")
+        )
 
         verbose_log(
             f"[dim]Heuristics extracted: clean_query='{clean_query}', "
@@ -601,7 +632,9 @@ class SearchEngine:
             context,
             all_candidates=candidates,
             content_pattern=content_pattern,
+            has_extension_filter=content_has_ext_filter,
         )
+
         match_results = self._merge_name_query_matches(match_results, chain_matches)
         if match_results:
             verbose_log(

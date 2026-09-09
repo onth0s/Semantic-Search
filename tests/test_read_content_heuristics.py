@@ -87,3 +87,41 @@ def test_read_content_with_sort_orders_content_by_mtime(tmp_path: Path, sample_c
     assert res.match is not None
     assert res.match.handler == "content_search"
     assert res.match.path == b
+
+
+def test_read_content_with_extension_sugar(tmp_path: Path, sample_config: dict):
+    """'PES.md' with -c should grep 'PES' only within .md files."""
+    engine = SearchEngine(sample_config)
+
+    md_file = tmp_path / "README.md"
+    md_file.write_text("Programmatic Enforcement Substrate (PES)\n", encoding="utf-8")
+
+    txt_file = tmp_path / "other.txt"
+    txt_file.write_text("Programmatic Enforcement Substrate (PES)\n", encoding="utf-8")
+
+    res = engine.find_path("PES.md", tmp_path, no_index=True, read_content=True, top_n=5)
+    assert res.status == "success"
+    assert res.match is not None
+    assert res.match.path == md_file
+    # txt_file must not be matched since extension filter was .md
+    matched_paths = [res.match.path] + [nm.path for nm in res.near_misses]
+    assert txt_file not in matched_paths
+
+
+def test_read_content_extension_sugar_with_sort(tmp_path: Path, sample_config: dict):
+    """'PES.md latest' with -c should parse stem, extension filter, and sort flag."""
+    engine = SearchEngine(sample_config)
+
+    older_md = tmp_path / "doc_old.md"
+    older_md.write_text("PES protocol\n", encoding="utf-8")
+
+    newer_md = tmp_path / "doc_new.md"
+    newer_md.write_text("PES protocol\n", encoding="utf-8")
+
+    os.utime(older_md, (1000, 1000))
+    os.utime(newer_md, (2000, 2000))
+
+    res = engine.find_path("PES.md latest", tmp_path, no_index=True, read_content=True, top_n=1)
+    assert res.status == "success"
+    assert res.match is not None
+    assert res.match.path == newer_md
