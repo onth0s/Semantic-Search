@@ -36,8 +36,7 @@ class ExactMatchHandler(BaseHandler):
         matches = self.match_all(query, candidates, context=context)
         if not matches:
             return None
-        # Tie-breaker: shortest path depth first
-        return min(matches, key=lambda m: len(m.path.parts))
+        return matches[0]
 
     def match_all(
         self,
@@ -66,5 +65,18 @@ class ExactMatchHandler(BaseHandler):
                     or ("/" in query_pure and p_str.endswith(query_pure))
                 ):
                     matches.append(MatchResult(p, 1.0, self.name))
+
+        if matches:
+            import re
+
+            prefix = query_pure.split("*")[0].split("?")[0].lower() if is_glob else ""
+
+            def _tie_breaker(m: MatchResult) -> tuple[int, int, int, int, str]:
+                stem = m.path.stem.lower()
+                is_copy = 1 if bool(re.search(r"\(\d+\)|\bcopy\b", stem)) else 0
+                prefix_dist = 0 if prefix and stem.startswith(prefix) else (1 if prefix else 0)
+                return (prefix_dist, is_copy, len(m.path.parts), len(stem), stem)
+
+            matches.sort(key=_tie_breaker)
 
         return matches

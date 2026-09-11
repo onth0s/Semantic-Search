@@ -13,8 +13,6 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import click
-
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
 from sempath.utils.console import err_console
@@ -39,24 +37,6 @@ class EmbeddingHandler(BaseHandler):
         raw_query = context.raw_query if context else self.config.get("_raw_query", query)
         if not raw_query or not candidates:
             return None
-
-        # Check interactive mode
-        non_interactive = context.non_interactive if context else True
-        if context is None:
-            ctx = click.get_current_context(silent=True)
-            if ctx:
-                non_interactive = ctx.obj.get("non_interactive", False)
-
-        # Show prompt before running heavy ML matching (if interactive)
-        if not non_interactive:
-            err_console.print(
-                "\n[bold yellow]No quick match found.[/] "
-                "Fallback to Deep Semantic Search ([cyan]sentence-transformers[/])?"
-            )
-            err_console.print("[dim]This may take 1-2 seconds.[/]")
-            confirm = click.confirm("Continue", default=True, err=True)
-            if not confirm:
-                return None
 
         # Lazy load sentence-transformers
         import os
@@ -102,8 +82,13 @@ class EmbeddingHandler(BaseHandler):
         if context:
             search_root = context.search_root
         else:
-            ctx = click.get_current_context(silent=True)
-            search_root = ctx.obj.get("root", Path(".")) if ctx else Path(".")
+            try:
+                import click
+
+                ctx = click.get_current_context(silent=True)
+                search_root = ctx.obj.get("root", Path(".")) if (ctx and ctx.obj) else Path(".")
+            except Exception:
+                search_root = Path(".")
 
         def _candidate_rel_text(p: Path) -> str:
             try:

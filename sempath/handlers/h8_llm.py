@@ -23,8 +23,6 @@ import urllib.request
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import click
-
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
 from sempath.utils.console import err_console
@@ -106,17 +104,18 @@ class LLMHandler(BaseHandler):
         # LLM safety: evaluate max 100 candidates in H8.
         candidates_to_use = candidates[:100]
         if exhaustive:
-            # Unbounded H8 matches up to candidate list size (max 100)
             top_k = len(candidates_to_use)
         else:
-            # Clamp manually based on -N option / top_n if available,
-            # else fall back to h8_top_k config/default
-            top_n_val = None
             if context:
                 top_n_val = context.top_n
             else:
-                ctx = click.get_current_context(silent=True)
-                top_n_val = ctx.obj.get("top_n") if (ctx and ctx.obj) else None
+                try:
+                    import click
+
+                    ctx = click.get_current_context(silent=True)
+                    top_n_val = ctx.obj.get("top_n") if (ctx and ctx.obj) else None
+                except Exception:
+                    top_n_val = None
 
             if top_n_val is not None:
                 top_k = min(int(top_n_val), len(candidates_to_use))
@@ -127,8 +126,13 @@ class LLMHandler(BaseHandler):
         if context:
             search_root = context.search_root
         else:
-            ctx = click.get_current_context(silent=True)
-            search_root = ctx.obj.get("root", Path(".")) if ctx else Path(".")
+            try:
+                import click
+
+                ctx = click.get_current_context(silent=True)
+                search_root = ctx.obj.get("root", Path(".")) if (ctx and ctx.obj) else Path(".")
+            except Exception:
+                search_root = Path(".")
 
         # Build relative-path strings; fall back to absolute if not under root
         def _rel(p: Path) -> str:

@@ -168,55 +168,67 @@ class AliasHandler(BaseHandler):
         context: SearchContext | None = None,
     ) -> MatchResult | None:
         """Attempt an alias-based match against candidate paths."""
-        if not candidates:
+        matches = self.match_all(query, candidates, context=context)
+        if not matches:
             return None
+        return min(matches, key=lambda m: len(m.path.parts))
+
+    def match_all(
+        self,
+        query: str,
+        candidates: list[Path],
+        context: SearchContext | None = None,
+    ) -> list[MatchResult]:
+        """Attempt an alias-based match against candidate paths, returning all matches."""
+        if not candidates:
+            return []
 
         # Determine raw query and clean query to check
         raw_query = context.raw_query if context else self.config.get("_raw_query", query)
+        search_root = context.search_root if context else self.config.get("_current_search_root")
+        if not search_root:
+            try:
+                import click
+
+                ctx = click.get_current_context(silent=True)
+                search_root = ctx.obj.get("root") if (ctx and ctx.obj) else None
+            except Exception:
+                search_root = None
+
+        results: list[MatchResult] = []
+        seen_paths: set[Path] = set()
+
+        def _add_match(p: Path, conf: float = 0.95) -> None:
+            if p not in seen_paths:
+                seen_paths.add(p)
+                results.append(MatchResult(p, conf, self.name))
 
         # 1. Try fast resolve for direct match
-        search_root = None
-        if context:
-            search_root = context.search_root
-        else:
-            import click
-
-            ctx = click.get_current_context(silent=True)
-            search_root = ctx.obj.get("root") if ctx else None
-            if not search_root:
-                search_root = self.config.get("_current_search_root")
-
         if search_root:
-            # Check raw query first
             if raw_query:
                 resolved = self.fast_resolve(raw_query, Path(search_root))
                 if resolved:
-                    return MatchResult(resolved, 0.95, self.name)
-            # Fall back to clean query
+                    _add_match(resolved)
             if query and query != raw_query:
                 resolved = self.fast_resolve(query, Path(search_root))
                 if resolved:
-                    return MatchResult(resolved, 0.95, self.name)
+                    _add_match(resolved)
 
-        # 3. Fallback to direct candidate-based matching (e.g. for testing)
-        # 3.1 Check direct learned memory match
+        # 2. Check direct learned memory match
         from sempath.utils.memory import load_memory
 
         entries = load_memory()
         for entry in entries:
-            # Check raw query
-            if raw_query and self._matches_key(raw_query, entry.get("query", "")):
+            entry_q = entry.get("query", "")
+            if (raw_query and self._matches_key(raw_query, entry_q)) or (
+                query and query != raw_query and self._matches_key(query, entry_q)
+            ):
                 p = Path(entry["path"])
-                return MatchResult(p, 0.95, self.name)
-            # Check clean query
-            if query and query != raw_query and self._matches_key(query, entry.get("query", "")):
-                p = Path(entry["path"])
-                return MatchResult(p, 0.95, self.name)
+                _add_match(p)
 
-        # 3.2 Check direct config alias match
+        # 3. Check direct config alias match
         aliases = self.config.get("aliases", {})
         for key, targets in aliases.items():
-            # If matches raw_query or clean_query
             matches_raw = raw_query and (
                 self._matches_key(raw_query, key)
                 or any(self._matches_key(raw_query, target) for target in targets)
@@ -231,7 +243,6 @@ class AliasHandler(BaseHandler):
             )
 
             if matches_raw or matches_clean:
-                matched = []
                 for p in candidates:
                     for target in targets:
                         target_lower = target.lower()
@@ -239,12 +250,9 @@ class AliasHandler(BaseHandler):
                             if fnmatch.fnmatch(p.name.lower(), target_lower) or fnmatch.fnmatch(
                                 p.stem.lower(), target_lower
                             ):
-                                matched.append(p)
+                                _add_match(p)
                         else:
                             if p.name.lower() == target_lower or p.stem.lower() == target_lower:
-                                matched.append(p)
-                if matched:
-                    best = min(matched, key=lambda p: len(p.parts))
-                    return MatchResult(best, 0.95, self.name)
+                                _add_match(p)
 
-        return None
+        return results

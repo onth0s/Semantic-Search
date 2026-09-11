@@ -36,9 +36,7 @@ class CaseInsensitiveHandler(BaseHandler):
         matches = self.match_all(query, candidates, context=context)
         if not matches:
             return None
-
-        # Return candidate with highest confidence, tie-breaking by shallowest path depth
-        return min(matches, key=lambda m: (-m.confidence, len(m.path.parts)))
+        return matches[0]
 
     def match_all(
         self,
@@ -85,5 +83,18 @@ class CaseInsensitiveHandler(BaseHandler):
 
             if confidence > 0.0:
                 results.append(MatchResult(p, confidence, self.name))
+
+        if results:
+            import re
+
+            prefix = query_pure.split("*")[0].split("?")[0].lower() if is_glob else ""
+
+            def _tie_breaker(m: MatchResult) -> tuple[float, int, int, int, int, str]:
+                stem = m.path.stem.lower()
+                is_copy = 1 if bool(re.search(r"\(\d+\)|\bcopy\b", stem)) else 0
+                prefix_dist = 0 if prefix and stem.startswith(prefix) else (1 if prefix else 0)
+                return (-m.confidence, prefix_dist, is_copy, len(m.path.parts), len(stem), stem)
+
+            results.sort(key=_tie_breaker)
 
         return results

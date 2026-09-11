@@ -380,24 +380,11 @@ def register_find_command(cli_group: click.Group) -> None:
             sys.exit(0)
         elif search_result.status == "ambiguous":
             if not non_interactive_final and search_result.near_misses:
-                top_candidates = list(search_result.near_misses)[:5]
-                err_console.print(
-                    "\n[bold yellow]?[/] No exact match found. Did you mean one of these?"
-                )
-                for idx, nm in enumerate(top_candidates, start=1):
-                    nm_meta = _format_file_meta(nm.path)
-                    if verbose_final:
-                        nm_meta += f" [dim]({nm.handler}, confidence: {nm.confidence:.2f})[/]"
-                    err_console.print(f"  {idx}. [cyan]{escape(str(nm.path))}[/]{nm_meta}")
-                err_console.print(f"  {len(top_candidates) + 1}. [dim]None of the above[/]")
+                from sempath.cli.prompter import prompt_disambiguation_selection
 
                 try:
-                    selection = click.prompt(
-                        f"Select an option (1-{len(top_candidates) + 1})",
-                        type=int,
-                        default=len(top_candidates) + 1,
-                        show_default=True,
-                        err=True,
+                    selected_nm = prompt_disambiguation_selection(
+                        search_result.near_misses, verbose=verbose_final
                     )
                 except click.Abort:
                     displayed_ambiguous = get_ordered_display_matches(
@@ -429,8 +416,7 @@ def register_find_command(cli_group: click.Group) -> None:
                         )
                     sys.exit(1)
 
-                if 1 <= selection <= len(top_candidates):
-                    selected_nm = top_candidates[selection - 1]
+                if selected_nm is not None:
                     try:
                         from sempath.utils.memory import add_or_update_memory
 
@@ -449,7 +435,8 @@ def register_find_command(cli_group: click.Group) -> None:
                     from sempath.models import SearchResult
                     from sempath.utils.history import save_history
 
-                    remaining_candidates = [c for c in top_candidates if c.path != selected_nm.path]
+                    top_cands = list(search_result.near_misses)[:5]
+                    remaining_candidates = [c for c in top_cands if c.path != selected_nm.path]
                     snapshot_result = SearchResult(
                         status="success",
                         query=query,

@@ -34,6 +34,7 @@ STOPWORDS_SET = {
     "to",
     "by",
     "from",
+    "under",
 }
 STOPWORDS_RE = re.compile(rf"\b({'|'.join(STOPWORDS_SET)})\b", re.IGNORECASE)
 
@@ -130,6 +131,12 @@ class CategoryParser:
         matched_categories: list[str] = []
         matched_keywords: dict[str, list[str]] = {}
 
+        # If the trailing token contains wildcards (* or ?), it's a glob pattern
+        # (e.g. *.png, *.blend*, delete-me*.kra). Do not strip extensions from glob patterns.
+        tokens = query_lower.split()
+        if tokens and ("*" in tokens[-1] or "?" in tokens[-1]):
+            return query, None, None, None
+
         # 1. Check dot-separated suffix (e.g. "bee.exe")
         last_dot = query_lower.rfind(".")
         if last_dot != -1 and last_dot < len(query_lower) - 1:
@@ -148,7 +155,6 @@ class CategoryParser:
                 return clean_query, matched_categories, matched_keywords, [suffix]
 
         # 2. Check whitespace-separated last token (e.g. "bee exe", "backup blend1")
-        tokens = query_lower.split()
         if len(tokens) > 1:
             last_token = tokens[-1]
             for ext, cat_name in ext_patterns:
@@ -197,7 +203,15 @@ class CategoryParser:
         clean_query = query
         keyword_pairs = []
         for cat_name, cat_info in categories.items():
-            keywords = cat_info.get("keywords", [])
+            keywords = list(cat_info.get("keywords", []))
+            if cat_name not in keywords:
+                keywords.append(cat_name)
+            cat_name_space = cat_name.replace("_", " ")
+            if cat_name_space not in keywords:
+                keywords.append(cat_name_space)
+            cat_name_dash = cat_name.replace("_", "-")
+            if cat_name_dash not in keywords:
+                keywords.append(cat_name_dash)
             for kw in keywords:
                 keyword_pairs.append((kw, cat_name))
 
@@ -208,7 +222,20 @@ class CategoryParser:
         # 1. Exact token matching
         for kw, cat_name in keyword_pairs:
             pattern = re.compile(rf"(?<!\.)\b{re.escape(kw)}\b(?!\.)", re.IGNORECASE)
-            if pattern.search(clean_query):
+            m = pattern.search(clean_query)
+            if m:
+                # Check wildcard adjacency without intervening whitespace
+                prefix_before = (
+                    clean_query[: m.start()].split()[-1] if clean_query[: m.start()].strip() else ""
+                )
+                suffix_after = (
+                    clean_query[m.end() :].split()[0] if clean_query[m.end() :].strip() else ""
+                )
+                if ("*" in prefix_before or "?" in prefix_before) or (
+                    "*" in suffix_after or "?" in suffix_after
+                ):
+                    continue
+
                 matched_categories.add(cat_name)
                 matched_category_keywords.setdefault(cat_name, []).append(kw.lower())
                 clean_query = pattern.sub(" ", clean_query)
@@ -221,6 +248,12 @@ class CategoryParser:
         tokens_to_check = re.findall(r"(?<!\.)\b[a-zA-Z0-9_-]+\b(?!\.)", clean_query)
         for token in tokens_to_check:
             if len(token) < 3:
+                continue
+
+            # Skip tokens that are part of a wildcard pattern (e.g. *.blend*, *.mp4)
+            if re.search(
+                rf"[\*\?][^\s]*{re.escape(token)}|{re.escape(token)}[^\s]*[\*\?]", clean_query
+            ):
                 continue
 
             for kw, cat_name in keyword_pairs:

@@ -22,6 +22,13 @@ class MatchResult(NamedTuple):
     handler: str
     snippets: tuple[tuple[int, str], ...] = ()
 
+    def sort_key(self) -> tuple[float, int, int]:
+        """Return the standard sorting key.
+
+        Order: descending confidence, descending snippet count, ascending path depth.
+        """
+        return (-self.confidence, -len(self.snippets), len(self.path.parts))
+
 
 @dataclass
 class SearchResult:

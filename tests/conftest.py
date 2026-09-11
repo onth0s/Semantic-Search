@@ -84,3 +84,15 @@ def temp_config_file(tmp_path: Path, sample_config: dict) -> Path:
     config_path = tmp_path / "config.yaml"
     config_path.write_text(yaml.dump(sample_config, default_flow_style=False), encoding="utf-8")
     return config_path
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Print a cute ASCII character saying BANZAI~! when all tests pass."""
+    if exitstatus == 0:
+        banzai_banner = r"""
+  (\__/)
+  (•ㅅ•)  BANZAI~!
+  / 　 づ
+"""
+        terminalreporter.write_sep("=", "ALL TESTS PASSED - BANZAI~!", green=True, bold=True)
+        terminalreporter.write_line(banzai_banner)

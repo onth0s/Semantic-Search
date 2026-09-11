@@ -15,23 +15,50 @@ from typing import TYPE_CHECKING
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
-from sempath.utils.tokenize import normalize_path_separators, normalize_tokens_with_wildcards
+from sempath.utils.path_suffixes import path_suffixes
+from sempath.utils.tokenize import (
+    normalize_path_separators,
+    normalize_tokens_with_wildcards,
+    singularize_token,
+)
 
 if TYPE_CHECKING:
     from sempath.search_context import SearchContext
 
 
-def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> bool:
-    """Compare query token patterns to candidate tokens using bijection/wildcard matching."""
+def _token_matches(c_tok: str, q_tok: str) -> bool:
+    """Check if candidate token matches query token, with singularization support for wildcards."""
+    if fnmatch.fnmatch(c_tok, q_tok):
+        return True
+    if q_tok.endswith("*") or q_tok.endswith("?"):
+        prefix = q_tok.rstrip("*?")
+        wild = q_tok[len(prefix) :]
+        if prefix:
+            sing_prefix = singularize_token(prefix)
+            if sing_prefix != prefix and fnmatch.fnmatch(c_tok, sing_prefix + wild):
+                return True
+    return False
+
+
+def _match_token_sets(
+    query_tokens: set[str], candidate_tokens: set[str], allow_subset: bool = False
+) -> bool:
+    """Compare query token patterns to candidate tokens using bijection or subset matching."""
     has_wildcard = any("*" in q or "?" in q for q in query_tokens)
     if not has_wildcard:
-        return query_tokens == candidate_tokens
+        return (
+            query_tokens.issubset(candidate_tokens)
+            if allow_subset
+            else query_tokens == candidate_tokens
+        )
 
     q_list = list(query_tokens)
     c_list = list(candidate_tokens)
 
     def search(q_idx: int, c_idx_set: set[int]) -> bool:
         if q_idx == len(q_list):
+            if allow_subset:
+                return True
             if len(c_idx_set) == len(c_list):
                 return True
             return "*" in q_list
@@ -49,7 +76,7 @@ def _match_token_sets(query_tokens: set[str], candidate_tokens: set[str]) -> boo
         for i, c_tok in enumerate(c_list):
             if i in c_idx_set:
                 continue
-            if fnmatch.fnmatch(c_tok, q_tok) and search(q_idx + 1, c_idx_set.union({i})):
+            if _token_matches(c_tok, q_tok) and search(q_idx + 1, c_idx_set.union({i})):
                 return True
 
         return False
@@ -114,15 +141,30 @@ class TokenNormalizedHandler(BaseHandler):
                 if _match_token_sets(query_tokens, normalize_tokens_with_wildcards(suffix_str)):
                     confidence = 0.90
 
-            # 3. Token-subset fallback (only if no wildcard in query)
-            if confidence == 0.0 and not any("*" in q or "?" in q for q in query_tokens):
-                if query_tokens.issubset(p_name_tokens) or query_tokens.issubset(p_stem_tokens):
+            # 3. Token-subset fallback (allows extra candidate tokens, with or without wildcards)
+            if confidence == 0.0:
+                if _match_token_sets(
+                    query_tokens, p_name_tokens, allow_subset=True
+                ) or _match_token_sets(query_tokens, p_stem_tokens, allow_subset=True):
                     confidence = 0.90
                 elif k > 1 and len(p.parts) >= k:
                     suffix_parts = p.parts[-k:]
                     suffix_str = "/".join(suffix_parts)
-                    if query_tokens.issubset(normalize_tokens_with_wildcards(suffix_str)):
+                    if _match_token_sets(
+                        query_tokens,
+                        normalize_tokens_with_wildcards(suffix_str),
+                        allow_subset=True,
+                    ):
                         confidence = 0.90
+                elif any(
+                    _match_token_sets(
+                        query_tokens,
+                        normalize_tokens_with_wildcards(s),
+                        allow_subset=True,
+                    )
+                    for s in path_suffixes(p, query)
+                ):
+                    confidence = 0.90
 
             if confidence > 0.0:
                 results.append(MatchResult(p, confidence, self.name))

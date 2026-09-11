@@ -127,27 +127,37 @@ def match_directory_content(
 
     descendants = []
     matched_dir = None
+
+    # Pass 1: Prefer a matching directory that contains files matching filtered_candidates
     for d in matching_dirs:
-        # First try filtered_candidates
+        dir_descendants = []
         for fc in filtered_candidates:
             if fc.is_file():
                 try:
                     fc.relative_to(d)
-                    descendants.append(fc)
+                    dir_descendants.append(fc)
                 except ValueError:
                     pass
-        # Fallback to candidates if filtered_candidates yielded no files for this directory
-        if not descendants:
+        if dir_descendants:
+            matched_dir = d
+            descendants = dir_descendants
+            break
+
+    # Pass 2: Fallback to any matching directory with candidate files only if Pass 1 found nothing
+    if not descendants:
+        for d in matching_dirs:
+            dir_descendants = []
             for c in candidates:
                 if c.is_file():
                     try:
                         c.relative_to(d)
-                        descendants.append(c)
+                        dir_descendants.append(c)
                     except ValueError:
                         pass
-        if descendants:
-            matched_dir = d
-            break  # Use the first directory that has matching files
+            if dir_descendants:
+                matched_dir = d
+                descendants = dir_descendants
+                break
 
     if descendants:
         descendants.sort(key=lambda p: (len(p.parts), p.name.lower()))
