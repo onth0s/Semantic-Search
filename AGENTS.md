@@ -31,7 +31,7 @@ When searching for files, architectural concepts, or code snippets across a repo
 - **Don't restore any files that have been deleted unless the user explicitly tells you to.**
 - **Code Quality Check**: Always run Ruff (`py -3.13 -m ruff check --fix` and `py -3.13 -m ruff format`) to check and format the codebase after every major change.
 - **Distribution/Packaging**: Package distribution is deferred for now as this is still in beta. The configuration file `config.yaml` remains at the project root as a user-editable example.
-- **Root Parameter Precedence & `--gitignore` Toggle**: Specifying a root path explicitly (including `.`) takes precedence over `.gitignore` matching rules for traversal, unless `--gitignore` is passed (which flips whatever the default pruning tactic is set regarding git ignores).
+- **Root Parameter Precedence & `--gitignore` Toggle**: Specifying a root path explicitly (including `.`) takes precedence over `.gitignore` matching rules for traversal, and also bypasses `index.exclude_patterns` — such searches run on-the-fly with full visibility, and the persistent index is neither read nor mutated for that run. Unless `--gitignore` is passed (which flips whatever the default pruning tactic is set regarding git ignores).
 - **Native `rich_click` Help Formatting & `--help-full` Standard**:
   - Never write ad-hoc custom ASCII/text formatters, custom table hacks, or manual header separators (e.g. `COMMAND: ... \n ===`) for help output.
   - All help rendering — including recursive full help (`--help-full`) — must strictly delegate to `rich_click`'s native command formatter (`formatter = cmd_ctx.make_formatter(); cmd.format_help(cmd_ctx, formatter); click.echo(...)`).

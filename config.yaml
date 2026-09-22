@@ -12,6 +12,8 @@ index:
   store: "%APPDATA%\\sempath\\cache"
   respect_gitignore: false  # respect dynamic nested .gitignore rules
   exclude_patterns:
+    # Pruned for default-root searches only; an explicitly provided root
+    # bypasses these (on-the-fly scan, index untouched).
     - "node_modules"
     - ".git"
     - "venv"

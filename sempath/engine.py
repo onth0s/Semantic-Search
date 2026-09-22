@@ -76,6 +76,7 @@ class SearchEngine:
             no_index=not use_index,
             respect_gitignore=respect_gitignore,
             is_sorting_or_flat=is_sorting_or_flat,
+            exclude_patterns=exclude_patterns,
         )
 
     def _apply_filters(
@@ -202,6 +203,7 @@ class SearchEngine:
         depth: int = 5,
         no_index: bool = False,
         respect_gitignore: bool | None = None,
+        exclude_patterns: list[str] | None = None,
         min_confidence: float = 0.3,
         ext: str | None = None,
         latest: bool = False,
@@ -222,6 +224,16 @@ class SearchEngine:
 
         search_root = Path(root_dir).resolve()
         stat_cache = FileStatCache()
+
+        # Explicit-root override: bypass index.exclude_patterns with an on-the-fly
+        # scan so the search sees the full tree. The persistent index is neither
+        # read nor mutated for this run (see root-precedence rules).
+        bypass_excludes = exclude_patterns is not None
+        if bypass_excludes:
+            no_index = True
+            verbose_log(
+                "[dim]Explicit root: bypassing index.exclude_patterns (on-the-fly scan).[/]"
+            )
 
         # Early-bypass check for alias matching
         query, search_root, early_result = self.query_stage.resolve_early_alias(query, search_root)
@@ -267,6 +279,7 @@ class SearchEngine:
             no_index=no_index,
             respect_gitignore=respect_gitignore,
             is_sorting_or_flat=is_sorting_or_flat,
+            exclude_patterns=exclude_patterns,
         )
 
         # 3. Filter candidates

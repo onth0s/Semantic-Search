@@ -279,6 +279,7 @@ def register_find_command(cli_group: click.Group) -> None:
                 oldest=oldest,
                 ext=ext,
                 respect_gitignore=respect_gitignore_final,
+                exclude_patterns=[] if has_explicit_root else None,
                 read_content=read_content,
             )
         except Exception as exc:

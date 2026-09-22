@@ -224,9 +224,16 @@ class CandidateGatheringStage:
         no_index: bool,
         respect_gitignore: bool | None,
         is_sorting_or_flat: bool,
+        exclude_patterns: list[str] | None = None,
     ) -> tuple[list[Path], str]:
-        """Gather candidates using SQLite index or on-the-fly directory scanning."""
-        exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
+        """Gather candidates using SQLite index or on-the-fly directory scanning.
+
+        ``exclude_patterns`` overrides the configured ``index.exclude_patterns``
+        when provided; ``None`` falls back to the config value. Explicit-root
+        searches pass ``[]`` to bypass pruning entirely (root-precedence rule).
+        """
+        if exclude_patterns is None:
+            exclude_patterns = self.config.get("index", {}).get("exclude_patterns", [])
         use_index = not no_index and self.config.get("index", {}).get("auto", True)
 
         if respect_gitignore is None:
