@@ -292,6 +292,10 @@ def register_find_command(cli_group: click.Group) -> None:
             primary = search_result.match
             near_misses: list = list(search_result.near_misses)
 
+            # Highlight snippets with the query actually used for content matching
+            # (e.g. the sugar query "misc.md" matches content with just "misc").
+            snippet_query = search_result.content_query or query
+
             is_sorted = (
                 latest
                 or largest
@@ -327,6 +331,7 @@ def register_find_command(cli_group: click.Group) -> None:
             snapshot_result = SearchResult(
                 status="success",
                 query=query,
+                content_query=search_result.content_query,
                 match=primary,
                 near_misses=displayed_near_misses,
                 elapsed_seconds=search_result.elapsed_seconds,
@@ -366,14 +371,14 @@ def register_find_command(cli_group: click.Group) -> None:
             console.print(f"{msg_hdr} [bold cyan]{escaped_path}[/]{meta}")
             if primary.snippets:
                 for line_num, snippet_text in primary.snippets:
-                    formatted_snippet = _format_snippet(snippet_text, query)
+                    formatted_snippet = _format_snippet(snippet_text, snippet_query)
                     console.print(f"  [dim]└─ L{line_num}:[/] {formatted_snippet}")
             if displayed_near_misses:
                 _print_grouped_matches(
                     displayed_near_misses,
                     limit=len(displayed_near_misses),
                     verbose=verbose_final,
-                    query=query,
+                    query=snippet_query,
                     start_index=2,
                 )
 
@@ -398,6 +403,7 @@ def register_find_command(cli_group: click.Group) -> None:
                     snapshot_result = SearchResult(
                         status="ambiguous",
                         query=query,
+                        content_query=search_result.content_query,
                         near_misses=displayed_ambiguous,
                         elapsed_seconds=search_result.elapsed_seconds,
                     )
@@ -440,6 +446,7 @@ def register_find_command(cli_group: click.Group) -> None:
                     snapshot_result = SearchResult(
                         status="success",
                         query=query,
+                        content_query=search_result.content_query,
                         match=selected_nm,
                         near_misses=remaining_candidates,
                         elapsed_seconds=search_result.elapsed_seconds,
@@ -475,6 +482,7 @@ def register_find_command(cli_group: click.Group) -> None:
             snapshot_result = SearchResult(
                 status="ambiguous",
                 query=query,
+                content_query=search_result.content_query,
                 near_misses=displayed_ambiguous,
                 elapsed_seconds=search_result.elapsed_seconds,
             )

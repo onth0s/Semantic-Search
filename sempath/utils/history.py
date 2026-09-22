@@ -91,6 +91,7 @@ def save_history(
     timestamp = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     snapshot = {
         "query": query,
+        "highlight_query": search_result.content_query or query,
         "timestamp": timestamp,
         "root": str(Path(root_dir).resolve()),
         "elapsed_seconds": round(float(elapsed_seconds), 4),

@@ -407,6 +407,7 @@ class SearchEngine:
                 SearchResult(
                     status="success",
                     query=query,
+                    content_query=content_pattern,
                     match=match_result,
                     near_misses=near_misses,
                 )
@@ -428,6 +429,7 @@ class SearchEngine:
                 SearchResult(
                     status="success",
                     query=query,
+                    content_query=content_pattern,
                     match=top_match,
                     near_misses=other_matches,
                 )
@@ -457,6 +459,7 @@ class SearchEngine:
                 SearchResult(
                     status="ambiguous",
                     query=query,
+                    content_query=content_pattern,
                     near_misses=near_misses,
                     message="No match found above confidence threshold.",
                 )

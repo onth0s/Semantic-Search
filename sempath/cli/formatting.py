@@ -102,20 +102,30 @@ def _tier_color_for_occurrence(
         return "yellow"
 
 
-def _format_snippet(snippet_text: str, query: str | None = None) -> str:
-    """Format snippet text, highlighting matches with tier-based colors.
+_EXT_SUFFIX_RE = re.compile(r"\.[A-Za-z0-9]{1,8}$")
 
-    Colors reflect match confidence:
 
-    - ``[bold green]``   Tier 1 — exact token  (e.g. ``(PES)``, ``PES-STATE``)
-    - ``[bold cyan]``    Tier 2/5 — CI token or delimiter-normalized multi-token
-    - ``[bold yellow]``  Tier 3 — exact substring within a larger word
-    - ``[yellow]``       Tier 4 — CI substring (lowest confidence)
+def _extension_sugar_base(query: str) -> str | None:
+    """Return the query without its trailing extension-like dot-suffix, or None.
+
+    e.g. ``"misc.md"`` -> ``"misc"`` and ``"foo bar.md"`` -> ``"foo bar"``.
+
+    Only used as a fallback highlighter when the literal dotted query matched
+    nothing in a snippet, so dotted queries that genuinely match their literal
+    text (e.g. ``"v1.2.3"``) are never affected.
     """
-    if not query or not query.strip() or query.strip() in (".", "*"):
-        return escape(snippet_text)
+    m = _EXT_SUFFIX_RE.search(query)
+    if not m or m.start() == 0:
+        return None
+    base = query[: m.start()].strip()
+    return base or None
 
-    q = query.strip()
+
+def _render_snippet_highlights(snippet_text: str, q: str) -> str | None:
+    """Render *snippet_text* with tier-colored highlights for query *q*.
+
+    Returns ``None`` when *q* does not occur in the snippet at all.
+    """
     tokens = [re.escape(t) for t in re.split(r"[\s\-_]+", q) if t]
     multi_token = len(tokens) > 1
 
@@ -130,7 +140,9 @@ def _format_snippet(snippet_text: str, query: str | None = None) -> str:
 
     parts: list[str] = []
     last_idx = 0
+    found_any = False
     for m in pattern.finditer(snippet_text):
+        found_any = True
         parts.append(escape(snippet_text[last_idx : m.start()]))
         matched_str = m.group(0)
         # group(1) is None only when the delimiter branch (group 2) matched
@@ -141,7 +153,35 @@ def _format_snippet(snippet_text: str, query: str | None = None) -> str:
         parts.append(f"[{color}]{escape(matched_str)}[/]")
         last_idx = m.end()
     parts.append(escape(snippet_text[last_idx:]))
-    return "".join(parts)
+    return "".join(parts) if found_any else None
+
+
+def _format_snippet(snippet_text: str, query: str | None = None) -> str:
+    """Format snippet text, highlighting matches with tier-based colors.
+
+    Colors reflect match confidence:
+
+    - ``[bold green]``   Tier 1 — exact token  (e.g. ``(PES)``, ``PES-STATE``)
+    - ``[bold cyan]``    Tier 2/5 — CI token or delimiter-normalized multi-token
+    - ``[bold yellow]``  Tier 3 — exact substring within a larger word
+    - ``[yellow]``       Tier 4 — CI substring (lowest confidence)
+
+    When *query* ends in an extension-like dot-suffix (e.g. ``"misc.md"``) and
+    the literal query does not occur in the snippet, the dotted suffix is
+    treated as extension sugar and only its base part (e.g. ``"misc"``) is
+    highlighted. This keeps the actual matched strings colored even when a
+    caller passes the raw query instead of the effective content query.
+    """
+    if not query or not query.strip() or query.strip() in (".", "*"):
+        return escape(snippet_text)
+
+    q = query.strip()
+    rendered = _render_snippet_highlights(snippet_text, q)
+    if rendered is None:
+        base_q = _extension_sugar_base(q)
+        if base_q is not None and base_q != q:
+            rendered = _render_snippet_highlights(snippet_text, base_q)
+    return rendered if rendered is not None else escape(snippet_text)
 
 
 def _classify_match(path: Path, search_root: Path) -> str:

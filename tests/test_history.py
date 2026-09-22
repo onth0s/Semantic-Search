@@ -110,6 +110,25 @@ class TestHistoryStore:
         save_history("x", Path("."), 0.0, empty, path=path)
         assert not path.exists()
 
+    def test_save_history_persists_highlight_query(self, real_paths: list[Path]):
+        """highlight_query defaults to the raw query when no content_query is set."""
+        _write_history(real_paths)
+        loaded = load_history()
+        assert loaded is not None
+        assert loaded["highlight_query"] == "notes"
+
+    def test_save_history_content_query_drives_highlight(self, real_paths: list[Path]):
+        """A sugar query stores its effective content query for snippet highlighting."""
+        sr = _make_search_result(real_paths)
+        sr.content_query = "misc"
+        history_path = get_history_path()
+        save_history("misc.md", real_paths[0].parent, 0.5, sr, path=history_path)
+
+        loaded = load_history()
+        assert loaded is not None
+        assert loaded["query"] == "misc.md"
+        assert loaded["highlight_query"] == "misc"
+
 
 class TestListCommand:
     """Tests for the list command."""

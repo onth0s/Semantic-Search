@@ -42,6 +42,10 @@ class SearchResult:
     Attributes:
         status: One of ``"success"``, ``"ambiguous"``, or ``"failed"``.
         query: The original search query string.
+        content_query: The effective query string actually used for content
+            matching (e.g. ``"misc"`` for the sugar query ``"misc.md"``).
+            Internal display hint used for snippet highlighting; not
+            serialized in ``to_dict()``.
         match: The top match (only set when status is ``"success"``).
         near_misses: Ranked list of near-miss candidates.
         message: Human-readable status message.
@@ -49,6 +53,7 @@ class SearchResult:
 
     status: str
     query: str
+    content_query: str | None = None
     match: MatchResult | None = None
     near_misses: list[MatchResult] = field(default_factory=list)
     message: str = ""

@@ -103,6 +103,8 @@ def test_read_content_with_extension_sugar(tmp_path: Path, sample_config: dict):
     assert res.status == "success"
     assert res.match is not None
     assert res.match.path == md_file
+    # The effective content query used for matching is the sugar-stripped stem.
+    assert res.content_query == "PES"
     # txt_file must not be matched since extension filter was .md
     matched_paths = [res.match.path] + [nm.path for nm in res.near_misses]
     assert txt_file not in matched_paths

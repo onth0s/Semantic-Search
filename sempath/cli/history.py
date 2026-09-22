@@ -141,6 +141,7 @@ def register_history_commands(cli_group: click.Group) -> None:
             sys.exit(0)
 
         query = history.get("query", "")
+        highlight_query = history.get("highlight_query") or query
         matches = history_matches(history)
         rank = int(match.get("rank", n))
         total = len(matches)
@@ -177,7 +178,9 @@ def register_history_commands(cli_group: click.Group) -> None:
             from sempath.cli.formatting import _format_snippet
 
             for line_num, snippet_text in match["snippets"]:
-                console.print(f"  [dim]└─ L{line_num}:[/] {_format_snippet(snippet_text, query)}")
+                console.print(
+                    f"  [dim]└─ L{line_num}:[/] {_format_snippet(snippet_text, highlight_query)}"
+                )
 
         if no_copy:
             console.print("[dim](clipboard copy skipped — --no-copy)[/]")

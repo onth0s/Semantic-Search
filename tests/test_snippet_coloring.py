@@ -77,6 +77,31 @@ class TestFormatSnippet:
         result = _format_snippet("step Launching-Blender complete", "Launching Blender")
         assert "[bold cyan]Launching-Blender[/]" in result
 
+    def test_extension_sugar_fallback_highlights_base(self) -> None:
+        """'misc.md' highlights the actual matched token 'misc' when the literal is absent."""
+        result = _format_snippet("cd misc/searxng", "misc.md")
+        assert "[bold green]misc[/]" in result
+        assert "[bold green]misc.md[/]" not in result
+
+    def test_extension_sugar_fallback_multi_token(self) -> None:
+        result = _format_snippet("run foo bar step", "foo bar.md")
+        assert "[bold green]foo bar[/]" in result
+
+    def test_extension_sugar_literal_text_still_highlighted(self) -> None:
+        """A literal 'misc.md' occurrence is colored by the primary pattern."""
+        result = _format_snippet("see misc.md for details", "misc.md")
+        assert "[bold green]misc.md[/]" in result
+
+    def test_dotted_query_with_literal_match_unaffected(self) -> None:
+        """Dotted queries whose literal text occurs are not split into base + suffix."""
+        result = _format_snippet("version 1.2.3 available", "1.2.3")
+        assert "[bold green]1.2.3[/]" in result
+
+    def test_dotted_query_without_literal_returns_plain(self) -> None:
+        """When neither the literal nor the base occurs, output stays uncolored."""
+        result = _format_snippet("the version field", "1.2.3")
+        assert result == "the version field"
+
     def test_mixed_tiers_same_line(self) -> None:
         result = _format_snippet("PES is in types PES-tools", "PES")
         assert "[bold green]PES[/]" in result
