@@ -298,6 +298,59 @@ def test_directory_content_matching_ancestor(sample_config: dict, tmp_path: Path
     assert res.match.path.resolve() == song.resolve()
 
 
+def _no_llm_config(sample_config: dict) -> dict:
+    """Copy of sample_config with H8 disabled (no Ollama server needed)."""
+    config = dict(sample_config)
+    config["handlers"] = dict(sample_config["handlers"])
+    config["handlers"]["enabled"] = ["h1", "h2", "h3", "h4", "h5", "h6", "h7"]
+    return config
+
+
+def test_directory_content_match_never_escapes_search_root(sample_config: dict, tmp_path: Path):
+    """A folder name above the search root must never trigger a directory content match."""
+    engine = SearchEngine(_no_llm_config(sample_config))
+
+    # Mirrors: CWD=.../checkpoints/mira-scene/pipeline, query "checkpoints"
+    checkpoints = tmp_path / "checkpoints"
+    pipeline = checkpoints / "mira-scene" / "pipeline"
+    pipeline.mkdir(parents=True)
+    (pipeline / "model_index.json").write_text("{}", encoding="utf-8")
+
+    res = engine.find_path("checkpoints", pipeline, no_index=True, non_interactive=True)
+    assert res.match is None or res.match.handler != "directory_content_match"
+    assert all(nm.handler != "directory_content_match" for nm in res.near_misses)
+
+
+def test_directory_content_match_ignores_ancestor_token_match(sample_config: dict, tmp_path: Path):
+    """A partial token match on an ancestor folder (Mira-Scene vs "scene") is out of scope."""
+    engine = SearchEngine(_no_llm_config(sample_config))
+
+    root = tmp_path / "Mira-Scene" / "checkpoints" / "mira-scene" / "pipeline"
+    root.mkdir(parents=True)
+    (root / "model_index.json").write_text("{}", encoding="utf-8")
+
+    res = engine.find_path("scene", root, no_index=True, non_interactive=True)
+    assert res.match is None or res.match.handler != "directory_content_match"
+    assert all(nm.handler != "directory_content_match" for nm in res.near_misses)
+
+
+def test_directory_content_match_results_stay_within_root(sample_config: dict, tmp_path: Path):
+    """Every file returned by a directory content match lives under the search root."""
+    engine = SearchEngine(sample_config)
+
+    desktop = tmp_path / "Desktop"
+    nested = desktop / "Mado Akira"
+    nested.mkdir(parents=True)
+    (nested / "shot.png").write_text("", encoding="utf-8")
+
+    root = desktop / "Mado Akira"
+    res = engine.find_path("akira pics", root, no_index=True, non_interactive=True)
+    if res.match is not None and res.match.handler == "directory_content_match":
+        results = [res.match, *res.near_misses]
+        for r in results:
+            assert r.path.resolve().is_relative_to(root.resolve())
+
+
 def test_embedding_handler_similarity_threshold(sample_config: dict):
     """EmbeddingHandler returns None for best matches with cosine similarity below 0.5."""
     import sys

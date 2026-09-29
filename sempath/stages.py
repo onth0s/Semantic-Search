@@ -493,6 +493,11 @@ class DirectoryMatchStage:
             filtered_candidates=filtered_candidates,
             config=self.config,
         )
+        # The search root is a hard ceiling: never return a path above it.
+        root_resolved = search_root.resolve()
+        descendants = [
+            d for d in descendants if d.is_file() and d.resolve().is_relative_to(root_resolved)
+        ]
         if matched_dir and descendants:
             match_result = MatchResult(descendants[0], 0.95, "directory_content_match")
             near_misses = [MatchResult(p, 0.95, "directory_content_match") for p in descendants[1:]]

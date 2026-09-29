@@ -88,21 +88,16 @@ def match_directory_content(
 
     matching_dirs = []
 
-    # 1. Check ancestors of search_root (including search_root itself)
+    # 1. Check the search root itself. Scope is truncated here on purpose:
+    #    the search root (CWD by default) is a hard ceiling, so directory
+    #    names above it are never name-matched against the query.
 
-    verbose_log("  [dim]Checking ancestor directories...[/]")
-    ancestor_count = 0
-    current = search_root.resolve()
-    while True:
-        if _match_dir_name(clean_query, current.name, config):
-            matching_dirs.append(current)
-            ancestor_count += 1
-            verbose_log(f"  [green]✔[/] Ancestor '[cyan]{current.name}[/]' matches")
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    verbose_log(f"  [dim]Ancestor check complete: {ancestor_count} match(es)[/]")
+    verbose_log("  [dim]Checking search root...[/]")
+    root = search_root.resolve()
+    if _match_dir_name(clean_query, root.name, config):
+        matching_dirs.append(root)
+        verbose_log(f"  [green]✔[/] Search root '[cyan]{root.name}[/]' matches")
+    verbose_log(f"  [dim]Search root check complete: {len(matching_dirs)} match(es)[/]")
 
     # 2. Check candidate directories under search_root
 
