@@ -29,6 +29,14 @@ memory import/export, Windows admin USN Journal acceleration, and tests.
 > ```
 > These are the only commands guaranteed to install the package and run the test suite properly without environment mismatch issues.
 
+Or let the script handle it — it takes no arguments and is safe to re-run:
+
+```powershell
+.\build.ps1
+```
+
+It checks whether `sempath` on PATH is already an editable install of this working tree and only runs `pip install -e .` when it is not. It also warns if a stale PyInstaller build in `dist/` is shadowing the editable install.
+
 Last local verification: 130 tests passed on Python 3.13.1.
 
 ## Project Rules
