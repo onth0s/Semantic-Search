@@ -52,6 +52,36 @@ class NormalizedPath(click.Path):
         return super().convert(val_str, param, ctx)
 
 
+def _save_search_snapshot(
+    search_root: Path,
+    query: str,
+    status: str,
+    elapsed_seconds: float,
+    content_query: str | None = None,
+    match: Any = None,
+    near_misses: list | None = None,
+) -> Any:
+    """Persist last-search snapshot matching exact visual console numbering."""
+    from sempath.models import SearchResult
+    from sempath.utils.history import save_history
+
+    snapshot = SearchResult(
+        status=status,
+        query=query,
+        content_query=content_query,
+        match=match,
+        near_misses=list(near_misses or []),
+        elapsed_seconds=elapsed_seconds,
+    )
+    save_history(
+        query=query,
+        root_dir=search_root,
+        elapsed_seconds=elapsed_seconds,
+        search_result=snapshot,
+    )
+    return snapshot
+
+
 def register_find_command(cli_group: click.Group) -> None:
     """Register the find command on the main CLI group."""
 
@@ -325,23 +355,14 @@ def register_find_command(cli_group: click.Group) -> None:
                     limit=top_n_final - 1,
                 )
 
-            # Persist last-search snapshot matching the exact visual console numbering
-            from sempath.models import SearchResult
-            from sempath.utils.history import save_history
-
-            snapshot_result = SearchResult(
-                status="success",
+            _save_search_snapshot(
+                search_root=search_root,
                 query=query,
+                status="success",
+                elapsed_seconds=search_result.elapsed_seconds,
                 content_query=search_result.content_query,
                 match=primary,
                 near_misses=displayed_near_misses,
-                elapsed_seconds=search_result.elapsed_seconds,
-            )
-            save_history(
-                query=query,
-                root_dir=search_root,
-                elapsed_seconds=search_result.elapsed_seconds,
-                search_result=snapshot_result,
             )
 
             # Output results
@@ -398,21 +419,13 @@ def register_find_command(cli_group: click.Group) -> None:
                         search_root=search_root,
                         limit=top_n_final,
                     )
-                    from sempath.models import SearchResult
-                    from sempath.utils.history import save_history
-
-                    snapshot_result = SearchResult(
-                        status="ambiguous",
+                    _save_search_snapshot(
+                        search_root=search_root,
                         query=query,
+                        status="ambiguous",
+                        elapsed_seconds=search_result.elapsed_seconds,
                         content_query=search_result.content_query,
                         near_misses=displayed_ambiguous,
-                        elapsed_seconds=search_result.elapsed_seconds,
-                    )
-                    save_history(
-                        query=query,
-                        root_dir=search_root,
-                        elapsed_seconds=search_result.elapsed_seconds,
-                        search_result=snapshot_result,
                     )
                     console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
                     if displayed_ambiguous:
@@ -439,24 +452,16 @@ def register_find_command(cli_group: click.Group) -> None:
                         verbose_log(f"[dim]Failed to save learned memory: {exc}[/]")
 
                     # Save confirmed match as primary in history
-                    from sempath.models import SearchResult
-                    from sempath.utils.history import save_history
-
                     top_cands = list(search_result.near_misses)[:5]
                     remaining_candidates = [c for c in top_cands if c.path != selected_nm.path]
-                    snapshot_result = SearchResult(
-                        status="success",
+                    _save_search_snapshot(
+                        search_root=search_root,
                         query=query,
+                        status="success",
+                        elapsed_seconds=search_result.elapsed_seconds,
                         content_query=search_result.content_query,
                         match=selected_nm,
                         near_misses=remaining_candidates,
-                        elapsed_seconds=search_result.elapsed_seconds,
-                    )
-                    save_history(
-                        query=query,
-                        root_dir=search_root,
-                        elapsed_seconds=search_result.elapsed_seconds,
-                        search_result=snapshot_result,
                     )
 
                     meta = _format_file_meta(selected_nm.path) + (
@@ -477,21 +482,13 @@ def register_find_command(cli_group: click.Group) -> None:
                 search_root=search_root,
                 limit=top_n_final,
             )
-            from sempath.models import SearchResult
-            from sempath.utils.history import save_history
-
-            snapshot_result = SearchResult(
-                status="ambiguous",
+            _save_search_snapshot(
+                search_root=search_root,
                 query=query,
+                status="ambiguous",
+                elapsed_seconds=search_result.elapsed_seconds,
                 content_query=search_result.content_query,
                 near_misses=displayed_ambiguous,
-                elapsed_seconds=search_result.elapsed_seconds,
-            )
-            save_history(
-                query=query,
-                root_dir=search_root,
-                elapsed_seconds=search_result.elapsed_seconds,
-                search_result=snapshot_result,
             )
 
             if json_output:

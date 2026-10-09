@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from sempath.constants import TEXT_FILE_MAX_BYTES
 
@@ -70,23 +71,13 @@ def _is_token_boundary_match(line: str, query: str, ignore_case: bool = False) -
     return bool(re.search(pattern, line, flags))
 
 
-def extract_content_match_info(
-    content: str, query: str, max_snippets: int = 10
+def _extract_content_from_lines(
+    lines: list[str] | tuple[str, ...] | any, query: str, max_snippets: int = 10
 ) -> ContentMatchInfo | None:
-    """Extract matching snippets and classify the quality tier and occurrence count.
-
-    Match tiers:
-    1: Exact token match (e.g. '(PES)', 'PES-STATE', or standalone 'PES')
-    2: Case-insensitive token match (e.g. 'pes-validate', 'pes')
-    3: Exact substring match within a larger token (e.g. 'FOOPESBAR')
-    4: Case-insensitive substring within a token (e.g. 'foreign-types' matching 'pes')
-    5: Multi-token delimiter match (e.g. 'Launching-Blender' matching 'Launching Blender')
-    """
-
-    if not query or not content:
+    """Extract matching snippets from an iterable of lines without buffering."""
+    if not query:
         return None
 
-    lines = content.splitlines()
     q_lower = query.lower()
 
     # Pre-check delimiter multi-token pattern
@@ -166,6 +157,28 @@ def extract_content_match_info(
     )
 
 
+def extract_content_match_info(
+    content: str, query: str, max_snippets: int = 10
+) -> ContentMatchInfo | None:
+    """Extract matching snippets and classify the quality tier and occurrence count."""
+    if not query or not content:
+        return None
+    return _extract_content_from_lines(content.splitlines(), query, max_snippets=max_snippets)
+
+
+def stream_file_content_match_info(
+    path: Path, query: str, max_snippets: int = 10
+) -> ContentMatchInfo | None:
+    """Stream text lines directly from path without buffering the whole file into memory."""
+    if not is_text_file(path):
+        return None
+    try:
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            return _extract_content_from_lines(f, query, max_snippets=max_snippets)
+    except (OSError, PermissionError):
+        return None
+
+
 def extract_matching_snippets(
     content: str, query: str, max_snippets: int = 10
 ) -> list[tuple[int, str]]:
@@ -196,11 +209,16 @@ def format_human_mtime(mtime: float) -> str:
         return "1970-01-01 00:00"
 
 
-def get_path_file_meta(path: Path) -> str:
+def get_path_file_meta(path: Path, stat_cache: Any | None = None) -> str:
     """Return a compact '[size, date]' dimmed suffix for path."""
     try:
-        st = path.stat()
-        sz = format_human_size(st.st_size) if path.is_file() else "DIR"
+        if stat_cache is not None:
+            st = stat_cache.get_stat(path)
+            if st is None:
+                return ""
+        else:
+            st = path.stat()
+        sz = format_human_size(st.st_size) if not path.is_dir() else "DIR"
         dt = format_human_mtime(st.st_mtime)
         return f" [dim][{sz}, {dt}][/]"
     except OSError:

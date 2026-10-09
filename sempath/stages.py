@@ -46,8 +46,8 @@ from sempath.utils.file_ops import (
     TIER_DELIMITED,
     TIER_EXACT_SUBSTRING,
     TIER_EXACT_TOKEN,
-    extract_content_match_info,
     is_text_file,
+    stream_file_content_match_info,
 )
 from sempath.utils.logging import verbose_log
 from sempath.utils.stat_cache import FileStatCache
@@ -359,8 +359,7 @@ class HandlerExecutionStage:
 
             for p in text_files:
                 try:
-                    content = p.read_text(encoding="utf-8", errors="ignore")
-                    info = extract_content_match_info(content, content_query, max_snippets=10)
+                    info = stream_file_content_match_info(p, content_query, max_snippets=10)
                     if info and info.snippets:
                         tier_map = {
                             TIER_EXACT_TOKEN: CONTENT_TIER_EXACT_TOKEN,

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from sempath.chain import build_chain
 from sempath.config import get_index_store_path, load_config
+from sempath.config_schema import AppConfig
 from sempath.constants import NEAR_MISS_MIN_CONFIDENCE
 from sempath.handlers.h1_exact import ExactMatchHandler
 from sempath.heuristics import HeuristicsResult
@@ -44,8 +45,17 @@ def _build_category_failure_message(heuristics: HeuristicsResult) -> str:
 class SearchEngine:
     """Orchestrates candidate scanning, index lookups, and chain execution."""
 
-    def __init__(self, config: dict | None = None) -> None:
-        self.config = config or load_config()
+    def __init__(self, config: dict | AppConfig | None = None) -> None:
+        if isinstance(config, AppConfig):
+            self.app_config = config
+            self.config = config.to_dict()
+        else:
+            self.config = config or load_config()
+            try:
+                self.app_config = AppConfig.from_dict(self.config)
+            except Exception:
+                self.app_config = AppConfig()
+
         self.index_manager = IndexManager(get_index_store_path(self.config))
         self.query_stage = QueryAnalysisStage(self.config)
         self.gather_stage = CandidateGatheringStage(self.config, self.index_manager)

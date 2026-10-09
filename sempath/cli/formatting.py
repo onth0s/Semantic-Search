@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 import click
 from rich.markup import escape
@@ -57,11 +58,11 @@ def _human_mtime(mtime: float) -> str:
     return format_human_mtime(mtime)
 
 
-def _format_file_meta(path: Path) -> str:
+def _format_file_meta(path: Path, stat_cache: Any | None = None) -> str:
     """Return a compact '[size, date]' dimmed suffix for *path*."""
     from sempath.utils.file_ops import get_path_file_meta
 
-    return get_path_file_meta(path)
+    return get_path_file_meta(path, stat_cache=stat_cache)
 
 
 def _tier_color_for_occurrence(

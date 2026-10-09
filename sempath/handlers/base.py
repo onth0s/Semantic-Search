@@ -20,6 +20,7 @@ class BaseHandler(ABC):
     """
 
     name: str = "base"
+    is_heavy: bool = False
 
     def __init__(self, config: dict) -> None:
         self.config = config
@@ -103,8 +104,12 @@ class BaseHandler(ABC):
             return collected
 
         if self.next_handler is not None:
-            # Cutoff before slow handlers (H7, H8) if we already have matches
-            if self.next_handler.name in ("h7_embedding", "h8_llm") and collected:
+            # Cutoff before slow/heavy handlers (e.g. H7, H8) if we already have matches
+            is_heavy = self.next_handler.is_heavy or self.next_handler.name in (
+                "h7_embedding",
+                "h8_llm",
+            )
+            if is_heavy and collected:
                 verbose_log(
                     f"[dim]Cutoff before slow handler '{self.next_handler.name}' "
                     f"reached with active matches. Stopping evaluation.[/]"

@@ -71,6 +71,7 @@ class LLMHandler(BaseHandler):
     """Direct LLM semantic path matcher. Confidence: 0.80."""
 
     name: str = "h8_llm"
+    is_heavy: bool = True
 
     def match(
         self,

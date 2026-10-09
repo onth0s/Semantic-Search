@@ -25,6 +25,7 @@ class EmbeddingHandler(BaseHandler):
     """Semantic match via lazy-loaded sentence-transformers."""
 
     name: str = "h7_embedding"
+    is_heavy: bool = True
     _model = None
 
     def _compute_similarities(
@@ -79,16 +80,12 @@ class EmbeddingHandler(BaseHandler):
         # We embed both:
         # 1. The relative path from search root (giving parent folder context)
         # 2. The stem alone (preserving high similarity matches for target names without dilution)
-        if context:
+        if context and context.search_root:
             search_root = context.search_root
+        elif self.config.get("_search_root"):
+            search_root = Path(self.config["_search_root"]).resolve()
         else:
-            try:
-                import click
-
-                ctx = click.get_current_context(silent=True)
-                search_root = ctx.obj.get("root", Path(".")) if (ctx and ctx.obj) else Path(".")
-            except Exception:
-                search_root = Path(".")
+            search_root = Path.cwd()
 
         def _candidate_rel_text(p: Path) -> str:
             try:

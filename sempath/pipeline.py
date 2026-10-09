@@ -30,16 +30,20 @@ def filter_by_extensions(candidates: list[Path], exts: list[str]) -> list[Path]:
     if not exts:
         return candidates
 
+    literal_exts = {e.lower().lstrip(".") for e in exts if not ("*" in e or "?" in e)}
+    wildcard_exts = [e.lower().lstrip(".") for e in exts if "*" in e or "?" in e]
+
     filtered = []
     for p in candidates:
         suffix = p.suffix.lower().lstrip(".")
-        matched = False
-        for ext_pat in exts:
-            if fnmatch.fnmatch(suffix, ext_pat.lower()):
-                matched = True
-                break
-        if matched:
+        if suffix in literal_exts:
             filtered.append(p)
+            continue
+        if wildcard_exts:
+            for ext_pat in wildcard_exts:
+                if fnmatch.fnmatch(suffix, ext_pat):
+                    filtered.append(p)
+                    break
     return filtered
 
 
