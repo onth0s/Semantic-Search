@@ -6,7 +6,7 @@ newline-separated list of relative paths; we resolve them back to absolute
 Path objects and return them as MatchResult entries.
 
 Configuration keys (under ``handlers`` in config):
-    h8_model   - Ollama model tag to use (default: minimax-m3:cloud).
+    h8_model   - Ollama model tag to use (default: llama3).
     h8_url     - Base URL of the Ollama server (default: http://localhost:11434/v1).
     h8_api_key - Bearer token if required (default: "").
     h8_top_k   - Maximum number of paths to return (default: 6).
@@ -98,7 +98,7 @@ class LLMHandler(BaseHandler):
         from sempath.utils.logging import verbose_log
 
         handlers_cfg = self.config.get("handlers", {})
-        model: str = handlers_cfg.get("h8_model", "minimax-m3:cloud")
+        model: str = handlers_cfg.get("h8_model", "llama3")
         url: str = handlers_cfg.get("h8_url", "http://localhost:11434/v1")
         api_key: str = handlers_cfg.get("h8_api_key", "")
         exhaustive = self.config.get("exhaustive", False)

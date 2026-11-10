@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from sempath.handlers.base import BaseHandler
 from sempath.models import MatchResult
+from sempath.utils.matching import match_tie_breaker_key
 from sempath.utils.path_suffixes import path_suffixes
 from sempath.utils.tokenize import normalize_path_separators
 
@@ -67,16 +68,7 @@ class ExactMatchHandler(BaseHandler):
                     matches.append(MatchResult(p, 1.0, self.name))
 
         if matches:
-            import re
-
             prefix = query_pure.split("*")[0].split("?")[0].lower() if is_glob else ""
-
-            def _tie_breaker(m: MatchResult) -> tuple[int, int, int, int, str]:
-                stem = m.path.stem.lower()
-                is_copy = 1 if bool(re.search(r"\(\d+\)|\bcopy\b", stem)) else 0
-                prefix_dist = 0 if prefix and stem.startswith(prefix) else (1 if prefix else 0)
-                return (prefix_dist, is_copy, len(m.path.parts), len(stem), stem)
-
-            matches.sort(key=_tie_breaker)
+            matches.sort(key=lambda m: match_tie_breaker_key(m, prefix=prefix))
 
         return matches

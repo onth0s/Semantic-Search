@@ -14,9 +14,9 @@ class HandlersConfig:
         default_factory=lambda: ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"]
     )
     h4_threshold: int = 75
-    h7_model: str = "BAAI/bge-small-en-v1.5"
+    h7_model: str = "all-MiniLM-L6-v2"
     h8_provider: str = "ollama"
-    h8_model: str = "minimax-m3:cloud"
+    h8_model: str = "llama3"
     h8_url: str = "http://localhost:11434/v1"
     h8_api_key: str = ""
     h8_top_k: int = 6
@@ -269,9 +269,9 @@ class AppConfig:
                 handlers_data.get("enabled", ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"])
             ),
             h4_threshold=int(handlers_data.get("h4_threshold", 75)),
-            h7_model=str(handlers_data.get("h7_model", "BAAI/bge-small-en-v1.5")),
+            h7_model=str(handlers_data.get("h7_model", "all-MiniLM-L6-v2")),
             h8_provider=str(handlers_data.get("h8_provider", "ollama")),
-            h8_model=str(handlers_data.get("h8_model", "minimax-m3:cloud")),
+            h8_model=str(handlers_data.get("h8_model", "llama3")),
             h8_url=str(handlers_data.get("h8_url", "http://localhost:11434/v1")),
             h8_api_key=str(handlers_data.get("h8_api_key", "")),
             h8_top_k=int(handlers_data.get("h8_top_k", 6)),

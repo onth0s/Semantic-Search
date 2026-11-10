@@ -96,35 +96,40 @@ def _extract_content_from_lines(
     tier_5_snippets: list[tuple[int, str]] = []
 
     token_pattern = rf"(?<![A-Za-z0-9]){re.escape(query)}(?![A-Za-z0-9])"
+    token_re_exact = re.compile(token_pattern)
+    token_re_ci = re.compile(token_pattern, re.IGNORECASE)
 
     for line_num, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()
 
         # Check Tier 1: Exact token
-        if _is_token_boundary_match(raw_line, query, ignore_case=False):
+        exact_tokens = token_re_exact.findall(raw_line)
+        if exact_tokens:
             tier_1_snippets.append((line_num, line))
             best_tier = min(best_tier, TIER_EXACT_TOKEN)
-            total_occurrences += len(re.findall(token_pattern, raw_line))
-        # Check Tier 2: Case-insensitive token
-        elif _is_token_boundary_match(raw_line, query, ignore_case=True):
-            tier_2_snippets.append((line_num, line))
-            best_tier = min(best_tier, TIER_CI_TOKEN)
-            total_occurrences += len(re.findall(token_pattern, raw_line, re.IGNORECASE))
-        # Check Tier 3: Exact substring
-        elif query in raw_line:
-            tier_3_snippets.append((line_num, line))
-            best_tier = min(best_tier, TIER_EXACT_SUBSTRING)
-            total_occurrences += raw_line.count(query)
-        # Check Tier 4: Case-insensitive substring
-        elif q_lower in raw_line.lower():
-            tier_4_snippets.append((line_num, line))
-            best_tier = min(best_tier, TIER_CI_SUBSTRING)
-            total_occurrences += raw_line.lower().count(q_lower)
-        # Check Tier 5: Delimiter pattern
-        elif delim_pattern and delim_pattern.search(raw_line):
-            tier_5_snippets.append((line_num, line))
-            best_tier = min(best_tier, TIER_DELIMITED)
-            total_occurrences += len(delim_pattern.findall(raw_line))
+            total_occurrences += len(exact_tokens)
+        else:
+            # Check Tier 2: Case-insensitive token
+            ci_tokens = token_re_ci.findall(raw_line)
+            if ci_tokens:
+                tier_2_snippets.append((line_num, line))
+                best_tier = min(best_tier, TIER_CI_TOKEN)
+                total_occurrences += len(ci_tokens)
+            # Check Tier 3: Exact substring
+            elif query in raw_line:
+                tier_3_snippets.append((line_num, line))
+                best_tier = min(best_tier, TIER_EXACT_SUBSTRING)
+                total_occurrences += raw_line.count(query)
+            # Check Tier 4: Case-insensitive substring
+            elif q_lower in raw_line.lower():
+                tier_4_snippets.append((line_num, line))
+                best_tier = min(best_tier, TIER_CI_SUBSTRING)
+                total_occurrences += raw_line.lower().count(q_lower)
+            # Check Tier 5: Delimiter pattern
+            elif delim_pattern and delim_pattern.search(raw_line):
+                tier_5_snippets.append((line_num, line))
+                best_tier = min(best_tier, TIER_DELIMITED)
+                total_occurrences += len(delim_pattern.findall(raw_line))
 
     if best_tier == float("inf"):
         return None

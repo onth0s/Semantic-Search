@@ -175,13 +175,22 @@ class IndexManager:
             return True
 
     def _count_physical_files(self, root_path: Path) -> int:
-        """Count physical files and directories recursively in a fast manner."""
+        """Count physical files and directories recursively using fast scandir traversal."""
         count = 1  # Include the root directory itself
-        try:
-            for _, dirs, files in os.walk(root_path):
-                count += len(dirs) + len(files)
-        except OSError:
-            pass
+        stack = [str(root_path)]
+        while stack:
+            current = stack.pop()
+            try:
+                with os.scandir(current) as it:
+                    for entry in it:
+                        count += 1
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                stack.append(entry.path)
+                        except OSError:
+                            pass
+            except OSError:
+                pass
         return count
 
     def check_index_needs_update(self, root_path: Path) -> bool:

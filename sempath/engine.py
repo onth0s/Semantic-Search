@@ -36,10 +36,7 @@ from sempath.utils.logging import verbose_log
 from sempath.utils.matching import merge_matches
 from sempath.utils.stat_cache import FileStatCache
 
-
-def _build_category_failure_message(heuristics: HeuristicsResult) -> str:
-    """Build a specific failure message based on matched heuristic categories."""
-    return build_category_failure_message(heuristics)
+_build_category_failure_message = build_category_failure_message
 
 
 class SearchEngine:
@@ -256,6 +253,7 @@ class SearchEngine:
             top_n=top_n,
             non_interactive=non_interactive,
             config=self.config,
+            stat_cache=stat_cache,
         )
 
         # 1. Extract heuristics & analyze query

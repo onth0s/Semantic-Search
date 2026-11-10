@@ -4,7 +4,8 @@ Uses Levenshtein / Damerau-Levenshtein ratio via the ``rapidfuzz``
 library to score the similarity between the query and each candidate
 basename. A configurable threshold (default from config) determines
 the minimum ratio required for a match. Returns a MatchResult with
-confidence equal to ``ratio * 1.0``.
+confidence scaled up to a maximum cap of 0.80 so fuzzy matches do not
+outrank exact, prefix, or token matches.
 """
 
 from __future__ import annotations

@@ -257,6 +257,7 @@ def _print_grouped_matches(
     verbose: bool,
     query: str | None = None,
     start_index: int = 1,
+    search_root: Path | None = None,
 ) -> int:
     """Print *matches* (up to *limit*) sorted into display groups with 1-indexed numbering.
 
@@ -264,8 +265,9 @@ def _print_grouped_matches(
     """
     from collections import defaultdict
 
-    ctx = click.get_current_context(silent=True)
-    search_root = ctx.obj.get("root", Path(".")) if (ctx and ctx.obj) else Path(".")
+    if search_root is None:
+        ctx = click.get_current_context(silent=True)
+        search_root = ctx.obj.get("root", Path(".")) if (ctx and ctx.obj) else Path(".")
 
     # Partition matches into content-based (with snippets) and filename/metadata-based
     content_matches = [m for m in matches if getattr(m, "snippets", None)]

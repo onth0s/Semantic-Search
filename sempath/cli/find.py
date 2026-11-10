@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import click
+from click.core import ParameterSource
 from rich.markup import escape
 
 from sempath.cli.formatting import (
@@ -22,6 +24,7 @@ from sempath.cli.formatting import (
 from sempath.config import load_config
 from sempath.constants import DEFAULT_DEPTH
 from sempath.engine import SearchEngine
+from sempath.models import SearchResult
 from sempath.utils.clipboard import copy_to_clipboard
 from sempath.utils.console import console, err_console
 from sempath.utils.handlers import parse_handler_spec as _parse_handler_spec
@@ -62,7 +65,6 @@ def _save_search_snapshot(
     near_misses: list | None = None,
 ) -> Any:
     """Persist last-search snapshot matching exact visual console numbering."""
-    from sempath.models import SearchResult
     from sempath.utils.history import save_history
 
     snapshot = SearchResult(
@@ -80,6 +82,373 @@ def _save_search_snapshot(
         search_result=snapshot,
     )
     return snapshot
+
+
+@dataclass
+class ResolvedSearchParams:
+    """Parsed, normalized, and validated search parameters for a find invocation."""
+
+    query: str
+    search_root: Path
+    depth_final: int
+    min_confidence: float
+    top_n_final: int
+    non_interactive_final: bool
+    no_index_final: bool
+    json_output: bool
+    verbose_final: bool
+    latest: bool
+    largest: bool
+    smallest: bool
+    oldest: bool
+    ext: str | None
+    respect_gitignore_final: bool
+    has_explicit_root: bool
+    read_content: bool
+    config: dict
+
+
+def _resolve_search_params(
+    ctx: click.Context,
+    query: str,
+    root_dir: Path,
+    root: Path | None,
+    depth: int | None,
+    full_depth: bool,
+    min_confidence: float,
+    top_n: int,
+    non_interactive: bool,
+    no_index: bool,
+    json_output: bool,
+    verbose: bool,
+    latest: bool,
+    largest: bool,
+    smallest: bool,
+    oldest: bool,
+    ext: str | None,
+    preset_spec: str | None,
+    handler_spec: str | None,
+    gitignore: bool,
+    read_content: bool,
+) -> ResolvedSearchParams:
+    """Parse, normalize, and validate search parameters from Click context."""
+    search_root = root or root_dir
+
+    try:
+        config = load_config()
+    except (FileNotFoundError, ValueError) as exc:
+        err_console.print(f"[bold red]Error loading config:[/] {exc}")
+        sys.exit(1)
+
+    depth_explicit = ctx.get_parameter_source("depth") == ParameterSource.COMMANDLINE
+    is_flat_cwd = bool(ctx.obj.get("flat_cwd", False)) if (ctx and ctx.obj) else False
+
+    if full_depth or (depth is not None and depth == -1):
+        depth_final = -1
+    elif depth_explicit and depth is not None:
+        depth_final = depth
+    elif is_flat_cwd:
+        depth_final = 1
+    else:
+        depth_final = config.get("depth", DEFAULT_DEPTH)
+
+    verbose_final = verbose or config.get("verbose", False)
+    exhaustive = config.get("exhaustive", False)
+
+    # Check if root parameter was explicitly provided on CLI
+    has_explicit_root = (
+        root is not None
+        or is_flat_cwd
+        or ctx.get_parameter_source("root_dir") == ParameterSource.COMMANDLINE
+    )
+    config_respect = config.get("index", {}).get("respect_gitignore", True)
+    default_respect = False if has_explicit_root else config_respect
+    respect_gitignore_final = not default_respect if gitignore else default_respect
+
+    # --- Handler filtering ---------------------------------------------------
+    if handler_spec is None:
+        presets = config.get("presets", {})
+        target_preset = preset_spec if preset_spec is not None else "0"
+        handler_spec = (
+            presets.get(target_preset)
+            or presets.get(str(target_preset))
+            or (target_preset if preset_spec is not None else None)
+        )
+
+    if handler_spec is not None:
+        try:
+            selected = _parse_handler_spec(handler_spec)
+        except click.BadParameter as exc:
+            err_console.print(f"[bold red]Invalid handler spec:[/] {exc}")
+            sys.exit(1)
+        config.setdefault("handlers", {})["enabled"] = selected
+        if verbose or config.get("verbose", False):
+            console.print(f"[dim]Handlers:[/] {', '.join(selected)}")
+
+    top_n_explicit = ctx.get_parameter_source("top_n") == ParameterSource.COMMANDLINE
+    top_n_final = top_n if (top_n_explicit or not exhaustive) else 999999
+
+    no_index_final = no_index or exhaustive or (is_flat_cwd and depth_final == 1)
+    non_interactive_final = non_interactive or exhaustive
+
+    ctx.obj.update(
+        {
+            "query": query,
+            "root": search_root,
+            "depth": depth_final,
+            "min_confidence": min_confidence,
+            "top_n": top_n_final,
+            "non_interactive": non_interactive_final,
+            "no_index": no_index_final,
+            "json_output": json_output,
+            "verbose": verbose_final,
+            "config": config,
+            "latest": latest,
+            "largest": largest,
+            "smallest": smallest,
+            "oldest": oldest,
+            "ext": ext,
+        }
+    )
+
+    if verbose_final:
+        console.print(f"[dim]Query:[/]  [bold cyan]{query}[/]")
+        console.print(f"[dim]Root:[/]   [bold]{escape(str(search_root))}[/]")
+        console.print(f"[dim]Depth:[/]  {depth_final}")
+        console.print()
+
+    return ResolvedSearchParams(
+        query=query,
+        search_root=search_root,
+        depth_final=depth_final,
+        min_confidence=min_confidence,
+        top_n_final=top_n_final,
+        non_interactive_final=non_interactive_final,
+        no_index_final=no_index_final,
+        json_output=json_output,
+        verbose_final=verbose_final,
+        latest=latest,
+        largest=largest,
+        smallest=smallest,
+        oldest=oldest,
+        ext=ext,
+        respect_gitignore_final=respect_gitignore_final,
+        has_explicit_root=has_explicit_root,
+        read_content=read_content,
+        config=config,
+    )
+
+
+def _handle_search_success(
+    search_result: SearchResult,
+    params: ResolvedSearchParams,
+) -> None:
+    """Handle and display successful search results."""
+    if search_result.message:
+        console.print(f"[yellow]ℹ {search_result.message}[/]")  # noqa: RUF001
+
+    primary = search_result.match
+    near_misses: list = list(search_result.near_misses)
+
+    snippet_query = search_result.content_query or params.query
+
+    is_sorted = (
+        params.latest
+        or params.largest
+        or params.smallest
+        or params.oldest
+        or re.search(
+            r"\b(latest|newest|lastest|oldest|largest|biggest|smallest|tiniest)\b",
+            params.query,
+            re.IGNORECASE,
+        )
+    )
+
+    if not is_sorted and primary and _is_generic_stem(primary.path.stem):
+        all_results = [primary, *near_misses]
+        non_generic = [r for r in all_results if not _is_generic_stem(r.path.stem)]
+        generic = [r for r in all_results if _is_generic_stem(r.path.stem)]
+        if non_generic:
+            primary = non_generic[0]
+            near_misses = [*non_generic[1:], *generic]
+
+    displayed_near_misses: list = []
+    if near_misses and params.top_n_final > 1:
+        displayed_near_misses = get_ordered_display_matches(
+            near_misses,
+            search_root=params.search_root,
+            limit=params.top_n_final - 1,
+        )
+
+    _save_search_snapshot(
+        search_root=params.search_root,
+        query=params.query,
+        status="success",
+        elapsed_seconds=search_result.elapsed_seconds,
+        content_query=search_result.content_query,
+        match=primary,
+        near_misses=displayed_near_misses,
+    )
+
+    if params.json_output:
+        click.echo(json.dumps(search_result.to_dict(), indent=2))
+        sys.exit(0)
+
+    if primary:
+        match_count_header = ""
+        if primary.snippets:
+            n_snip = len(primary.snippets)
+            plural = "s" if n_snip > 1 else ""
+            match_count_header = f" ({n_snip} line occurrence{plural})"
+        meta = _format_file_meta(primary.path) + (
+            f" [dim]({primary.handler}, confidence: {primary.confidence:.2f})[/]"
+            if params.verbose_final
+            else ""
+        )
+        copy_to_clipboard(str(primary.path))
+        escaped_path = escape(str(primary.path))
+        time_str = (
+            f" [dim cyan]({_format_elapsed_time(search_result.elapsed_seconds)})[/]"
+            if search_result.elapsed_seconds > 0
+            else ""
+        )
+
+        msg_hdr = f"[bold green]✔ Success{time_str}:[/] Found match{match_count_header}:"
+        console.print(f"{msg_hdr} [bold cyan]{escaped_path}[/]{meta}")
+
+        if primary.snippets:
+            for line_num, snippet_text in primary.snippets:
+                formatted_snippet = _format_snippet(snippet_text, snippet_query)
+                console.print(f"  [dim]└─ L{line_num}:[/] {formatted_snippet}")
+
+    if displayed_near_misses:
+        _print_grouped_matches(
+            displayed_near_misses,
+            limit=len(displayed_near_misses),
+            verbose=params.verbose_final,
+            query=snippet_query,
+            start_index=2,
+            search_root=params.search_root,
+        )
+
+    sys.exit(0)
+
+
+def _handle_search_ambiguous(
+    search_result: SearchResult,
+    params: ResolvedSearchParams,
+) -> None:
+    """Handle ambiguous search results with interactive prompter fallback."""
+    if not params.non_interactive_final and search_result.near_misses:
+        from sempath.cli.prompter import prompt_disambiguation_selection
+
+        try:
+            selected_nm = prompt_disambiguation_selection(
+                search_result.near_misses, verbose=params.verbose_final
+            )
+        except click.Abort:
+            displayed_ambiguous = get_ordered_display_matches(
+                search_result.near_misses,
+                search_root=params.search_root,
+                limit=params.top_n_final,
+            )
+            _save_search_snapshot(
+                search_root=params.search_root,
+                query=params.query,
+                status="ambiguous",
+                elapsed_seconds=search_result.elapsed_seconds,
+                content_query=search_result.content_query,
+                near_misses=displayed_ambiguous,
+            )
+            console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
+            if displayed_ambiguous:
+                _print_grouped_matches(
+                    displayed_ambiguous,
+                    limit=len(displayed_ambiguous),
+                    verbose=params.verbose_final,
+                    search_root=params.search_root,
+                )
+            sys.exit(1)
+
+        if selected_nm is not None:
+            try:
+                from sempath.utils.memory import add_or_update_memory
+
+                add_or_update_memory(params.query, selected_nm.path)
+                err_console.print(
+                    f"[bold green]Confirmed:[/] Learned alias "
+                    f"[cyan]{escape(params.query)}[/] -> [bold]{escape(str(selected_nm.path))}[/]"
+                )
+                err_console.print("[dim](run 'sempath alias undo' to revert)[/]")
+            except Exception as exc:
+                from sempath.utils.logging import verbose_log
+
+                verbose_log(f"[dim]Failed to save learned memory: {exc}[/]")
+
+            # Save confirmed match as primary in history
+            top_cands = list(search_result.near_misses)[:5]
+            remaining_candidates = [c for c in top_cands if c.path != selected_nm.path]
+            _save_search_snapshot(
+                search_root=params.search_root,
+                query=params.query,
+                status="success",
+                elapsed_seconds=search_result.elapsed_seconds,
+                content_query=search_result.content_query,
+                match=selected_nm,
+                near_misses=remaining_candidates,
+            )
+
+            meta = _format_file_meta(selected_nm.path) + (
+                f" [dim]({selected_nm.handler}, confidence: {selected_nm.confidence:.2f})[/]"
+                if params.verbose_final
+                else ""
+            )
+            copy_to_clipboard(str(selected_nm.path))
+            console.print(
+                f"[bold green]✔ Success:[/] Found match: "
+                f"[bold cyan]{escape(str(selected_nm.path))}[/]{meta}"
+            )
+            sys.exit(0)
+
+    displayed_ambiguous = get_ordered_display_matches(
+        search_result.near_misses,
+        search_root=params.search_root,
+        limit=params.top_n_final,
+    )
+    _save_search_snapshot(
+        search_root=params.search_root,
+        query=params.query,
+        status="ambiguous",
+        elapsed_seconds=search_result.elapsed_seconds,
+        content_query=search_result.content_query,
+        near_misses=displayed_ambiguous,
+    )
+
+    if params.json_output:
+        click.echo(json.dumps(search_result.to_dict(), indent=2))
+        sys.exit(1)
+
+    console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
+    if displayed_ambiguous:
+        _print_grouped_matches(
+            displayed_ambiguous,
+            limit=len(displayed_ambiguous),
+            verbose=params.verbose_final,
+            search_root=params.search_root,
+        )
+    sys.exit(1)
+
+
+def _handle_search_failed(
+    search_result: SearchResult,
+    params: ResolvedSearchParams,
+) -> None:
+    """Handle and display failed search results."""
+    if params.json_output:
+        click.echo(json.dumps(search_result.to_dict(), indent=2))
+        sys.exit(1)
+    console.print(f"[bold red]❌ Failed:[/] {search_result.message}")
+    sys.exit(1)
 
 
 def register_find_command(cli_group: click.Group) -> None:
@@ -206,306 +575,56 @@ def register_find_command(cli_group: click.Group) -> None:
         read_content: bool,
     ) -> None:
         """Search for filesystem paths matching QUERY."""
-        search_root = root or root_dir
-
-        try:
-            config = load_config()
-        except (FileNotFoundError, ValueError) as exc:
-            err_console.print(f"[bold red]Error loading config:[/] {exc}")
-            sys.exit(1)
-
-        from click.core import ParameterSource
-
-        depth_explicit = ctx.get_parameter_source("depth") == ParameterSource.COMMANDLINE
-        is_flat_cwd = bool(ctx.obj.get("flat_cwd", False)) if (ctx and ctx.obj) else False
-
-        if full_depth or (depth is not None and depth == -1):
-            depth_final = -1
-        elif depth_explicit and depth is not None:
-            depth_final = depth
-        elif is_flat_cwd:
-            depth_final = 1
-        else:
-            depth_final = config.get("depth", DEFAULT_DEPTH)
-
-        verbose_final = verbose or config.get("verbose", False)
-        exhaustive = config.get("exhaustive", False)
-
-        # Check if root parameter was explicitly provided on CLI
-        has_explicit_root = (
-            root is not None
-            or is_flat_cwd
-            or ctx.get_parameter_source("root_dir") == ParameterSource.COMMANDLINE
-        )
-        config_respect = config.get("index", {}).get("respect_gitignore", True)
-        default_respect = False if has_explicit_root else config_respect
-        respect_gitignore_final = not default_respect if gitignore else default_respect
-
-        # --- Handler filtering ---------------------------------------------------
-        if handler_spec is None:
-            presets = config.get("presets", {})
-            target_preset = preset_spec if preset_spec is not None else "0"
-            handler_spec = (
-                presets.get(target_preset)
-                or presets.get(str(target_preset))
-                or (target_preset if preset_spec is not None else None)
-            )
-
-        if handler_spec is not None:
-            try:
-                selected = _parse_handler_spec(handler_spec)
-            except click.BadParameter as exc:
-                err_console.print(f"[bold red]Invalid handler spec:[/] {exc}")
-                sys.exit(1)
-            config.setdefault("handlers", {})["enabled"] = selected
-            if verbose or config.get("verbose", False):
-                console.print(f"[dim]Handlers:[/] {', '.join(selected)}")
-
-        top_n_explicit = ctx.get_parameter_source("top_n") == ParameterSource.COMMANDLINE
-        top_n_final = top_n if (top_n_explicit or not exhaustive) else 999999
-
-        no_index_final = no_index or exhaustive or (is_flat_cwd and depth_final == 1)
-        non_interactive_final = non_interactive or exhaustive
-
-        ctx.obj.update(
-            {
-                "query": query,
-                "root": search_root,
-                "depth": depth_final,
-                "min_confidence": min_confidence,
-                "top_n": top_n_final,
-                "non_interactive": non_interactive_final,
-                "no_index": no_index_final,
-                "json_output": json_output,
-                "verbose": verbose_final,
-                "config": config,
-                "latest": latest,
-                "largest": largest,
-                "smallest": smallest,
-                "oldest": oldest,
-                "ext": ext,
-            }
+        params = _resolve_search_params(
+            ctx=ctx,
+            query=query,
+            root_dir=root_dir,
+            root=root,
+            depth=depth,
+            full_depth=full_depth,
+            min_confidence=min_confidence,
+            top_n=top_n,
+            non_interactive=non_interactive,
+            no_index=no_index,
+            json_output=json_output,
+            verbose=verbose,
+            latest=latest,
+            largest=largest,
+            smallest=smallest,
+            oldest=oldest,
+            ext=ext,
+            preset_spec=preset_spec,
+            handler_spec=handler_spec,
+            gitignore=gitignore,
+            read_content=read_content,
         )
 
-        if verbose_final:
-            console.print(f"[dim]Query:[/]  [bold cyan]{query}[/]")
-            console.print(f"[dim]Root:[/]   [bold]{escape(str(search_root))}[/]")
-            console.print(f"[dim]Depth:[/]  {depth_final}")
-            console.print()
-
         try:
-            engine = SearchEngine(config)
+            engine = SearchEngine(params.config)
             search_result = engine.find_path(
-                query=query,
-                root_dir=search_root,
-                depth=depth_final,
-                min_confidence=min_confidence,
-                top_n=top_n_final,
-                non_interactive=non_interactive_final,
-                no_index=no_index_final,
-                latest=latest,
-                largest=largest,
-                smallest=smallest,
-                oldest=oldest,
-                ext=ext,
-                respect_gitignore=respect_gitignore_final,
-                exclude_patterns=[] if has_explicit_root else None,
-                read_content=read_content,
+                query=params.query,
+                root_dir=params.search_root,
+                depth=params.depth_final,
+                min_confidence=params.min_confidence,
+                top_n=params.top_n_final,
+                non_interactive=params.non_interactive_final,
+                no_index=params.no_index_final,
+                latest=params.latest,
+                largest=params.largest,
+                smallest=params.smallest,
+                oldest=params.oldest,
+                ext=params.ext,
+                respect_gitignore=params.respect_gitignore_final,
+                exclude_patterns=[] if params.has_explicit_root else None,
+                read_content=params.read_content,
             )
         except Exception as exc:
             err_console.print(f"[bold red]Search Engine error:[/] {exc}")
             sys.exit(1)
 
         if search_result.status == "success":
-            if search_result.message:
-                console.print(f"[yellow]ℹ {search_result.message}[/]")  # noqa: RUF001
-
-            primary = search_result.match
-            near_misses: list = list(search_result.near_misses)
-
-            # Highlight snippets with the query actually used for content matching
-            # (e.g. the sugar query "misc.md" matches content with just "misc").
-            snippet_query = search_result.content_query or query
-
-            is_sorted = (
-                latest
-                or largest
-                or smallest
-                or oldest
-                or re.search(
-                    r"\b(latest|newest|lastest|oldest|largest|biggest|smallest|tiniest)\b",
-                    query,
-                    re.IGNORECASE,
-                )
-            )
-
-            if not is_sorted and _is_generic_stem(primary.path.stem):
-                all_results = [primary, *near_misses]
-                non_generic = [r for r in all_results if not _is_generic_stem(r.path.stem)]
-                generic = [r for r in all_results if _is_generic_stem(r.path.stem)]
-                if non_generic:
-                    primary = non_generic[0]
-                    near_misses = [*non_generic[1:], *generic]
-
-            displayed_near_misses: list = []
-            if near_misses and top_n_final > 1:
-                displayed_near_misses = get_ordered_display_matches(
-                    near_misses,
-                    search_root=search_root,
-                    limit=top_n_final - 1,
-                )
-
-            _save_search_snapshot(
-                search_root=search_root,
-                query=query,
-                status="success",
-                elapsed_seconds=search_result.elapsed_seconds,
-                content_query=search_result.content_query,
-                match=primary,
-                near_misses=displayed_near_misses,
-            )
-
-            # Output results
-            if json_output:
-                click.echo(json.dumps(search_result.to_dict(), indent=2))
-                sys.exit(0)
-
-            match_count_header = ""
-            if primary.snippets:
-                n_snip = len(primary.snippets)
-                plural = "s" if n_snip > 1 else ""
-                match_count_header = f" ({n_snip} line occurrence{plural})"
-            meta = _format_file_meta(primary.path) + (
-                f" [dim]({primary.handler}, confidence: {primary.confidence:.2f})[/]"
-                if verbose_final
-                else ""
-            )
-            copy_to_clipboard(str(primary.path))
-            escaped_path = escape(str(primary.path))
-            time_str = (
-                f" [dim cyan]({_format_elapsed_time(search_result.elapsed_seconds)})[/]"
-                if search_result.elapsed_seconds > 0
-                else ""
-            )
-
-            msg_hdr = f"[bold green]✔ Success{time_str}:[/] Found match{match_count_header}:"
-
-            console.print(f"{msg_hdr} [bold cyan]{escaped_path}[/]{meta}")
-            if primary.snippets:
-                for line_num, snippet_text in primary.snippets:
-                    formatted_snippet = _format_snippet(snippet_text, snippet_query)
-                    console.print(f"  [dim]└─ L{line_num}:[/] {formatted_snippet}")
-            if displayed_near_misses:
-                _print_grouped_matches(
-                    displayed_near_misses,
-                    limit=len(displayed_near_misses),
-                    verbose=verbose_final,
-                    query=snippet_query,
-                    start_index=2,
-                )
-
-            sys.exit(0)
+            _handle_search_success(search_result, params)
         elif search_result.status == "ambiguous":
-            if not non_interactive_final and search_result.near_misses:
-                from sempath.cli.prompter import prompt_disambiguation_selection
-
-                try:
-                    selected_nm = prompt_disambiguation_selection(
-                        search_result.near_misses, verbose=verbose_final
-                    )
-                except click.Abort:
-                    displayed_ambiguous = get_ordered_display_matches(
-                        search_result.near_misses,
-                        search_root=search_root,
-                        limit=top_n_final,
-                    )
-                    _save_search_snapshot(
-                        search_root=search_root,
-                        query=query,
-                        status="ambiguous",
-                        elapsed_seconds=search_result.elapsed_seconds,
-                        content_query=search_result.content_query,
-                        near_misses=displayed_ambiguous,
-                    )
-                    console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
-                    if displayed_ambiguous:
-                        _print_grouped_matches(
-                            displayed_ambiguous,
-                            limit=len(displayed_ambiguous),
-                            verbose=verbose_final,
-                        )
-                    sys.exit(1)
-
-                if selected_nm is not None:
-                    try:
-                        from sempath.utils.memory import add_or_update_memory
-
-                        add_or_update_memory(query, selected_nm.path)
-                        err_console.print(
-                            f"[bold green]Confirmed:[/] Learned alias "
-                            f"[cyan]{escape(query)}[/] -> [bold]{escape(str(selected_nm.path))}[/]"
-                        )
-                        err_console.print("[dim](run 'sempath alias undo' to revert)[/]")
-                    except Exception as exc:
-                        from sempath.utils.logging import verbose_log
-
-                        verbose_log(f"[dim]Failed to save learned memory: {exc}[/]")
-
-                    # Save confirmed match as primary in history
-                    top_cands = list(search_result.near_misses)[:5]
-                    remaining_candidates = [c for c in top_cands if c.path != selected_nm.path]
-                    _save_search_snapshot(
-                        search_root=search_root,
-                        query=query,
-                        status="success",
-                        elapsed_seconds=search_result.elapsed_seconds,
-                        content_query=search_result.content_query,
-                        match=selected_nm,
-                        near_misses=remaining_candidates,
-                    )
-
-                    meta = _format_file_meta(selected_nm.path) + (
-                        f" [dim]({selected_nm.handler}, "
-                        f"confidence: {selected_nm.confidence:.2f})[/]"
-                        if verbose_final
-                        else ""
-                    )
-                    copy_to_clipboard(str(selected_nm.path))
-                    console.print(
-                        f"[bold green]✔ Success:[/] Found match: "
-                        f"[bold cyan]{escape(str(selected_nm.path))}[/]{meta}"
-                    )
-                    sys.exit(0)
-
-            displayed_ambiguous = get_ordered_display_matches(
-                search_result.near_misses,
-                search_root=search_root,
-                limit=top_n_final,
-            )
-            _save_search_snapshot(
-                search_root=search_root,
-                query=query,
-                status="ambiguous",
-                elapsed_seconds=search_result.elapsed_seconds,
-                content_query=search_result.content_query,
-                near_misses=displayed_ambiguous,
-            )
-
-            if json_output:
-                click.echo(json.dumps(search_result.to_dict(), indent=2))
-                sys.exit(1)
-
-            console.print(f"[bold yellow]⚠ Ambiguous query:[/] {search_result.message}")
-            if displayed_ambiguous:
-                _print_grouped_matches(
-                    displayed_ambiguous,
-                    limit=len(displayed_ambiguous),
-                    verbose=verbose_final,
-                )
-            sys.exit(1)
+            _handle_search_ambiguous(search_result, params)
         else:
-            if json_output:
-                click.echo(json.dumps(search_result.to_dict(), indent=2))
-                sys.exit(1)
-            console.print(f"[bold red]❌ Failed:[/] {search_result.message}")
-            sys.exit(1)
+            _handle_search_failed(search_result, params)
